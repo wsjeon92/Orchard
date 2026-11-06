@@ -6,7 +6,7 @@ import {
   addEdge, addHyper, addNode, deepAncestors, deepChildren, degree, descendantsOf,
   dropEdge, dropNode, edgeAddMember, edgeDelMember, focusSet, foldKids, hiddenSet,
   isSubDescendant, promote, removeFromGroup, subAncestors, subChildren, tidyGroup,
-  tidySubs, ungroup,
+  tidySubs, ungroup, tidyOverlaps, nudgeFree,
 } from "./graph";
 import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
@@ -146,6 +146,22 @@ el("animOn").onchange = (e) => {
   if (!VIEW.anim) { snapPositions(); paint(); }
 };
 el("foldAllSw").onchange = (e) => foldAll((e.target as HTMLInputElement).checked);
+el("btnTidy").onclick = () => {
+  const moved = tidyOverlaps();
+  if (!moved) { flashTidy("겹친 키워드가 없습니다"); return; }
+  save();                       // 실행 취소 스냅샷도 여기에 걸린다
+  render();                     // x/y 가 바뀌었으니 애니메이션으로 미끄러진다
+  flashTidy(`${moved}개를 옮겼습니다`);
+};
+/** 버튼 옆에 결과를 잠깐 보여준다 — 아무 일도 안 일어난 것처럼 보이면 눌렀는지 알 수 없다 */
+let tidyTimer: ReturnType<typeof setTimeout> | null = null;
+function flashTidy(msg: string) {
+  const b = el("btnTidy");
+  const keep = b.dataset.label ?? (b.dataset.label = b.textContent ?? "겹침 정리");
+  b.textContent = msg;
+  if (tidyTimer) clearTimeout(tidyTimer);
+  tidyTimer = setTimeout(() => { b.textContent = keep; }, 1600);
+}
 
 bindModals(syncViewPop);
 bindCanvas();
@@ -183,7 +199,7 @@ const api = {
   render, paint, applyView, fit, select, setFocus, toggleFold, foldAll, lightRedraw,
   addNode, addEdge, addHyper, promote, dropNode, dropEdge,
   edgeAddMember, edgeDelMember, groupWith, removeFromGroup, ungroup, tidyGroup, tidySubs,
-  addSubKeywords, addGroupMembers,
+  addSubKeywords, addGroupMembers, nudgeFree, tidyOverlaps,
   subChildren, subAncestors, deepChildren, deepAncestors, isSubDescendant,
   focusSet, degree, hiddenSet, foldKids, descendantsOf,
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,

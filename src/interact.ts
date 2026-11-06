@@ -2,7 +2,7 @@ import { elblEls, nodeEls, screenToWorld, stage } from "./dom";
 import { isPinned, labelOffset, pinnedPos, px, py, snapToEdge } from "./geom";
 import {
   addEdge, addNode, canGroup, dropEdge, dropNode, edgeAddMember,
-  groupOf, hitTarget, removeFromGroup,
+  groupOf, hitTarget, removeFromGroup, nudgeFree,
 } from "./graph";
 import { groupWith } from "./panel";
 import { Drop, applyView, paint, render, select, setBindLabel, setDragLine } from "./render";
@@ -207,6 +207,8 @@ export function bindCanvas() {
         groupWith(d.id, tgt);
         return;
       }
+      // 다른 노드 위에 놓였으면 가장 가까운 빈자리로 민다 (새로 만들 때와 같은 규칙)
+      if (d.moved) nudgeFree(d.id);
       // 그룹 밖으로 끌어내면 빠진다
       if (d.moved && !d.group) {
         const g = groupOf(d.id), n = nodeOf(d.id);

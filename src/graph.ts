@@ -93,14 +93,24 @@ export function focusSet(id: string, hops = VIEW.hops): Set<string> {
 /* ---------------- 접기 ---------------- */
 export const foldKids = (id: string) => [...deepChildren(id), ...subChildren(id)];
 /** 접힌 노드의 자손 전부 — 화면에서 아예 뺀다 */
+/** 접었을 때 같이 사라져야 하는 것들.
+ *  하위(sub)·깊이(deep) 자식에 더해, 그룹을 만나면 그 멤버까지 따라 내려간다.
+ *  예전에는 멤버를 안 따라가서 '단백질'을 접으면 '단백질 물성' 그룹 상자만 사라지고
+ *  그 안의 안정성·발현·결합은 허공에 남아 있었다. */
 export function descendantsOf(id: string): Set<string> {
   const out = new Set<string>();
-  const stack = foldKids(id).map((c) => c.id);
+  const kidsOf = (x: string): string[] => {
+    const ids = foldKids(x).map((c) => c.id);
+    const n = nodeOf(x);
+    if (n && isGroup(n)) ids.push(...(n.members ?? []));
+    return ids;
+  };
+  const stack = kidsOf(id);
   while (stack.length) {
     const cur = stack.pop()!;
-    if (out.has(cur)) continue;
+    if (out.has(cur) || cur === id) continue;
     out.add(cur);
-    foldKids(cur).forEach((c) => stack.push(c.id));
+    kidsOf(cur).forEach((c) => stack.push(c));
   }
   return out;
 }
@@ -111,6 +121,64 @@ export function hiddenSet(): Set<string> {
 }
 
 /* ---------------- 배치 ---------------- */
+/* ---------------- 노드 겹침 정리 ----------------
+   새로 만들 때(placeFree)와 끌어다 놓을 때가 다른 기준을 쓰면 사용자가 규칙을 못 익힌다.
+   여백 값을 한 군데서 쓰고, 그룹에 속한 노드는 건드리지 않는다 — 그쪽 배치는 tidyGroup 담당이다. */
+const MX = 26, MY = 20;
+
+function hits(ax: number, ay: number, aw: number, ah: number, n: GNode): boolean {
+  const nw = n._w ?? 150, nh = n._h ?? 40;
+  return ax < n.x + nw + MX && ax + aw + MX > n.x && ay < n.y + nh + MY && ay + ah + MY > n.y;
+}
+
+/** 겹쳐 있으면 제자리에서 바깥으로 넓혀가며 가장 가까운 빈자리를 찾는다.
+ *  이미 괜찮으면 null — 안 겹치는 노드는 절대 움직이지 않는다. */
+function findFree(n: GNode, obstacles: GNode[]): { x: number; y: number } | null {
+  const w = n._w ?? 150, h = n._h ?? 40;
+  if (!obstacles.some((o) => hits(n.x, n.y, w, h, o))) return null;
+  for (let r = 16; r <= 900; r += 16) {
+    for (let a = 0; a < 24; a++) {
+      const th = (a / 24) * Math.PI * 2;
+      const x = Math.round(n.x + Math.cos(th) * r);
+      const y = Math.round(n.y + Math.sin(th) * r);
+      if (!obstacles.some((o) => hits(x, y, w, h, o))) return { x, y };
+    }
+  }
+  return null;
+}
+
+const loose = (skip?: string) =>
+  S.nodes.filter((n) => n.id !== skip && !isGroup(n) && !groupOf(n.id));
+
+/** 방금 놓은 노드 하나만 빈자리로 민다. 이미 배치된 다른 노드는 건드리지 않는다. */
+export function nudgeFree(id: string): boolean {
+  const n = nodeOf(id);
+  if (!n || isGroup(n) || groupOf(id)) return false;
+  const p = findFree(n, loose(id));
+  if (!p) return false;
+  n.x = p.x; n.y = p.y;
+  return true;
+}
+
+/** 겹친 노드를 한꺼번에 푼다. 먼저 놓인 쪽을 두고 뒤엣것만 옮겨서
+ *  사용자가 잡아둔 배치가 통째로 흔들리지 않게 한다. 옮긴 개수를 돌려준다. */
+export function tidyOverlaps(): number {
+  let moved = 0;
+  for (let pass = 0; pass < 3; pass++) {
+    const list = loose();
+    let changed = 0;
+    for (let i = 1; i < list.length; i++) {
+      const p = findFree(list[i], list.slice(0, i));
+      if (!p) continue;
+      list[i].x = p.x; list[i].y = p.y;
+      changed++;
+    }
+    moved += changed;
+    if (!changed) break;
+  }
+  return moved;
+}
+
 export function placeFree(x: number, y: number, w = 150, h = 40) {
   for (let t = 0; t < 80; t++) {
     let hit = false;
