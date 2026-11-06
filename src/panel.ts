@@ -12,6 +12,75 @@ import { lightRedraw, render, select, setFocus, toggleFold } from "./render";
 import { S, UI, cut, edgeOf, esc, isGroup, kindOf, nodeOf, save } from "./state";
 import type { GEdge, GNode, NodeKind, Work } from "./types";
 
+/** 키워드 고르는 목록의 정렬 기준.
+ *  만든 순서대로 두면 키워드가 늘수록 눈으로 훑어야 해서 찾기가 힘들다.
+ *  localeCompare("ko") 가 숫자 → 영문 → 한글로 묶고 그 안에서 사전순으로 준다.
+ *  numeric 을 켜야 '후보 2' 가 '후보 10' 보다 앞에 온다. */
+const byLabel = (a: GNode, b: GNode) =>
+  (a.label || "").localeCompare(b.label || "", "ko", { numeric: true, sensitivity: "base" });
+
+/** 키워드를 검색해서 고르는 칸.
+ *  <select> 는 목록이 길어지면 눈으로 훑어야 해서 못 찾는다. 정렬만으로는 모자란다.
+ *  친 글자가 들어간 것만 추려 보여주고 누르면 바로 고른다 — 고르고 또 버튼을 누르는
+ *  두 단계도 없앴다. Enter 는 첫 번째 것을 고른다. */
+function keywordPicker(
+  parent: HTMLElement,
+  placeholder: string,
+  pool: GNode[],
+  onPick: (id: string) => void,
+  note?: (n: GNode) => string,
+) {
+  if (!pool.length) return;
+  const wrap = div(parent, "picker");
+  const inp = document.createElement("input");
+  inp.className = "inp";
+  inp.type = "text";
+  inp.placeholder = `${placeholder} (${pool.length}개)`;
+  wrap.appendChild(inp);
+  const list = div(wrap, "plist");
+
+  const MAX = 10;
+  const draw = () => {
+    const q = inp.value.trim().toLowerCase();
+    const hit = (q ? pool.filter((n) => (n.label || "").toLowerCase().includes(q)) : pool);
+    list.innerHTML = "";
+    if (!hit.length) {
+      const e = div(list, "pempty");
+      e.textContent = "맞는 키워드가 없습니다";
+      return;
+    }
+    hit.slice(0, MAX).forEach((n, i) => {
+      const b = document.createElement("button");
+      b.className = "prow" + (i === 0 ? " first" : "");
+      b.innerHTML = '<span class="pn"></span><span class="pg"></span>';
+      b.querySelector<HTMLElement>(".pn")!.textContent = n.label || "(제목 없음)";
+      const nt = note?.(n);
+      if (nt) b.querySelector<HTMLElement>(".pg")!.textContent = nt;
+      b.onmousedown = (ev) => ev.preventDefault();   // 누르기 전에 blur 되어 목록이 닫히지 않게
+      b.onclick = () => onPick(n.id);
+      list.appendChild(b);
+    });
+    if (hit.length > MAX) {
+      const e = div(list, "pempty");
+      e.textContent = `그 밖에 ${hit.length - MAX}개 — 더 치면 좁혀집니다`;
+    }
+  };
+
+  inp.addEventListener("input", draw);
+  inp.addEventListener("focus", draw);
+  inp.addEventListener("blur", () => setTimeout(() => { list.innerHTML = ""; }, 120));
+  inp.addEventListener("keydown", (ev) => {
+    const k = (ev as KeyboardEvent).key;
+    if (k === "Enter") {
+      ev.preventDefault();
+      list.querySelector<HTMLButtonElement>(".prow.first")?.click();
+    } else if (k === "Escape") {
+      ev.preventDefault();
+      if (inp.value) { inp.value = ""; draw(); } else inp.blur();
+    }
+  });
+}
+
 export function renderSide() {
   if (!UI.sel) { side.classList.add("hidden"); return; }
   const obj = UI.sel.type === "node" ? nodeOf(UI.sel.id) : edgeOf(UI.sel.id);
@@ -156,20 +225,10 @@ function groupMembers(body: HTMLElement, n: GNode) {
 
   // 이미 캔버스에 있는 노드를 골라 넣는 길
   const pool = S.nodes.filter((x) => canGroup(x) && x.id !== n.id
-    && !(n.members ?? []).includes(x.id) && !isGroup(x));
-  if (pool.length) {
-    const r = div(body, "addrow");
-    const selEl = document.createElement("select");
-    selEl.className = "inp";
-    selEl.innerHTML = `<option value="">키워드를 골라 이 그룹에 넣기…</option>`
-      + pool.map((x) => {
-        const g = groupOf(x.id);
-        return `<option value="${x.id}">${esc(x.label || "(제목 없음)")}`
-          + `${g ? ` — ${esc(cut(g.label || "그룹", 12))}에서 이동` : ""}</option>`;
-      }).join("");
-    r.appendChild(selEl);
-    btn(r, "abtn", "넣기", () => { if (selEl.value) groupWith(selEl.value, n.id); });
-  }
+    && !(n.members ?? []).includes(x.id) && !isGroup(x)).sort(byLabel);
+  keywordPicker(body, "키워드를 찾아 이 그룹에 넣기", pool,
+    (id) => groupWith(id, n.id),
+    (x) => { const g = groupOf(x.id); return g ? `${cut(g.label || "그룹", 12)}에서 이동` : ""; });
 }
 
 /** "확산 모델, 플로우 매칭" → 새 키워드 노드를 만들어 그룹 멤버로 넣는다 */
@@ -300,21 +359,11 @@ function renderSubs(body: HTMLElement, n: GNode) {
   });
 
   const pool = S.nodes.filter((x) => kindOf(x).axis === "b" && x.id !== n.id
-    && !subParentEdge(x.id) && !isSubDescendant(x.id, n.id));
-  if (pool.length) {
-    const r = div(body, "addrow");
-    const selEl = document.createElement("select");
-    selEl.className = "inp";
-    selEl.innerHTML = `<option value="">이미 있는 키워드를 하위로 붙이기…</option>`
-      + pool.map((x) => `<option value="${x.id}">${esc(x.label || "(제목 없음)")}</option>`).join("");
-    r.appendChild(selEl);
-    btn(r, "abtn", "붙이기", () => {
-      if (!selEl.value) return;
-      addEdge(n.id, selEl.value, "sub");
-      select("node", n.id);
-    });
-  }
-
+    && !subParentEdge(x.id) && !isSubDescendant(x.id, n.id)).sort(byLabel);
+  keywordPicker(body, "이미 있는 키워드를 하위로 붙이기", pool, (id) => {
+    addEdge(n.id, id, "sub");
+    select("node", n.id);
+  });
   if (!kids.length) {
     div(body, "empty").innerHTML = "쉼표로 구분하면 한 번에 여러 개가 등록됩니다. "
       + "<b>구성 요소</b>가 <i>무엇으로 이루어졌나</i>라면, 하위 키워드는 <i>어떤 종류가 있나</i>입니다.";
@@ -418,21 +467,12 @@ function edgePanel(e: GEdge, kindEl: HTMLElement, titleEl: HTMLElement,
       c.appendChild(x);
     }
   });
-  const pool = S.nodes.filter((n) => kindOf(n).axis === "b" && !(e.members ?? []).includes(n.id));
-  if (pool.length) {
-    const addM = div(body, "addrow");
-    const selEl = document.createElement("select");
-    selEl.className = "inp";
-    selEl.innerHTML = `<option value="">키워드를 골라 이 엣지에 추가…</option>`
-      + pool.map((n) => `<option value="${n.id}">${esc(n.label || "(제목 없음)")}</option>`).join("");
-    addM.appendChild(selEl);
-    btn(addM, "abtn", "추가", () => {
-      if (!selEl.value) return;
-      edgeAddMember(e.id, selEl.value);
-      select("edge", e.id);
-    });
-  }
-
+  const pool = S.nodes.filter((n) => kindOf(n).axis === "b" && !(e.members ?? []).includes(n.id))
+    .sort(byLabel);
+  keywordPicker(body, "키워드를 찾아 이 엣지에 추가", pool, (id) => {
+    edgeAddMember(e.id, id);
+    select("edge", e.id);
+  });
   // 승격 후보 — 이 교차에 붙일 이름을 직접 적고 골라서 노드로 올린다.
   const h = sect(body, "승격 후보");
   const hint = document.createElement("span");

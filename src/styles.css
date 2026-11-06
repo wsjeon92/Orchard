@@ -192,6 +192,17 @@ code{background:var(--panel3);padding:1px 5px;border-radius:4px;font-size:11.5px
 .work .wlinks{display:flex;gap:8px;align-items:center;margin-top:7px;flex-wrap:wrap}
 .work .wlinks a{font-size:11.5px;color:#5aa9ff;text-decoration:none}
 .work .wlinks a:hover{text-decoration:underline}
+.picker{position:relative;margin-bottom:8px}
+.plist{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;max-height:264px;overflow:auto;
+  background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+  box-shadow:0 10px 26px rgba(0,0,0,.45)}
+.plist:empty{display:none}
+.prow{display:flex;align-items:baseline;gap:8px;width:100%;padding:7px 10px;text-align:left;
+  border:none;background:none;font-size:12.5px;color:var(--text)}
+.prow:hover,.prow:focus{background:var(--panel3)}
+.prow .pn{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prow .pg{flex:0 0 auto;font-size:11px;color:var(--dim2)}
+.pempty{padding:7px 10px;font-size:11.5px;color:var(--dim2)}
 .addrow{display:flex;gap:6px;margin-bottom:8px}
 .addrow .inp{flex:1}
 

@@ -29,16 +29,18 @@ with sync_playwright() as p:
 
     pg.evaluate("() => Orchard.select('node', Orchard.S.nodes.find(n=>n.kind==='group').id)")
     pg.wait_for_timeout(250)
-    sel_el = pg.locator("#sideBody select").first
-    rec(("드롭다운 존재", pg.locator("#sideBody select").count()))
-    rec(("후보 목록", pg.evaluate("""() => [...document.querySelectorAll('#sideBody select option')]
-        .map(o=>o.textContent).slice(1)""")))
+    # 고르기 칸은 드롭다운에서 검색형으로 바뀌었다 (smoke_picker.py 가 자세히 본다)
+    pick = pg.locator("#sideBody .picker .inp").first
+    rec(("고르기 칸 존재", pg.locator("#sideBody .picker").count()))
+    pick.click(); pg.wait_for_timeout(200)
+    rec(("후보 목록", pg.evaluate("""() => [...document.querySelectorAll('#sideBody .plist .pn')]
+        .map(o=>o.textContent)""")))
 
-    # 멀리 있는 VAE 를 드롭다운으로 넣기
-    sel_el.select_option(label="VAE")
-    pg.locator("#sideBody .addrow button", has_text="넣기").first.click()
+    # 멀리 있는 VAE 를 검색해서 넣기
+    pick.fill("VAE"); pg.wait_for_timeout(200)
+    pg.locator("#sideBody .plist .prow").first.click()
     pg.wait_for_timeout(300)
-    rec(("드롭다운으로 추가", pg.evaluate("""() => {
+    rec(("검색으로 추가", pg.evaluate("""() => {
         const g=Orchard.S.nodes.find(n=>n.kind==='group');
         const v=Orchard.S.nodes.find(n=>n.label==='VAE');
         return {멤버:g.members.map(m=>(Orchard.S.nodes.find(x=>x.id===m)||{}).label),
@@ -48,8 +50,9 @@ with sync_playwright() as p:
     # 이미 멤버인 노드는 목록에서 빠지는지
     pg.evaluate("() => Orchard.select('node', Orchard.S.nodes.find(n=>n.kind==='group').id)")
     pg.wait_for_timeout(200)
-    rec(("멤버는 목록에서 제외", pg.evaluate("""() => [...document.querySelectorAll('#sideBody select option')]
-        .map(o=>o.textContent).slice(1)""")))
+    pg.locator("#sideBody .picker .inp").first.click(); pg.wait_for_timeout(200)
+    rec(("멤버는 목록에서 제외", pg.evaluate("""() => [...document.querySelectorAll('#sideBody .plist .pn')]
+        .map(o=>o.textContent)""")))
 
     # 빼기
     pg.locator("#sideBody .chip", has_text="VAE").locator("button", has_text="빼기").click()
