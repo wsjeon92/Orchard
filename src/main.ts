@@ -12,7 +12,9 @@ import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
 } from "./history";
 import { bindMinimap, drawMini } from "./minimap";
-import { bindModals, closeAll, loadSlot, openBulk, setApplyView, toMarkdown } from "./modals";
+import {
+  bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown,
+} from "./modals";
 import { bindCanvas, initInteract, setFitRef } from "./interact";
 import { addGroupMembers, addSubKeywords, groupWith } from "./panel";
 import {
@@ -52,6 +54,19 @@ function addFromBar() {
 el("btnAdd").onclick = addFromBar;
 el("newkw").addEventListener("keydown", (e) => {
   if ((e as KeyboardEvent).key === "Enter") addFromBar();
+});
+
+/* 그래프 이름 — 내보내기 파일명과 마크다운 제목에 쓰인다 */
+const titleEl = el<HTMLInputElement>("gtitle");
+titleEl.addEventListener("input", () => {
+  S.title = titleEl.value;
+  titleEl.classList.toggle("named", !!titleEl.value.trim());
+  document.title = titleEl.value.trim()
+    ? `${titleEl.value.trim()} — Orchard` : "Orchard — 연구 아이디어 디벨롭";
+  save();
+});
+titleEl.addEventListener("keydown", (e) => {
+  if ((e as KeyboardEvent).key === "Enter") titleEl.blur();
 });
 
 el("btnFit").onclick = () => { UI.focusId = null; render(); fit(); };
@@ -140,6 +155,7 @@ loadView();
 hopsEl.value = String(VIEW.hops);
 el("hopsN").textContent = String(VIEW.hops);
 if (!load()) seed();
+syncTitleInput();
 render();
 if (!S.view.x && !S.view.y) fit();
 updateUndoBtns();
@@ -170,7 +186,7 @@ const api = {
   subChildren, subAncestors, deepChildren, deepAncestors, isSubDescendant,
   focusSet, degree, hiddenSet, foldKids, descendantsOf,
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,
-  toMarkdown, openBulk, closeAll, drawMini,
+  toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
   stacks, resetHistory: () => { resetHistoryBase(); clearStacks(); },
   slotLoad: (name: string) => loadSlot(name),

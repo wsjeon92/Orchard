@@ -1,5 +1,8 @@
 import { div, el } from "./dom";
-import { adopt, S, UI, VIEW, cut, esc, isGroup, kindOf, nodeOf, save, saveView, slotDelete, slots, slotSave } from "./state";
+import {
+  adopt, S, UI, VIEW, cut, esc, isGroup, kindOf, nodeOf, safeName, save, saveView,
+  slotDelete, slots, slotSave, strip,
+} from "./state";
 import { deepChildren, deepParentEdge, parseWorkLine, subChildren, subParentEdge } from "./graph";
 import { elblEls, nodeEls } from "./dom";
 import { fit, render } from "./render";
@@ -40,7 +43,7 @@ export function toMarkdown(): string {
   const wl = (o: { works?: Work[] }, ind = "") => (o.works ?? []).map((w) =>
     `${ind}- ${w.name}${w.year ? ` (${w.year})` : ""}${w.venue ? `, ${w.venue}` : ""}`
     + `${w.note ? ` — ${w.note}` : ""}${w.url ? ` <${w.url}>` : ""}`).join("\n");
-  let out = "# Orchard\n\n";
+  let out = `# ${S.title?.trim() || "Orchard"}\n\n`;
 
   const groups = S.nodes.filter(isGroup);
   if (groups.length) {
@@ -147,7 +150,17 @@ export function loadSlot(name: string) {
   UI.sel = null; UI.focusId = null; UI.marked.clear();
   adopt(s.data);
   resetHistoryBase();
+  syncTitleInput();
   render(); fit();
+}
+
+/** 상단 이름칸을 현재 그래프에 맞춘다 */
+export function syncTitleInput() {
+  const i = document.getElementById("gtitle") as HTMLInputElement | null;
+  if (!i) return;
+  i.value = S.title ?? "";
+  i.classList.toggle("named", !!i.value.trim());
+  document.title = i.value.trim() ? `${i.value.trim()} — Orchard` : "Orchard — 연구 아이디어 디벨롭";
 }
 
 function renderSlots() {
@@ -212,15 +225,18 @@ export function bindModals(syncViewPop: () => void) {
   el("btnExport").onclick = () => {
     el<HTMLTextAreaElement>("expMd").value = toMarkdown();
     el<HTMLTextAreaElement>("expJson").value = JSON.stringify(stripForExport(), null, 2);
+    const n = safeName(S.title);
+    el("expMdDl").textContent = `${n}.md 다운로드`;
+    el("expJsonDl").textContent = `${n}.json 다운로드`;
     el("expMask").classList.remove("hidden");
   };
   el("expClose").onclick = () => el("expMask").classList.add("hidden");
   el("expMdCopy").onclick = (e) => copyFrom("expMd", e.target as HTMLElement);
   el("expJsonCopy").onclick = (e) => copyFrom("expJson", e.target as HTMLElement);
   el("expMdDl").onclick = () =>
-    download(el<HTMLTextAreaElement>("expMd").value, "orchard.md", "text/markdown");
+    download(el<HTMLTextAreaElement>("expMd").value, safeName(S.title) + ".md", "text/markdown");
   el("expJsonDl").onclick = () =>
-    download(el<HTMLTextAreaElement>("expJson").value, "orchard.json", "application/json");
+    download(el<HTMLTextAreaElement>("expJson").value, safeName(S.title) + ".json", "application/json");
 
   el("btnImport").onclick = () => {
     el<HTMLTextAreaElement>("impIn").value = "";
@@ -236,6 +252,7 @@ export function bindModals(syncViewPop: () => void) {
       UI.sel = null; UI.focusId = null; UI.marked.clear();
       adopt(o);
       resetHistoryBase();
+      syncTitleInput();
       el("impMask").classList.add("hidden");
       render(); fit();
     } catch (e) {
@@ -244,7 +261,7 @@ export function bindModals(syncViewPop: () => void) {
   };
 
   el("btnSlots").onclick = () => {
-    el<HTMLInputElement>("slotName").value = "";
+    el<HTMLInputElement>("slotName").value = S.title?.trim() ?? "";
     renderSlots();
     el("slotMask").classList.remove("hidden");
     setTimeout(() => el("slotName").focus(), 30);
@@ -286,9 +303,5 @@ export function setApplyView(fn: () => void) { applyViewRef = fn; }
 
 function stripForExport() {
   save();                       // 최신 상태 반영
-  return JSON.parse(JSON.stringify({
-    nodes: S.nodes.map(({ _w, _h, _rx, _ry, _enterUntil, _suggest, ...r }) => r),
-    edges: S.edges.map(({ _anchor, _dir, _off, _offR, ...e }) => e),
-    view: S.view, seq: S.seq,
-  }));
+  return JSON.parse(JSON.stringify(strip()));   // title 까지 포함된다
 }

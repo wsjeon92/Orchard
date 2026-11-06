@@ -16,6 +16,14 @@ code{background:var(--panel3);padding:1px 5px;border-radius:4px;font-size:11.5px
   background:var(--panel);border-bottom:1px solid var(--line);z-index:30}
 #brand{font-weight:650;letter-spacing:-.01em;white-space:nowrap}
 #brand span{color:var(--dim2);font-weight:400;font-size:12px;margin-left:8px}
+/* 그래프 이름 — 평소엔 글자만, 만지면 입력칸처럼 */
+#gtitle{width:150px;padding:5px 8px;border-radius:7px;border:1px solid transparent;
+  background:transparent;outline:none;font-size:13px;color:var(--dim);transition:.12s}
+#gtitle:hover{border-color:var(--line);color:var(--text)}
+#gtitle:focus{border-color:#5aa9ff;background:var(--panel2);color:var(--text);width:220px}
+#gtitle.named{color:var(--text);font-weight:600}
+#gtitle::placeholder{color:var(--dim2);font-weight:400}
+.vsep{width:1px;height:20px;background:var(--line);flex:0 0 auto;margin:0 2px}
 .tbtn{padding:6px 11px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);
   color:var(--text);font-size:13px;white-space:nowrap;transition:.12s}
 .tbtn:hover{background:var(--panel3);border-color:#39404d}

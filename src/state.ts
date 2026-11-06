@@ -13,7 +13,7 @@ const LS_OLD = [
 const LS_SLOTS = "kwgraph.slots";
 const LS_VIEW = "kwgraph.view";
 
-export let S: GraphState = { nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1 };
+export let S: GraphState = { title: "", nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1 };
 export let VIEW: ViewSettings = {
   labelZoom: 0.45, sizeByDeg: true, minimap: true, hops: 3, anim: true,
 };
@@ -32,6 +32,16 @@ export function setSel(next: Selection) { UI.sel = next; }
 export function setFocusId(next: string | null) { UI.focusId = next; }
 export function setQuery(next: string) { UI.query = next; }
 export function setHidden(next: Set<string>) { UI.hidden = next; }
+
+/** 그래프 이름을 파일명으로 쓸 수 있게 다듬는다 */
+export function safeName(t: string | undefined, fallback = "orchard"): string {
+  const s = (t ?? "").trim()
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "")   // 파일명에 못 쓰는 문자
+    .replace(/\s+/g, " ")
+    .slice(0, 60)
+    .replace(/[. ]+$/, "");                      // 윈도우는 끝의 점·공백을 싫어한다
+  return s || fallback;
+}
 
 export const uid = (p: string) => p + (S.seq++);
 export const nodeOf = (id: string | undefined) => S.nodes.find((n) => n.id === id);
@@ -55,6 +65,7 @@ export const edgeMembers = (e: GEdge): string[] =>
 /** 저장용 형태. 밑줄로 시작하는 런타임 값은 전부 떨군다. */
 export function strip() {
   return {
+    title: S.title ?? "",
     nodes: S.nodes.map(({ _w, _h, _rx, _ry, _enterUntil, _suggest, ...r }) => ({
       ...r,
       works: (r.works ?? []).map(({ open, ...w }) => w),
@@ -117,7 +128,7 @@ export function normalize() {
 export function adopt(o: unknown): boolean {
   const g = o as GraphState | null;
   if (!g || !Array.isArray(g.nodes) || !g.nodes.length) return false;
-  setGraph(Object.assign({ view: { x: 0, y: 0, k: 1 }, seq: 1, edges: [] }, g));
+  setGraph(Object.assign({ title: "", view: { x: 0, y: 0, k: 1 }, seq: 1, edges: [] }, g));
   normalize();
   S.seq = Math.max(S.seq || 1, S.nodes.length + S.edges.length + 1);
   S.nodes.forEach((n) => { n._rx = n.x; n._ry = n.y; });

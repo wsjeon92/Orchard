@@ -105,6 +105,8 @@ export interface GEdge {
 export interface Viewport { x: number; y: number; k: number }
 
 export interface GraphState {
+  /** 이 그래프의 이름. 내보내기 파일명과 마크다운 제목에 쓰인다 */
+  title?: string;
   nodes: GNode[];
   edges: GEdge[];
   view: Viewport;
