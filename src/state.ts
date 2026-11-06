@@ -18,6 +18,13 @@ export let VIEW: ViewSettings = {
   labelZoom: 0.45, sizeByDeg: true, minimap: true, hops: 3, anim: true,
 };
 
+/* OS·브라우저의 '동작 줄이기' 설정.
+   기본값을 정하는 데만 쓴다. 예전에는 이 값이 참이면 애니메이션을 아예 잠가서,
+   사용자가 보기 패널에서 켜려 해도 체크박스가 회색으로 막혀 있었다.
+   접근성 설정은 출발점이지 잠금장치가 아니다 — 사용자가 켜면 그 선택이 이긴다. */
+export const reduceMotion =
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
 /** 선택, 집중, 검색어, 다중 선택, 접혀서 숨은 노드 — 그래프가 아니라 화면 상태 */
 export const UI = {
   sel: null as Selection,
@@ -165,10 +172,13 @@ export function saveView() {
   try { localStorage.setItem(LS_VIEW, JSON.stringify(VIEW)); } catch { /* 무시 */ }
 }
 export function loadView() {
+  let loaded = false;
   try {
     const r = localStorage.getItem(LS_VIEW);
-    if (r) VIEW = Object.assign(VIEW, JSON.parse(r));
+    if (r) { VIEW = Object.assign(VIEW, JSON.parse(r)); loaded = true; }
   } catch { /* 기본값을 쓴다 */ }
+  // 저장된 설정이 없는 첫 방문에만 OS 선호를 따른다. 한 번 고르면 그 선택이 남는다.
+  if (!loaded) VIEW.anim = !reduceMotion;
 }
 
 /* ---------------- 이름 붙인 저장본 ---------------- */

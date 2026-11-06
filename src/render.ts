@@ -143,8 +143,9 @@ export function applyView() {
   drawMini();
 }
 
-export const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-export const animAllowed = () => VIEW.anim && !reduceMotion;
+/* VIEW.anim 하나만 본다. '동작 줄이기'는 loadView 에서 기본값에 이미 반영돼 있고,
+   그 뒤로는 사용자가 보기 패널에서 고른 값이 우선이다. */
+export const animAllowed = () => VIEW.anim;
 
 export function drawEdges(fset: Set<string> | null, q: string) {
   let out = "";

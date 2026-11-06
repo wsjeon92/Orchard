@@ -21,12 +21,12 @@ import {
   edgeSegments, isPinned, labelTarget, matchNode, pinnedPos, snapToEdge,
 } from "./geom";
 import {
-  applyView, fit, foldAll, lightRedraw, paint, render, reduceMotion,
+  applyView, fit, foldAll, lightRedraw, paint, render,
   setFocus, setSelect, toggleFold,
 } from "./render";
 import {
   S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView, seed,
-  setGraph, setQuery, setSel, slotSave, slots, strip,
+  setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion,
 } from "./state";
 
 /* ---------------- 선택 ---------------- */
@@ -128,8 +128,9 @@ function syncViewPop() {
   el<HTMLInputElement>("degSize").checked = VIEW.sizeByDeg;
   el<HTMLInputElement>("miniOn").checked = VIEW.minimap;
   const ao = el<HTMLInputElement>("animOn");
-  ao.checked = VIEW.anim && !reduceMotion;
-  ao.disabled = reduceMotion;
+  ao.checked = VIEW.anim;
+  // 잠그지 않는다. 시스템이 '동작 줄이기'면 왜 기본이 꺼짐인지만 알려주고 선택은 맡긴다.
+  el("animHint").style.display = reduceMotion ? "" : "none";
   const foldable = S.nodes.filter((n) => foldKids(n.id).length);
   el<HTMLInputElement>("foldAllSw").checked =
     foldable.length > 0 && foldable.every((n) => !!n.collapsed);
