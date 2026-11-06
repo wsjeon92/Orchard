@@ -11,6 +11,7 @@ import { ask, openBulk } from "./modals";
 import { lightRedraw, render, select, setFocus, toggleFold } from "./render";
 import { S, UI, cut, edgeOf, esc, isGroup, kindOf, nodeOf, save } from "./state";
 import type { GEdge, GNode, NodeKind, Work } from "./types";
+import { isViewer } from "./viewer";
 
 /** 키워드 고르는 목록의 정렬 기준.
  *  만든 순서대로 두면 키워드가 늘수록 눈으로 훑어야 해서 찾기가 힘들다.
@@ -553,11 +554,19 @@ function edgePanel(e: GEdge, kindEl: HTMLElement, titleEl: HTMLElement,
 }
 
 function renderNote(body: HTMLElement, obj: GNode | GEdge) {
+  const text = obj.note ?? "";
+  // 읽기 전용인데 빈 칸만 띄우면 쓸 수 있는 것처럼 보이고 자리만 차지한다
+  if (isViewer() && !text.trim()) return;
   sect(body, "메모");
+  if (isViewer()) {
+    const p = div(body, "ronote");
+    p.textContent = text;
+    return;
+  }
   const ta = document.createElement("textarea");
   ta.className = "ta";
   ta.rows = 3;
-  ta.value = obj.note ?? "";
+  ta.value = text;
   ta.placeholder = "왜 이게 중요한지, 무엇을 확인해야 하는지…";
   ta.oninput = () => { obj.note = ta.value; save(); };
   body.appendChild(ta);

@@ -29,6 +29,7 @@ import {
   S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView, seed,
   setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion,
 } from "./state";
+import { bindViewer, isViewer, narrowScreen, setViewer } from "./viewer";
 
 /* ---------------- 선택 ---------------- */
 function select(type: "node" | "edge" | null, id?: string) {
@@ -142,6 +143,7 @@ function syncViewPop() {
   ao.checked = VIEW.anim;
   // 잠그지 않는다. 시스템이 '동작 줄이기'면 왜 기본이 꺼짐인지만 알려주고 선택은 맡긴다.
   el("animHint").style.display = reduceMotion ? "" : "none";
+  el<HTMLInputElement>("viewerOn").checked = isViewer();
   const foldable = S.nodes.filter((n) => foldKids(n.id).length);
   el<HTMLInputElement>("foldAllSw").checked =
     foldable.length > 0 && foldable.every((n) => !!n.collapsed);
@@ -174,6 +176,13 @@ function flashTidy(msg: string) {
   tidyTimer = setTimeout(() => { b.textContent = keep; }, 1600);
 }
 
+bindViewer(() => { syncViewPop(); render(); });
+el("sideClose").onclick = () => { select(null); };
+el("viewerOn").onchange = (e) => {
+  const on = (e.target as HTMLInputElement).checked;
+  // 화면 크기와 같은 값이면 '자동'으로 되돌려 다음에 창 크기가 바뀌면 따라오게 한다
+  setViewer(on === narrowScreen() ? null : on, () => { syncViewPop(); render(); });
+};
 bindModals(syncViewPop);
 bindCanvas();
 bindMinimap(applyView);
@@ -216,6 +225,7 @@ const api = {
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
+  isViewer, setViewer, narrowScreen,
   stacks, resetHistory: () => { resetHistoryBase(); clearStacks(); },
   slotLoad: (name: string) => loadSlot(name),
 };

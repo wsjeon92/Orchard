@@ -9,6 +9,7 @@ import { Drop, applyView, paint, render, select, setBindLabel, setDragLine } fro
 import { S, UI, VIEW, edgeOf, isGroup, nodeOf, save } from "./state";
 import { ask, closeAll } from "./modals";
 import { redo, undo } from "./history";
+import { isViewer } from "./viewer";
 
 type Drag =
   | { type: "pan"; sx: number; sy: number; vx: number; vy: number; moved: boolean }
@@ -37,6 +38,9 @@ export function bindNode(el: HTMLElement, id: string) {
     }
     const t = ev.target as HTMLElement;
     if (t.classList.contains("fold")) { drag = null; toggleFoldRef(id); return; }
+    /* 뷰어에서는 노드를 끌지 않는다. 끌기를 끄면 한 손가락이 온전히 화면 밀기에 쓰이고,
+       주머니 속 오작동으로 배치가 바뀔 일도 없다. 누르면 내용만 연다. */
+    if (isViewer()) { drag = null; select("node", id); return; }
     if (t.classList.contains("handle")) {
       drag = { type: "link", from: id, cur: screenToWorld(ev.clientX, ev.clientY) };
       stage.classList.add("linking");
@@ -99,6 +103,7 @@ export function initInteract(fns: { toggleFold: (id: string) => void; setFocus: 
       ev.preventDefault();
       const ed = edgeOf(le.dataset.eid);
       if (!ed) return;
+      if (isViewer()) { drag = null; select("edge", ed.id); return; }
       const w0 = screenToWorld(ev.clientX, ev.clientY);
       const here = ed.lpos ? pinnedPos(ed, false)! : {
         x: ed._anchor!.x + labelOffset(ed).dx,
@@ -148,17 +153,57 @@ function pickInBand(a: { x: number; y: number }, b: { x: number; y: number }) {
   return n;
 }
 
+/* ---------------- 두 손가락 집기(핀치) ----------------
+   휠이 없는 기기에서 줌할 방법이 이것뿐이다. 손가락 두 개를 따로 좇다가
+   둘이 모이면 집기로 넘어가고, 하나가 떨어지면 끌던 걸 멈춘다.
+   집는 동안 가운데 점에 있던 자리를 그대로 붙잡아 둬야 화면이 튀지 않는다. */
+const touches = new Map<number, { x: number; y: number }>();
+let pinch: { d0: number; m0x: number; m0y: number; k0: number; x0: number; y0: number } | null = null;
+
+const pinchGeom = () => {
+  const [a, b] = [...touches.values()];
+  return { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+};
+
+function startPinch() {
+  const r = stage.getBoundingClientRect();
+  const g = pinchGeom();
+  pinch = {
+    d0: Math.max(1, g.d), m0x: g.mx - r.left, m0y: g.my - r.top,
+    k0: S.view.k, x0: S.view.x, y0: S.view.y,
+  };
+  drag = null;                       // 한 손가락으로 밀던 건 그만둔다
+  stage.classList.remove("panning");
+}
+
+function stepPinch() {
+  if (!pinch || touches.size < 2) return;
+  const r = stage.getBoundingClientRect();
+  const g = pinchGeom();
+  const k = Math.min(2.5, Math.max(0.2, pinch.k0 * (g.d / pinch.d0)));
+  // 집기 시작할 때 가운데에 있던 월드 좌표를 지금 가운데에 그대로 둔다 (벌림과 밀기를 함께 처리)
+  S.view.x = (g.mx - r.left) - (pinch.m0x - pinch.x0) * (k / pinch.k0);
+  S.view.y = (g.my - r.top) - (pinch.m0y - pinch.y0) * (k / pinch.k0);
+  S.view.k = k;
+  applyView();
+}
+
 export function bindCanvas() {
   stage.addEventListener("pointerdown", (ev) => {
     if (ev.button !== 0 && ev.button !== 1) return;
     // 캔버스 위에 떠 있는 UI 는 pan 으로 집지 않는다.
     // (안 막으면 pointerup 의 "빈 곳 클릭" 처리가 click 보다 먼저 돌아 선택이 지워진다)
     if ((ev.target as HTMLElement).closest?.("#multi,#crumb,#zoomBox,#hint,#miniBox,#viewPop")) return;
+    if (ev.pointerType === "touch") {
+      touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (touches.size === 2) { startPinch(); return; }
+      if (touches.size > 2) return;
+    }
     ev.preventDefault();   // 캔버스 밖(사이드 패널)까지 번지는 드래그 선택을 막는다
     /* Shift+드래그 — 사각형으로 여러 개 고르기.
        Shift 는 이미 "더 고른다"는 뜻이라(Shift+클릭) 끌 때도 같은 뜻으로 둔다.
        이때는 화면을 밀지 않는다 — 한 손짓에 두 가지를 시키면 둘 다 어긋난다. */
-    if (ev.shiftKey && ev.button === 0) {
+    if (ev.shiftKey && ev.button === 0 && !isViewer()) {
       drag = { type: "band", sx: ev.clientX, sy: ev.clientY, cx: ev.clientX, cy: ev.clientY, moved: false };
       drawBand();
       return;
@@ -168,6 +213,10 @@ export function bindCanvas() {
   });
 
   window.addEventListener("pointermove", (ev) => {
+    if (ev.pointerType === "touch" && touches.has(ev.pointerId)) {
+      touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (pinch && touches.size >= 2) { stepPinch(); return; }
+    }
     if (!drag) return;
     if (drag.type === "pan") {
       const dx = ev.clientX - drag.sx, dy = ev.clientY - drag.sy;
@@ -227,7 +276,14 @@ export function bindCanvas() {
     }
   });
 
+  const endTouch = (ev: PointerEvent) => {
+    if (ev.pointerType !== "touch" || !touches.delete(ev.pointerId)) return;
+    if (touches.size < 2 && pinch) { pinch = null; save(); }
+  };
+  window.addEventListener("pointercancel", (ev) => { endTouch(ev); drag = null; });
+
   window.addEventListener("pointerup", (ev) => {
+    endTouch(ev);
     if (!drag) return;
     const d = drag;
 

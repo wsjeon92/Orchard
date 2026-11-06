@@ -306,3 +306,73 @@ code{background:var(--panel3);padding:1px 5px;border-radius:4px;font-size:11.5px
 .fld input:focus,.fld textarea:focus{border-color:#5aa9ff}
 .fld .fh{font-size:11.5px;color:var(--dim2);margin-top:5px;line-height:1.5}
 .mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+
+/* ---------- 폰 뷰어 ----------
+   편집용 화면을 그대로 좁히면 쓸 수 없다. 사이드 패널 360px 고정이 캔버스를 다 먹고,
+   상단바 한 줄에 버튼 여덟 개가 넘치고, 끌기가 브라우저 스크롤과 싸운다.
+   좁은 화면에서는 '보기'만 남긴다. */
+html.viewer #stage { touch-action: none }   /* 당겨서새로고침·확대와 싸우지 않게 */
+html.viewer #world { touch-action: none }
+
+/* 고치는 도구는 숨긴다 */
+html.viewer #gtitle,
+html.viewer #newkw,
+html.viewer #btnAdd,
+html.viewer #btnUndo,
+html.viewer #btnRedo,
+html.viewer #btnSlots,
+html.viewer #btnExport,
+html.viewer #saveMark,
+html.viewer .vsep,
+html.viewer #hint,
+html.viewer #multi { display: none }
+
+/* 노드·라벨을 끌 수 없으니 끌 수 있다는 표시도 지운다 */
+html.viewer .node, html.viewer .grp, html.viewer .elbl { cursor: pointer }
+html.viewer .handle { display: none }
+
+/* 패널 안에서 내용을 바꾸는 것들 */
+html.viewer #sideBody .picker,
+html.viewer #sideBody .addrow,
+html.viewer #sideBody .abtn,
+html.viewer #sideActs { display: none }
+html.viewer #sideBody .inp { pointer-events: none; opacity: .85 }
+
+@media (max-width: 760px) {
+  html.viewer #top { height: 46px; flex: 0 0 46px; padding: 0 10px; gap: 6px }
+  html.viewer #brand { font-size: 13px }
+  html.viewer #find { flex: 1 1 auto; min-width: 0 }
+  html.viewer .tbtn { padding: 6px 9px; font-size: 12px }
+
+  /* 사이드 패널 → 바닥에서 올라오는 시트. 360px 고정이면 390px 폰에서 캔버스가 30px 남는다 */
+  html.viewer #side {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+    width: auto; flex: none; height: 62vh; z-index: 40;
+    border-left: none; border-top: 1px solid var(--line);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -12px 34px rgba(0, 0, 0, .5);
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  html.viewer #side::before {        /* 잡는 손잡이 — 시트라는 걸 알려준다 */
+    content: ""; position: sticky; top: 0; display: block;
+    width: 38px; height: 4px; margin: 8px auto 2px;
+    border-radius: 2px; background: var(--line);
+  }
+  html.viewer #sideHead { position: sticky; top: 0; background: var(--panel); z-index: 1 }
+
+  /* 손가락으로 누를 수 있는 크기 */
+  html.viewer .prow, html.viewer .kidrow, html.viewer .candrow { min-height: 44px }
+  html.viewer .chip { padding: 8px 12px }
+  html.viewer #miniBox { display: none }
+  html.viewer #zoomBox { bottom: 10px; right: 10px }
+}
+
+#sideClose { display: none }
+html.viewer #sideClose {
+  display: block; position: absolute; top: 10px; right: 12px;
+  width: 32px; height: 32px; border-radius: 8px; font-size: 15px;
+  color: var(--dim); background: var(--panel2); border: 1px solid var(--line);
+}
+html.viewer #sideHead { position: relative; padding-right: 48px }
+
+.ronote{font-size:12.5px;line-height:1.65;color:var(--text);white-space:pre-wrap;margin-bottom:8px}

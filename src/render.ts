@@ -11,6 +11,7 @@ import { relaxLabels } from "./labels";
 import { drawMini } from "./minimap";
 import { renderSide } from "./panel";
 import { S, UI, VIEW, edgeOf, isGroup, kindOf, nodeOf, save, setHidden } from "./state";
+import { isViewer } from "./viewer";
 import type { GNode } from "./types";
 
 /** 드래그 중 그룹 드롭 대상 / 엣지 허브 드롭 대상 */
@@ -126,6 +127,7 @@ export function render() {
 
   applyView();
   renderSide();
+  revealUnderSheet();
   save();
 }
 
@@ -271,6 +273,27 @@ export function setSelect(fn: (type: "node" | "edge" | null, id?: string) => voi
 export const select = (type: "node" | "edge" | null, id?: string) => selectFn(type, id);
 const selectEdge = (id: string) => selectFn("edge", id);
 
+/* 폰에서는 패널이 캔버스 위를 덮는다. 노트북처럼 옆에 붙는 게 아니라서,
+   누른 노드가 시트 뒤로 숨어 버린다. 고를 때마다 한 번씩 위쪽 빈 칸으로 끌어온다.
+   매 렌더마다 하면 손으로 밀어 놓은 화면을 도로 끌어당기므로 선택이 바뀔 때만 한다. */
+let lastRevealed: string | null = null;
+
+function revealUnderSheet() {
+  if (!isViewer() || UI.sel?.type !== "node") { lastRevealed = null; return; }
+  if (UI.sel.id === lastRevealed) return;
+  const n = nodeOf(UI.sel.id);
+  if (!n || !n._w) return;
+  const sheet = document.getElementById("side")!;
+  if (sheet.classList.contains("hidden")) return;
+  const r = stage.getBoundingClientRect(), sr = sheet.getBoundingClientRect();
+  const open = Math.max(140, sr.top - r.top);      // 시트 위로 남은 높이
+  if (open >= r.height - 4) return;                 // 시트가 옆에 붙는 넓은 화면이면 그대로
+  lastRevealed = UI.sel.id;
+  S.view.x = r.width / 2 - (n.x + n._w / 2) * S.view.k;
+  S.view.y = open / 2 - (n.y + (n._h ?? 38) / 2) * S.view.k;
+  applyView();
+}
+
 export function fit(list?: GNode[]) {
   let l = list && list.length ? list : S.nodes;
   l = l.filter((n) => !UI.hidden.has(n.id));
@@ -281,7 +304,9 @@ export function fit(list?: GNode[]) {
     x1 = Math.max(x1, n.x + (n._w ?? 150));
     y1 = Math.max(y1, n.y + (n._h ?? 40));
   }
-  const r = stage.getBoundingClientRect(), pad = 80;
+  const r = stage.getBoundingClientRect();
+  // 폰에서 80px 여백은 폭의 40% 를 먹는다 — 그만큼 더 축소되어 글자가 읽히지 않는다
+  const pad = r.width < 640 ? 24 : 80;
   const k = Math.min(1.5, Math.max(0.2,
     Math.min((r.width - pad * 2) / (x1 - x0 || 1), (r.height - pad * 2) / (y1 - y0 || 1))));
   S.view.k = k;
