@@ -1,5 +1,5 @@
 import { addAct, btn, div, el, row, sect, side } from "./dom";
-import { isPinned } from "./geom";
+import { edgeLabelText, isPinned } from "./geom";
 import {
   addEdge, addHyper, addNode, canGroup, deepAncestors, deepChildren, descendantsOf,
   dropEdge, dropNode, edgeAddMember, edgeDelMember, foldKids, groupOf, isSubDescendant,
@@ -91,9 +91,36 @@ function nodePanel(n: GNode, kindEl: HTMLElement, titleEl: HTMLElement,
       body.appendChild(b);
     });
   }
+  renderLinks(body, n);
   renderNote(body, n);
   renderSearch(body, n.label);
   renderWorks(body, n);
+}
+
+/** 이 키워드가 참여한 연결(엣지).
+ *  구성 요소와 하위 키워드는 '안쪽'을 보여준다 — 무엇으로 이루어졌고 어떤 종류가 있나.
+ *  바깥으로 뻗은 관계는 어디에도 안 나와서, 노드 창만 보면 이 키워드가
+ *  무엇과 엮여 있는지 알 수 없었다. 예: '단백질 디자인'의 VRSketch, 항체 디자인. */
+function renderLinks(body: HTMLElement, n: GNode) {
+  const links = S.edges.filter((e) => e.kind === "assoc" && (e.members ?? []).includes(n.id));
+  if (!links.length) return;
+  sect(body, `연결 ${links.length}개`);
+  for (const e of links) {
+    const others = (e.members ?? [])
+      .filter((m) => m !== n.id)
+      .map((m) => nodeOf(m)?.label || "(제목 없음)");
+    const b = document.createElement("button");
+    b.className = "kidrow";
+    b.style.setProperty("--bc", "var(--group)");
+    b.innerHTML = '<span class="kt"></span><span class="kx"></span>';
+    // 캔버스에서 "+" 는 '눌러서 이름 붙이기' 표시지만, 목록에서는 말이 안 된다
+    const name = edgeLabelText(e);
+    b.querySelector<HTMLElement>(".kt")!.textContent = !name || name === "+" ? "이름 없음" : name;
+    b.querySelector<HTMLElement>(".kx")!.textContent = others.join("  ·  ");
+    b.title = "이 연결 보기";
+    b.onclick = () => select("edge", e.id);
+    body.appendChild(b);
+  }
 }
 
 function groupMembers(body: HTMLElement, n: GNode) {
