@@ -1,14 +1,16 @@
 import pathlib
 from playwright.sync_api import sync_playwright
 
-URL = pathlib.Path("/home/claude/orchard/dist/index.html").as_uri()
+from conftest_paths import launch, shot, url
+
+URL = url()
 log = []
 def rec(t):
     log.append(t)
     print(f"{t[0]}: {t[1]}", flush=True)
 
 with sync_playwright() as p:
-    b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--no-sandbox"])
+    b = launch(p)
     pg = b.new_page(viewport={"width": 1500, "height": 920})
     errs = []
     pg.on("console", lambda m: errs.append(f"{m.type}: {m.text}") if m.type == "error" else None)
@@ -66,7 +68,7 @@ with sync_playwright() as p:
                 스포크:spokes, 허브점:hubDot,
                 패널제목:document.getElementById('sideTitle').textContent};
     }""")))
-    pg.screenshot(path="/home/claude/orchard/test/shot-hyper.png")
+    pg.screenshot(path=shot("shot-hyper.png"))
 
     # 허브 위치가 세 노드의 무게중심인지
     rec(("허브 = 무게중심", pg.evaluate("""() => {
@@ -132,7 +134,7 @@ with sync_playwright() as p:
     }""")))
 
     pg.evaluate("Orchard.fit()"); pg.wait_for_timeout(300)
-    pg.screenshot(path="/home/claude/orchard/test/shot-full.png")
+    pg.screenshot(path=shot("shot-full.png"))
 
     before = pg.evaluate("[Orchard.S.nodes.length, Orchard.S.edges.length]")
     pg.reload(); pg.wait_for_timeout(450)

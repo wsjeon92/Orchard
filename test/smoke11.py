@@ -1,6 +1,8 @@
 import pathlib
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path("/home/claude/orchard/dist/index.html").as_uri()
+from conftest_paths import launch, shot, url
+
+URL = url()
 def rec(t): print(f"{t[0]}: {t[1]}", flush=True)
 
 OVERLAP_CHECK = """() => {
@@ -22,7 +24,7 @@ OVERLAP_CHECK = """() => {
 }"""
 
 with sync_playwright() as p:
-    b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--no-sandbox"])
+    b = launch(p)
     pg = b.new_page(viewport={"width":1500,"height":920})
     errs=[]
     pg.on("pageerror", lambda e: errs.append("pageerror: "+str(e)))
@@ -60,7 +62,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(1200)
     rec(("애니메이션 정지 후", pg.evaluate(OVERLAP_CHECK)))
     rec(("수렴 확인", pg.evaluate("Orchard.S.nodes.every(n=>Math.round(n._rx)===n.x) && !Orchard.animRunning()")))
-    pg.screenshot(path="/home/claude/orchard/test/v-relax.png")
+    pg.screenshot(path=shot("v-relax.png"))
 
     # 포기 없이 가장 덜 겹치는 자리를 쓰는지 — 아주 빡빡하게 몰아넣기
     pg.evaluate("""() => {
@@ -93,6 +95,6 @@ with sync_playwright() as p:
         }
         return n;
     }""")))
-    pg.screenshot(path="/home/claude/orchard/test/v-relax2.png")
+    pg.screenshot(path=shot("v-relax2.png"))
     rec(("콘솔 에러", errs))
     b.close()

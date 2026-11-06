@@ -1,10 +1,12 @@
 import pathlib
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path("/home/claude/orchard/dist/index.html").as_uri()
+from conftest_paths import launch, shot, url
+
+URL = url()
 def rec(t): print(f"{t[0]}: {t[1]}", flush=True)
 
 with sync_playwright() as p:
-    b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--no-sandbox"])
+    b = launch(p)
     pg = b.new_page(viewport={"width":1500,"height":920})
     errs=[]
     pg.on("pageerror", lambda e: errs.append("pageerror: "+str(e)))
@@ -56,6 +58,6 @@ with sync_playwright() as p:
         const g=Orchard.S.nodes.find(n=>n.kind==='group');
         return {멤버수:g.members.length, VAE생존:!!Orchard.S.nodes.find(n=>n.label==='VAE')};
     }""")))
-    pg.screenshot(path="/home/claude/orchard/test/shot-grpadd.png")
+    pg.screenshot(path=shot("shot-grpadd.png"))
     rec(("콘솔 에러", errs))
     b.close()

@@ -1,6 +1,8 @@
 import pathlib
 from playwright.sync_api import sync_playwright
-URL = pathlib.Path("/home/claude/orchard/dist/index.html").as_uri()
+from conftest_paths import launch, shot, url
+
+URL = url()
 def rec(t): print(f"{t[0]}: {t[1]}", flush=True)
 
 OVER = """() => {
@@ -20,7 +22,7 @@ OVER = """() => {
 }"""
 
 with sync_playwright() as p:
-    b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--no-sandbox"])
+    b = launch(p)
     pg = b.new_page(viewport={"width":1500,"height":920})
     errs=[]
     pg.on("pageerror", lambda e: errs.append("pageerror: "+str(e)))
@@ -105,6 +107,6 @@ with sync_playwright() as p:
     }""")))
 
     pg.evaluate("Orchard.render(); Orchard.fit();"); pg.wait_for_timeout(300)
-    pg.screenshot(path="/home/claude/orchard/test/v-labels.png")
+    pg.screenshot(path=shot("v-labels.png"))
     rec(("콘솔 에러", errs))
     b.close()

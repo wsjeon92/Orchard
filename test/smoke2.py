@@ -1,11 +1,13 @@
 import pathlib
 from playwright.sync_api import sync_playwright
 
-URL = pathlib.Path("/home/claude/orchard/dist/index.html").as_uri()
+from conftest_paths import launch, shot, url
+
+URL = url()
 def rec(t): print(f"{t[0]}: {t[1]}", flush=True)
 
 with sync_playwright() as p:
-    b = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--no-sandbox"])
+    b = launch(p)
     pg = b.new_page(viewport={"width": 1500, "height": 920})
     errs = []
     pg.on("console", lambda m: errs.append(f"{m.type}: {m.text}") if m.type == "error" else None)
@@ -88,13 +90,13 @@ with sync_playwright() as p:
     }""")))
 
     pg.evaluate("Orchard.UI.focusId =null; Orchard.UI.sel = null; Orchard.render(); Orchard.fit();"); pg.wait_for_timeout(350)
-    pg.screenshot(path="/home/claude/orchard/test/shot-sub.png")
+    pg.screenshot(path=shot("shot-sub.png"))
     pg.evaluate("() => Orchard.select('node', Orchard.S.nodes.find(n=>n.kind==='compound').id)")
     pg.wait_for_timeout(250)
-    pg.screenshot(path="/home/claude/orchard/test/shot-sub-panel.png")
+    pg.screenshot(path=shot("shot-sub-panel.png"))
 
     md = pg.evaluate("Orchard.toMarkdown()")
-    pathlib.Path("/home/claude/orchard/test/_md.txt").write_text(md, encoding="utf-8")
+    pathlib.Path(shot("_md.txt")).write_text(md, encoding="utf-8")
     rec(("markdown", len(md)))
 
     before = pg.evaluate("[Orchard.S.nodes.length, Orchard.S.edges.length]")
@@ -105,4 +107,4 @@ with sync_playwright() as p:
     b.close()
 
 print("\n--- markdown ---")
-print(pathlib.Path("/home/claude/orchard/test/_md.txt").read_text(encoding="utf-8")[:1200])
+print(pathlib.Path(shot("_md.txt")).read_text(encoding="utf-8")[:1200])

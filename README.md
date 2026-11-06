@@ -16,14 +16,64 @@
 
 ```bash
 npm install
-npm run dev        # 개발 서버
+npm run dev        # 개발 서버 (http://localhost:5173)
 npm run build      # 타입 검사 + 빌드 → dist/index.html
 npm run preview    # 빌드 결과 미리보기
 npm run typecheck  # 타입만 검사
 ```
 
+이 네 줄은 Windows·macOS·Linux 어디서나 같다. 셸에 따라 달라지는 건 아래
+테스트 실행 부분뿐이다.
+
 빌드 결과는 **HTML 한 파일**(`dist/index.html`)이다. 정적 호스팅에 그대로 올라가고,
 내려받아 더블클릭해도 열린다.
+
+### WSL 에서
+
+Windows 에서는 WSL(Ubuntu)을 쓰는 쪽이 편하다. 두 가지만 지키면 된다.
+
+**1. 프로젝트를 리눅스 파일시스템 안에 둘 것.** `/mnt/c/...` 아래에 두면
+npm 설치와 빌드가 몇 배 느려지고, 개발 서버의 파일 변경 감지가 자주 실패한다.
+`~/` 아래로 옮긴다.
+
+```bash
+# WSL 터미널에서
+cd ~
+git clone https://github.com/wsjeon92/Orchard.git
+cd Orchard
+```
+
+**2. Node 를 WSL 안에 설치할 것.** Windows 쪽 Node 가 PATH 에 잡혀 있어도
+그걸 쓰면 안 된다 (`which node` 가 `/mnt/c/...` 를 가리키면 그 경우다).
+
+```bash
+# nvm 으로 설치 (권장)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+exec $SHELL
+nvm install 20
+
+node -v && which node     # /home/<사용자>/.nvm/... 이어야 한다
+```
+
+그다음은 똑같다.
+
+```bash
+npm install
+npm run dev
+```
+
+개발 서버를 띄우면 **Windows 쪽 브라우저에서 `http://localhost:5173`** 으로 그냥
+열린다. WSL2 가 localhost 를 넘겨준다. 안 열리면 `npm run dev -- --host` 로 띄우고
+WSL 의 IP(`hostname -I`)로 접속한다.
+
+빌드한 파일을 Windows 탐색기로 꺼내려면 WSL 경로가 그대로 보인다:
+`\\wsl$\Ubuntu\home\<사용자>\Orchard\dist\index.html`
+
+### PowerShell 에서
+
+WSL 없이 PowerShell 로도 된다. `npm` 명령은 그대로고, 테스트도 `python test/run_all.py`
+한 줄이라 셸 문법을 탈 일이 없다. 다만 Windows 에서 Python 명령은 보통 `python`
+또는 `py` 다 (`python3` 아님).
 
 ## 배포
 
@@ -61,6 +111,9 @@ npm run typecheck  # 타입만 검사
 | `dom.ts` | DOM 참조와 조립 헬퍼 |
 | `main.ts` | 배선과 부트 |
 
+테스트 쪽 `test/conftest_paths.py` 는 빌드 산출물·스크린샷 경로와 브라우저
+실행을 한곳에서 처리한다. 절대 경로를 박아두면 만든 사람 컴퓨터에서만 돌아간다.
+
 ### 알아둘 만한 설계 결정
 
 **애니메이션은 CSS 가 아니라 JS 보간이다.** SVG `<line>` 의 좌표는 CSS 트랜지션
@@ -80,12 +133,32 @@ npm run typecheck  # 타입만 검사
 
 ## 테스트
 
-Playwright 로 빌드 결과(`dist/index.html`)를 직접 띄워 검증한다.
+Playwright 로 빌드 결과(`dist/index.html`)를 직접 띄워 검증한다. 헤드리스라
+GUI 가 없는 WSL 에서도 그대로 돌아간다.
+
+준비 (한 번만):
+
+```bash
+pip install playwright
+playwright install chromium          # WSL·리눅스면: playwright install --with-deps chromium
+```
+
+실행 — 셸 종류와 무관하게 한 줄이다:
 
 ```bash
 npm run build
-cd test && for f in smoke*.py; do python3 -I "$f"; done
+python test/run_all.py               # WSL·macOS 면 python3
 ```
+
+개별 실행:
+
+```bash
+python test/smoke7.py
+```
+
+경로는 전부 스크립트 위치 기준으로 잡히므로 어느 디렉터리에서 실행해도 된다.
+설치된 Chrome 이 있으면 그걸 쓰고 없으면 Playwright 가 받아 둔 Chromium 으로
+떨어진다. 특정 브라우저를 쓰려면 `ORCHARD_CHROME` 에 실행 파일 경로를 넣는다.
 
 | 파일 | 다루는 것 |
 | --- | --- |
