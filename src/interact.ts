@@ -15,6 +15,7 @@ type Drag =
   | { type: "node"; id: string; dx: number; dy: number; moved: boolean; group: string[] | null; alt: boolean }
   | { type: "link"; from: string; cur: { x: number; y: number } }
   | { type: "elbl"; eid: string; ox: number; oy: number; moved: boolean }
+  | { type: "band"; sx: number; sy: number; cx: number; cy: number; moved: boolean }
   | null;
 
 let drag: Drag = null;
@@ -116,6 +117,37 @@ export function initInteract(fns: { toggleFold: (id: string) => void; setFocus: 
   });
 }
 
+/** 선택 사각형을 화면 좌표로 그린다. 월드가 아니라 화면에 붙여야
+ *  끄는 동안 화면이 움직여도 손끝을 따라온다. */
+function drawBand() {
+  const el = document.getElementById("band")!;
+  if (!drag || drag.type !== "band") { el.hidden = true; return; }
+  const r = stage.getBoundingClientRect();
+  const x = Math.min(drag.sx, drag.cx) - r.left, y = Math.min(drag.sy, drag.cy) - r.top;
+  el.style.left = x + "px";
+  el.style.top = y + "px";
+  el.style.width = Math.abs(drag.cx - drag.sx) + "px";
+  el.style.height = Math.abs(drag.cy - drag.sy) + "px";
+  el.hidden = false;
+}
+
+/** 사각형 안에 걸친 키워드를 고른 목록에 더한다.
+ *  그룹 상자는 뺀다 — 멤버를 덮고 있어서 같이 잡으면 한 번에 두 겹으로 고르는 꼴이다.
+ *  이미 고른 것은 그대로 둔다. Shift 는 "더 고른다"는 뜻이다. */
+function pickInBand(a: { x: number; y: number }, b: { x: number; y: number }) {
+  const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x);
+  const y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+  let n = 0;
+  for (const nd of S.nodes) {
+    if (isGroup(nd) || UI.hidden.has(nd.id) || !nd._w) continue;
+    if (nd.x < x1 && nd.x + nd._w > x0 && nd.y < y1 && nd.y + (nd._h ?? 38) > y0) {
+      UI.marked.add(nd.id);
+      n++;
+    }
+  }
+  return n;
+}
+
 export function bindCanvas() {
   stage.addEventListener("pointerdown", (ev) => {
     if (ev.button !== 0 && ev.button !== 1) return;
@@ -123,6 +155,14 @@ export function bindCanvas() {
     // (안 막으면 pointerup 의 "빈 곳 클릭" 처리가 click 보다 먼저 돌아 선택이 지워진다)
     if ((ev.target as HTMLElement).closest?.("#multi,#crumb,#zoomBox,#hint,#miniBox,#viewPop")) return;
     ev.preventDefault();   // 캔버스 밖(사이드 패널)까지 번지는 드래그 선택을 막는다
+    /* Shift+드래그 — 사각형으로 여러 개 고르기.
+       Shift 는 이미 "더 고른다"는 뜻이라(Shift+클릭) 끌 때도 같은 뜻으로 둔다.
+       이때는 화면을 밀지 않는다 — 한 손짓에 두 가지를 시키면 둘 다 어긋난다. */
+    if (ev.shiftKey && ev.button === 0) {
+      drag = { type: "band", sx: ev.clientX, sy: ev.clientY, cx: ev.clientX, cy: ev.clientY, moved: false };
+      drawBand();
+      return;
+    }
     drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, vx: S.view.x, vy: S.view.y, moved: false };
     stage.classList.add("panning");
   });
@@ -172,6 +212,10 @@ export function bindCanvas() {
         el.style.top = hit.y + "px";
         el.classList.add("moved");
       }
+    } else if (drag.type === "band") {
+      drag.cx = ev.clientX; drag.cy = ev.clientY;
+      if (Math.abs(drag.cx - drag.sx) > 3 || Math.abs(drag.cy - drag.sy) > 3) drag.moved = true;
+      drawBand();
     } else if (drag.type === "link") {
       drag.cur = screenToWorld(ev.clientX, ev.clientY);
       const t = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
@@ -208,6 +252,15 @@ export function bindCanvas() {
         const e = addEdge(d.from, host.dataset.id, "assoc");
         if (e) { select("edge", e.id); return; }
       }
+      render();
+      return;
+    }
+    if (d.type === "band") {
+      drag = null;
+      drawBand();                                  // 사각형을 치운다
+      if (d.moved) pickInBand(screenToWorld(d.sx, d.sy), screenToWorld(d.cx, d.cy));
+      else if (!ev.shiftKey) { UI.sel = null; UI.marked.clear(); }
+      stage.classList.remove("panning");
       render();
       return;
     }

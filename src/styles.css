@@ -128,6 +128,8 @@ code{background:var(--panel3);padding:1px 5px;border-radius:4px;font-size:11.5px
   backdrop-filter:blur(6px);font-size:12.5px;z-index:12}
 #multi.on{display:flex}
 #multi b{color:var(--ok)}
+#band{position:absolute;pointer-events:none;z-index:5;border:1px solid #5aa9ff;
+  background:rgba(90,169,255,.12);border-radius:3px}
 #multi button{padding:4px 10px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);font-size:12px}
 #multi button:hover{background:var(--panel3)}
 #multi button.go{background:#16281f;border-color:#2a5c42;color:#9fe8c4}
