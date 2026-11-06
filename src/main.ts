@@ -13,7 +13,7 @@ import {
 } from "./history";
 import { bindMinimap, drawMini } from "./minimap";
 import {
-  bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown,
+  bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown, openPhone,
 } from "./modals";
 import { bindCanvas, initInteract, setFitRef } from "./interact";
 import { addGroupMembers, addSubKeywords, groupWith, groupMarked, unGroupMarked,
@@ -30,6 +30,7 @@ import {
   setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion,
 } from "./state";
 import { bindViewer, isViewer, narrowScreen, setViewer } from "./viewer";
+import { decodeGraph, encodeGraph, hasGraphInUrl, shareUrl, takeFromUrl } from "./share";
 
 /* ---------------- 선택 ---------------- */
 function select(type: "node" | "edge" | null, id?: string) {
@@ -159,6 +160,16 @@ el("animOn").onchange = (e) => {
   if (!VIEW.anim) { snapPositions(); paint(); }
 };
 el("foldAllSw").onchange = (e) => foldAll((e.target as HTMLInputElement).checked);
+el("btnPhone").onclick = () => void openPhone();
+el("phoneClose").onclick = () => el("phoneMask").classList.add("hidden");
+el("shareCopy").onclick = () => {
+  const ta = el<HTMLTextAreaElement>("shareUrl");
+  ta.select();
+  navigator.clipboard?.writeText(ta.value).catch(() => document.execCommand("copy"));
+  const b = el("shareCopy");
+  b.textContent = "복사됨";
+  setTimeout(() => { b.textContent = "복사"; }, 1400);
+};
 el("btnTidy").onclick = () => {
   const moved = tidyOverlaps();
   if (!moved) { flashTidy("겹친 키워드가 없습니다"); return; }
@@ -197,6 +208,32 @@ render();
 if (!S.view.x && !S.view.y) fit();
 updateUndoBtns();
 
+/* 주소에 그래프가 실려 있으면(폰으로 보내기로 받은 링크) 꺼내서 연다.
+   뷰어는 로컬 편집본이 없으니 바로 열고, 편집 모드에서는 먼저 묻는다 —
+   말없이 덮어쓰면 작업하던 그래프가 사라진다. */
+async function openFromUrl() {
+  if (!hasGraphInUrl()) return;
+  const g = await takeFromUrl();
+  if (!g) { alert("링크에 담긴 그래프를 읽지 못했습니다."); return; }
+  const open = () => {
+    setGraph(g);
+    syncTitleInput();
+    resetHistoryBase();
+    render();
+    fit();
+    save();
+  };
+  if (isViewer() || !S.nodes.length) { open(); return; }
+  const n = g.nodes.length;
+  const name = g.title ? `'${g.title}' ` : "";
+  if (confirm(`링크에 담긴 그래프 ${name}(키워드 ${n}개)를 엽니다.\n`
+    + `지금 작업 중인 그래프는 덮어쓰입니다. 계속할까요?`)) open();
+}
+void openFromUrl();
+/* 이미 열려 있는 탭에 링크를 붙여넣으면 해시만 바뀌고 새로고침은 일어나지 않는다.
+   그대로 두면 아무 일도 안 일어난 것처럼 보인다. */
+window.addEventListener("hashchange", () => void openFromUrl());
+
 /* 디버그 API — window.Orchard. 콘솔과 자동화 테스트에서 내부를 들여다볼 때 쓴다.
    빌드에 몇 백 바이트 더 붙는 대신, 동작을 바깥에서 검증할 수 있다. */
 declare global {
@@ -226,6 +263,7 @@ const api = {
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
   isViewer, setViewer, narrowScreen,
+  encodeGraph, decodeGraph, shareUrl,
   stacks, resetHistory: () => { resetHistoryBase(); clearStacks(); },
   slotLoad: (name: string) => loadSlot(name),
 };

@@ -23,6 +23,7 @@
     <button class="tbtn" id="btnView">보기</button>
     <button class="tbtn ghost" id="btnFit">전체 보기</button>
     <button class="tbtn" id="btnSlots">저장본</button>
+    <button class="tbtn ghost" id="btnPhone">폰으로</button>
     <button class="tbtn ghost" id="btnExport">내보내기</button>
     <button class="tbtn ghost" id="btnImport">가져오기</button>
   </div>
@@ -140,6 +141,26 @@
       <button class="tbtn ghost" id="bulkClose">취소</button>
       <button class="tbtn pri" id="bulkApply">추가</button>
     </div>
+  </div>
+</div>
+
+<div class="mask hidden" id="phoneMask">
+  <div class="modal">
+    <h2>폰으로 보내기</h2>
+    <div class="mdim">그래프를 주소에 통째로 담습니다. <b>#</b> 뒤쪽은 서버로 전송되지 않아
+      어디에도 올리지 않고 기기 사이로만 옮겨집니다.</div>
+    <div class="fld">
+      <label>QR — 폰 카메라로 찍으세요</label>
+      <div id="qrBox"><canvas id="qrCv"></canvas></div>
+      <div class="fh" id="qrNote"></div>
+    </div>
+    <div class="fld">
+      <label>또는 링크</label>
+      <textarea id="shareUrl" rows="3" readonly></textarea>
+      <div class="fh"><button class="abtn" id="shareCopy">복사</button>
+        <span id="shareLen" class="mdim"></span></div>
+    </div>
+    <div class="mfoot"><button class="tbtn ghost" id="phoneClose">닫기</button></div>
   </div>
 </div>
 

@@ -8,6 +8,8 @@ import { elblEls, nodeEls } from "./dom";
 import { fit, render } from "./render";
 import { resetHistoryBase } from "./history";
 import type { GEdge, GNode, Work } from "./types";
+import qrcode from "qrcode-generator";
+import { shareUrl } from "./share";
 
 /* ---------------- 입력창 (prompt 대체 — 샌드박스에서 prompt 는 막힌다) ---------------- */
 let askRes: ((v: string | null) => void) | null = null;
@@ -304,4 +306,55 @@ export function setApplyView(fn: () => void) { applyViewRef = fn; }
 function stripForExport() {
   save();                       // 최신 상태 반영
   return JSON.parse(JSON.stringify(strip()));   // title 까지 포함된다
+}
+
+
+/* ---------------- 폰으로 보내기 ----------------
+   그래프를 주소에 담아 넘긴다. QR 에 담을 수 있는 양은 정해져 있는데, 그 한계는
+   글자 수가 아니라 담는 방식에 따라 달라진다(영숫자 모드가 바이트 모드보다 많이 들어간다).
+   그래서 글자 수로 미리 자르지 않고 실제로 그려 본 뒤 안 되면 링크로 보낸다. */
+
+export async function openPhone() {
+  const url = await shareUrl();
+  const qrUrl = await shareUrl(true);       // QR 은 모듈이 적게 나오는 꼴로 따로 만든다
+  el<HTMLTextAreaElement>("shareUrl").value = url;
+  el("shareLen").textContent = `${url.length.toLocaleString()}자`;
+
+  const box = el("qrBox"), note = el("qrNote");
+  const cv = el<HTMLCanvasElement>("qrCv");
+  const cut = qrUrl.indexOf("#") + 4;       // "#g=" 와 꼴 글자까지가 앞머리
+  let mods = 0;
+  try {
+    mods = drawQr(cv, qrUrl.slice(0, cut), qrUrl.slice(cut));
+  } catch {
+    mods = 0;                               // 한 장에 안 들어간다
+  }
+  box.classList.toggle("off", !mods);
+  note.textContent = !mods
+    ? "그래프가 커서 QR 한 장에 안 들어갑니다. 아래 링크를 복사해 폰으로 보내세요."
+    : mods > 120
+      ? `${mods}×${mods} 로 빽빽합니다. 창을 키우고 화면 밝기를 올린 뒤 가까이서 찍으세요. `
+        + "안 되면 아래 링크를 쓰세요."
+      : "잘 안 찍히면 창을 키우거나 화면 밝기를 올려 보세요.";
+  el("phoneMask").classList.remove("hidden");
+}
+
+function drawQr(cv: HTMLCanvasElement, head: string, body: string): number {
+  const q = qrcode(0, "L");            // 양이 많아 오류 보정은 가장 낮게 — 그래야 들어간다
+  const alnum = /^[0-9A-Z $%*+\-./:]*$/.test(body);
+  q.addData(head, "Byte");
+  if (body) q.addData(body, alnum ? "Alphanumeric" : "Byte");
+  q.make();
+  const n = q.getModuleCount(), pad = 4, scale = 3;
+  const px = (n + pad * 2) * scale;
+  cv.width = px; cv.height = px;
+  const ctx = cv.getContext("2d")!;
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, px, px);
+  ctx.fillStyle = "#000";
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (q.isDark(r, c)) ctx.fillRect((c + pad) * scale, (r + pad) * scale, scale, scale);
+    }
+  }
+  return n;
 }
