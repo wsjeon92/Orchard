@@ -131,6 +131,8 @@ code{background:var(--panel3);padding:1px 5px;border-radius:4px;font-size:11.5px
 #multi button{padding:4px 10px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);font-size:12px}
 #multi button:hover{background:var(--panel3)}
 #multi button.go{background:#16281f;border-color:#2a5c42;color:#9fe8c4}
+#multi button:disabled{opacity:.4;cursor:default;background:var(--panel2)}
+#multi button.go:disabled{background:#16281f}
 
 /* ---------- 사이드 패널 ---------- */
 #side{width:360px;flex:0 0 360px;background:var(--panel);border-left:1px solid var(--line);

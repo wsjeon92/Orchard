@@ -210,6 +210,52 @@ export function groupWith(aId: string, targetId: string) {
   setTimeout(() => el("sideTitle")?.focus(), 30);
 }
 
+/** 고른 키워드들을 한 그룹으로 묶는다.
+ *  고른 것 중에 이미 그룹이 있으면 거기에 넣고, 여럿이면 첫 번째로 합친다 —
+ *  새 그룹을 또 만들면 같은 것을 두 겹으로 묶은 꼴이 된다. */
+export function groupMarked(ids: string[]): GNode | null {
+  const picked = ids.map(nodeOf).filter((n): n is GNode => canGroup(n));
+  if (picked.length < 2) return null;
+
+  const groups = picked.filter((n) => isGroup(n));
+  const plain = picked.filter((n) => !isGroup(n));
+  let g: GNode | null = groups[0] ?? null;
+  const members: string[] = g ? [...(g.members ?? [])] : [];
+
+  for (const other of groups.slice(1)) {          // 그룹끼리 고르면 합친다
+    for (const m of other.members ?? []) if (!members.includes(m)) members.push(m);
+    ungroup(other.id);
+  }
+  for (const n of plain) {
+    const prev = groupOf(n.id);                   // 다른 그룹에 있었으면 옮겨온다
+    if (prev && prev.id !== g?.id) removeFromGroup(prev.id, n.id);
+    if (!members.includes(n.id)) members.push(n.id);
+  }
+  if (members.length < 2) return null;
+
+  if (g && nodeOf(g.id)) g.members = members;
+  else g = addNode("", 0, 0, "group", { members });
+  render();                                       // 폭을 재야 멤버 자리를 잡을 수 있다
+  tidyGroup(g);
+  select("node", g.id);
+  setTimeout(() => el("sideTitle")?.focus(), 30); // 바로 이름을 칠 수 있게
+  return g;
+}
+
+/** 고른 키워드를 자기 그룹에서 뺀다. 그룹 자체를 골랐으면 그 그룹을 해체한다.
+ *  뺀 개수를 돌려준다 — 아무 일도 안 일어나면 버튼이 고장난 줄 알게 된다. */
+export function unGroupMarked(ids: string[]): number {
+  let n = 0;
+  for (const id of ids) {
+    const node = nodeOf(id);
+    if (!node) continue;
+    if (isGroup(node)) { ungroup(id); n++; continue; }
+    const g = groupOf(id);
+    if (g) { removeFromGroup(g.id, id); n++; }
+  }
+  return n;
+}
+
 const splitNames = (t: string) =>
   String(t ?? "").split(/[,;\n·、]/).map((s) => s.trim()).filter(Boolean);
 

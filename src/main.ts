@@ -16,7 +16,8 @@ import {
   bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown,
 } from "./modals";
 import { bindCanvas, initInteract, setFitRef } from "./interact";
-import { addGroupMembers, addSubKeywords, groupWith } from "./panel";
+import { addGroupMembers, addSubKeywords, groupWith, groupMarked, unGroupMarked,
+} from "./panel";
 import {
   edgeSegments, isPinned, labelTarget, matchNode, pinnedPos, snapToEdge,
 } from "./geom";
@@ -118,6 +119,16 @@ el("multiLink").onclick = () => {
   const e = addHyper(Array.from(UI.marked));
   UI.marked.clear();
   if (e) select("edge", e.id); else render();
+};
+el("multiGroup").onclick = () => {
+  const g = groupMarked(Array.from(UI.marked));
+  UI.marked.clear();
+  if (!g) render();              // groupMarked 가 성공하면 그 안에서 그린다
+};
+el("multiUngroup").onclick = () => {
+  unGroupMarked(Array.from(UI.marked));
+  UI.marked.clear();
+  render();
 };
 el("multiClear").onclick = () => { UI.marked.clear(); render(); };
 

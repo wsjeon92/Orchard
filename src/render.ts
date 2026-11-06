@@ -5,7 +5,8 @@ import {
   ctr, edgeLabelText, isPinned, labelOffset, layoutGroups, matchNode,
   migratePin, pinnedPos, px, py, unit,
 } from "./geom";
-import { degree, descendantsOf, focusSet, foldKids, hiddenSet } from "./graph";
+import { degree, descendantsOf, focusSet, foldKids, hiddenSet, canGroup, groupOf,
+} from "./graph";
 import { relaxLabels } from "./labels";
 import { drawMini } from "./minimap";
 import { renderSide } from "./panel";
@@ -114,6 +115,14 @@ export function render() {
   const mb = document.getElementById("multi")!;
   mb.classList.toggle("on", UI.marked.size >= 2);
   document.getElementById("multiN")!.textContent = String(UI.marked.size);
+  /* 할 수 없는 동작은 흐리게. 눌러도 아무 일이 없으면 고장난 줄 안다. */
+  const picked = [...UI.marked].map(nodeOf);
+  const dis = (id: string, ok: boolean) => {
+    const b = document.getElementById(id) as HTMLButtonElement | null;
+    if (b) b.disabled = !ok;
+  };
+  dis("multiGroup", picked.filter((n) => canGroup(n)).length >= 2);
+  dis("multiUngroup", picked.some((n) => !!n && (isGroup(n) || !!groupOf(n.id))));
 
   applyView();
   renderSide();
