@@ -28,7 +28,7 @@ export function bindNode(el: HTMLElement, id: string) {
     ev.preventDefault();
     const n = nodeOf(id);
     if (!n) return;
-    if (ev.shiftKey) {                               // Shift+클릭 — 여러 개 골라 한 엣지로 묶기
+    if (ev.shiftKey) {                               // Shift+클릭 — 여러 개 고르기 (한 엣지로 묶거나 같이 옮기기)
       UI.marked.has(id) ? UI.marked.delete(id) : UI.marked.add(id);
       drag = null;
       render();
@@ -41,11 +41,27 @@ export function bindNode(el: HTMLElement, id: string) {
       stage.classList.add("linking");
     } else {
       const w = screenToWorld(ev.clientX, ev.clientY);
+      /* 같이 움직일 것들. 그룹 상자를 끌면 멤버가 따라오고,
+         여러 개를 골라둔 상태에서 그중 하나를 끌면 고른 것 전부가 따라온다.
+         고른 노드가 그룹이면 그 멤버까지 — 상자만 가고 알맹이가 남으면 안 된다. */
+      let together: string[] | null = isGroup(n) ? (n.members ?? []).slice() : null;
+      if (UI.marked.size >= 2 && UI.marked.has(id)) {
+        const set = new Set<string>(together ?? []);
+        for (const mid of UI.marked) {
+          if (mid === id) continue;
+          set.add(mid);
+          const m = nodeOf(mid);
+          if (m && isGroup(m)) (m.members ?? []).forEach((x) => set.add(x));
+        }
+        set.delete(id);
+        together = [...set];
+      }
       drag = {
         type: "node", id, dx: w.x - n.x, dy: w.y - n.y, moved: false,
-        group: isGroup(n) ? (n.members ?? []).slice() : null, alt: ev.altKey,
+        group: together, alt: ev.altKey,
       };
       el.classList.add("dragging");
+      if (together) for (const mid of together) nodeEls.get(mid)?.classList.add("dragging");
     }
     try { el.setPointerCapture(ev.pointerId); } catch { /* 무시 */ }
   });
@@ -201,14 +217,17 @@ export function bindCanvas() {
     }
     if (d.type === "node") {
       nodeEls.get(d.id)?.classList.remove("dragging");
+      if (d.group) for (const mid of d.group) nodeEls.get(mid)?.classList.remove("dragging");
       if (d.moved && Drop.kind === "group" && Drop.target) {
         const tgt = Drop.target;
         Drop.target = null; Drop.kind = null; drag = null;
         groupWith(d.id, tgt);
         return;
       }
-      // 다른 노드 위에 놓였으면 가장 가까운 빈자리로 민다 (새로 만들 때와 같은 규칙)
-      if (d.moved) nudgeFree(d.id);
+      /* 다른 노드 위에 놓였으면 가장 가까운 빈자리로 민다 (새로 만들 때와 같은 규칙).
+         여러 개를 한꺼번에 옮기는 중이거나 그룹째 옮기는 중이면 손대지 않는다 —
+         사용자가 통째로 잡아 옮긴 배치를 하나만 빼내 흩뜨리게 된다. */
+      if (d.moved && !d.group) nudgeFree(d.id);
       // 그룹 밖으로 끌어내면 빠진다
       if (d.moved && !d.group) {
         const g = groupOf(d.id), n = nodeOf(d.id);
