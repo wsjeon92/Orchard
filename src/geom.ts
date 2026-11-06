@@ -79,10 +79,13 @@ export function posAtPin(e: GEdge, pin: Pin, target: boolean): Point | null {
   return { x: sg[0].x + (sg[1].x - sg[0].x) * t, y: sg[0].y + (sg[1].y - sg[0].y) * t };
 }
 
-/** 고정 라벨의 표시 좌표.
- *  _lposR 은 겹침을 피해 미끄러진 자리이고, 없으면 사용자가 고른 lpos 를 쓴다. */
+/** 고정 라벨이 가야 할 자리. _lposR 은 겹침을 피해 미끄러진 목표, 없으면 사용자가 고른 lpos. */
+export const pinTarget = (e: GEdge): Pin | null => e._lposR ?? e.lpos ?? null;
+
+/** 고정 라벨의 좌표.
+ *  target=true 면 목표 자리(배치 계산용), false 면 지금 화면에 그릴 자리(애니메이션 중간값). */
 export function pinnedPos(e: GEdge, target: boolean): Point | null {
-  const pin = e._lposR ?? e.lpos;
+  const pin = target ? pinTarget(e) : (e._pinR ?? pinTarget(e));
   return pin ? posAtPin(e, pin, target) : null;
 }
 

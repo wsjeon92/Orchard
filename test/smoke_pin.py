@@ -39,7 +39,8 @@ def clashes(bs):
 
 def without_slide(pg):
     """미끄럼 결과를 버려 예전 동작을 흉내 낸다"""
-    pg.evaluate("() => { for (const e of Orchard.S.edges) e._lposR = null; Orchard.paint(); }")
+    pg.evaluate("""() => { for (const e of Orchard.S.edges) { e._lposR = null; e._pinR = null; }
+        Orchard.paint(); }""")
     pg.wait_for_timeout(250)
 
 
@@ -128,6 +129,41 @@ with sync_playwright() as pw:
     untouched = pg.evaluate("() => { const e = Orchard.S.edges[0]; return { lpos: e.lpos, slid: e._lposR }; }")
     print("\n3) 안 겹칠 때:", untouched)
     assert untouched["slid"] is None, f"겹치지도 않는데 옮겼다: {untouched}"
+
+    # --- 4) 미끄러질 때 애니메이션으로 움직인다 (뚝 끊기지 않는다) ---
+    pg.evaluate("""() => {
+      Orchard.reset();
+      const at = (l, x, y) => { const n = Orchard.addNode(l, 0, 0); n.x = x; n.y = y; return n; };
+      const a = at('가', 150, 400), c = at('나', 1050, 400);
+      const e = Orchard.addEdge(a.id, c.id); e.cands=['미끄러질 이름']; e.label='미끄러질 이름';
+      e.lpos = { i: 0, t: 0.5 };
+      Orchard.render(); Orchard.snapPositions(); Orchard.paint();
+    }""")
+    pg.wait_for_timeout(600)
+    # 선 한가운데에 노드를 놓아 비키게 만든다
+    pg.evaluate("""() => {
+      const e = Orchard.S.edges[0];
+      const p = Orchard.pinnedPos(e, true);
+      const blk = Orchard.addNode('막는 노드', 0, 0);
+      blk.x = Math.round(p.x - 80); blk.y = Math.round(p.y - 18);
+      Orchard.render();
+    }""")
+    frames = []
+    for _ in range(8):
+        frames.append(pg.evaluate("""() => { const e = Orchard.S.edges[0];
+            return e._pinR ? Math.round(e._pinR.t * 1000) / 1000 : null; }"""))
+        pg.wait_for_timeout(32)
+    pg.wait_for_timeout(700)
+    end = pg.evaluate("""() => { const e = Orchard.S.edges[0];
+        return { shown: e._pinR, target: e._lposR, lpos: e.lpos }; }""")
+    print("\n4) 미끄러짐 애니메이션")
+    print("   t 프레임:", frames)
+    print("   끝      :", end)
+    tt = end["target"]["t"]
+    assert tt is not None and abs(tt - 0.5) > 0.01, f"비키지 않았다: {end}"
+    mids = [f for f in frames if f is not None and min(0.5, tt) < f < max(0.5, tt)]
+    assert len(mids) >= 3, f"중간 프레임이 없다 — 뚝 끊겼다: {frames}"
+    assert abs(end["shown"]["t"] - tt) < 0.005, f"목표에 수렴하지 않았다: {end}"
 
     pg.screenshot(path=shot("shot-pin.png"))
     assert not errs, f"페이지 오류: {errs}"

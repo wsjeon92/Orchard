@@ -112,11 +112,30 @@ export function descendantsOf(id: string): Set<string> {
     out.add(cur);
     kidsOf(cur).forEach((c) => stack.push(c));
   }
+  closeEmptyGroups(out);
   return out;
+}
+
+/** 멤버가 전부 숨으면 그룹 상자만 덩그러니 남는다 — 상자도 함께 닫는다.
+ *  멤버가 숨는 경로는 하나가 아니다. 그룹이 통째로 하위 키워드인 경우도 있고
+ *  ('단백질' → '단백질 물성' 그룹), 멤버 각각이 따로 하위 키워드이고 그룹은
+ *  옆에 묶여만 있는 경우도 있다 ('신약개발' → 전임상·임상, 그 둘이 그룹).
+ *  경로를 따지면 이런 변형마다 빠진다. "보이는 멤버가 없으면 닫는다" 한 규칙으로 본다. */
+function closeEmptyGroups(hid: Set<string>) {
+  for (let pass = 0; pass < 4; pass++) {      // 그룹이 중첩돼도 수렴하게
+    let added = false;
+    for (const g of S.nodes) {
+      if (!isGroup(g) || hid.has(g.id)) continue;
+      const ms = g.members ?? [];
+      if (ms.length && ms.every((m) => hid.has(m))) { hid.add(g.id); added = true; }
+    }
+    if (!added) break;
+  }
 }
 export function hiddenSet(): Set<string> {
   const hid = new Set<string>();
   for (const n of S.nodes) if (n.collapsed) descendantsOf(n.id).forEach((x) => hid.add(x));
+  closeEmptyGroups(hid);     // 여러 노드에 걸쳐 멤버가 숨은 그룹까지 잡는다
   return hid;
 }
 

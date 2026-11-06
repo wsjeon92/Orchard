@@ -77,7 +77,7 @@ export function strip() {
       ...r,
       works: (r.works ?? []).map(({ open, ...w }) => w),
     })),
-    edges: S.edges.map(({ _anchor, _dir, _off, _offR, _lposR, ...e }) => ({
+    edges: S.edges.map(({ _anchor, _dir, _off, _offR, _lposR, _pinR, ...e }) => ({
       ...e,
       works: (e.works ?? []).map(({ open, ...w }) => w),
     })),
