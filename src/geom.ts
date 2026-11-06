@@ -70,12 +70,20 @@ export function snapToEdge(e: GEdge, pt: Point, target: boolean): SnapHit | null
 }
 
 /** 저장된 선 위 위치 → 월드 좌표. 노드가 움직여도 선을 따라 같이 움직인다. */
-export function pinnedPos(e: GEdge, target: boolean): Point | null {
+/** 주어진 Pin 의 선 위 좌표 */
+export function posAtPin(e: GEdge, pin: Pin, target: boolean): Point | null {
   const segs = edgeSegments(e, target);
-  if (!segs || !e.lpos) return null;
-  const sg = segs[Math.min(e.lpos.i || 0, segs.length - 1)];
-  const t = Math.max(0, Math.min(1, e.lpos.t));
+  if (!segs) return null;
+  const sg = segs[Math.min(pin.i || 0, segs.length - 1)];
+  const t = Math.max(0, Math.min(1, pin.t));
   return { x: sg[0].x + (sg[1].x - sg[0].x) * t, y: sg[0].y + (sg[1].y - sg[0].y) * t };
+}
+
+/** 고정 라벨의 표시 좌표.
+ *  _lposR 은 겹침을 피해 미끄러진 자리이고, 없으면 사용자가 고른 lpos 를 쓴다. */
+export function pinnedPos(e: GEdge, target: boolean): Point | null {
+  const pin = e._lposR ?? e.lpos;
+  return pin ? posAtPin(e, pin, target) : null;
 }
 
 /** 예전 저장본의 오프셋(lx,ly)을 선 위 위치로 한 번만 옮긴다 */

@@ -94,7 +94,7 @@ export function initInteract(fns: { toggleFold: (id: string) => void; setFocus: 
       ev.stopPropagation();
       const ed = edgeOf(le.dataset.eid);
       if (!ed) return;
-      ed.lpos = null; ed.lx = null; ed.ly = null;
+      ed.lpos = null; ed.lx = null; ed.ly = null; ed._lposR = null;
       render();
     });
   });
@@ -148,7 +148,7 @@ export function bindCanvas() {
       const hit = snapToEdge(e, { x: w.x + drag.ox, y: w.y + drag.oy }, false);
       if (!hit) return;
       e.lpos = { i: hit.i, t: hit.t };
-      e.lx = null; e.ly = null;
+      e.lx = null; e.ly = null; e._lposR = null;
       drag.moved = true;
       const el = elblEls.get(e.id);
       if (el) {

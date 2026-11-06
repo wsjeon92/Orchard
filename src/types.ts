@@ -89,6 +89,8 @@ export interface GEdge {
   promoted: string[];
   /** 직접 옮긴 이름의 선 위 위치 */
   lpos?: Pin | null;
+  /** 겹침을 피해 선 위를 미끄러진 '표시용' 위치. lpos(사용자가 고른 자리)는 그대로 둔다 */
+  _lposR?: Pin | null;
   /** 예전 저장본의 오프셋 — 열 때 lpos 로 옮긴다 */
   lx?: number | null;
   ly?: number | null;
