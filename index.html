@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Orchard — 연구 아이디어 디벨롭</title>
+<meta name="description" content="생각을 심고 돌보고 거두는 연구 아이디어 디벨롭 도구. 너비(키워드 교차)와 깊이(질문→가설→접근→검증→리스크) 두 축.">
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div id="brand">Orchard<span>너비 × 깊이</span></div>
+    <input id="newkw" placeholder="키워드 입력 후 Enter" autocomplete="off">
+    <button class="tbtn" id="btnAdd">+ 추가</button>
+    <div class="sp"></div>
+    <button class="tbtn ghost" id="btnUndo" title="실행 취소 (Ctrl+Z)">↶</button>
+    <button class="tbtn ghost" id="btnRedo" title="다시 실행 (Ctrl+Shift+Z)">↷</button>
+    <input id="find" placeholder="검색" autocomplete="off">
+    <span id="saveMark">자동 저장됨</span>
+    <button class="tbtn" id="btnView">보기</button>
+    <button class="tbtn ghost" id="btnFit">전체 보기</button>
+    <button class="tbtn" id="btnSlots">저장본</button>
+    <button class="tbtn ghost" id="btnExport">내보내기</button>
+    <button class="tbtn ghost" id="btnImport">가져오기</button>
+  </div>
+
+  <div id="main">
+    <div id="stage">
+      <div id="world"><svg id="svg"></svg></div>
+      <div id="crumb">
+        <span class="c1">집중</span><span class="c2" id="crumbName"></span>
+        <span class="c1">깊이</span>
+        <input id="hops" type="range" min="1" max="6" step="1" style="width:84px;accent-color:#5aa9ff">
+        <b id="hopsN" style="font-size:11.5px;min-width:10px">3</b>
+        <button id="crumbOut">전체 그래프로</button>
+      </div>
+      <div id="multi">
+        <span><b id="multiN">0</b>개 선택됨</span>
+        <button class="go" id="multiLink">하나의 엣지로 묶기</button>
+        <button id="multiClear">해제</button>
+      </div>
+      <div id="hint">
+        <span><b>빈 곳 더블클릭</b> 키워드</span>
+        <span><b>오른쪽 점 드래그</b> 연결</span>
+        <span><b>Shift+클릭</b> 여러 개 묶기</span>
+        <span><b>노드 위에 겹쳐 놓기</b> 그룹</span>
+        <span><b>F</b> 집중</span>
+        <span><b>노드 아래 ▾</b> 접기</span>
+        <span><b>엣지 이름 드래그</b> 위치 조정</span>
+      </div>
+      <div id="miniBox"><canvas id="mini" width="200" height="130"></canvas></div>
+      <div id="zoomBox"><button id="zOut">−</button><span id="zVal">100%</span><button id="zIn">+</button></div>
+      <div id="viewPop">
+        <div class="vrow">
+          <label>글자 숨김 배율 <b id="lzN">45%</b></label>
+          <input id="lz" type="range" min="0" max="100" step="5">
+          <div class="vhint">이 배율보다 더 축소하면 노드 글자가 사라지고 합성 키워드와 그룹 이름만 남습니다. 0%면 항상 보입니다.</div>
+        </div>
+        <div class="vrow">
+          <label class="sw"><input type="checkbox" id="degSize">연결 수로 노드 크기</label>
+          <div class="vhint">많이 이어진 키워드일수록 크게 그립니다.</div>
+        </div>
+        <div class="vrow">
+          <label class="sw"><input type="checkbox" id="miniOn">미니맵</label>
+        </div>
+        <div class="vrow">
+          <label class="sw"><input type="checkbox" id="animOn">애니메이션</label>
+          <div class="vhint">노드가 자리를 옮기거나 엣지 이름이 비켜설 때 부드럽게 움직입니다.</div>
+        </div>
+        <div class="vrow">
+          <label class="sw"><input type="checkbox" id="foldAllSw">모든 하위 접기</label>
+          <div class="vhint">깊이 항목과 하위 키워드를 한꺼번에 접거나 폅니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="side" class="hidden">
+      <div id="sideHead">
+        <div id="sideKind"></div>
+        <div id="sideTitle"></div>
+      </div>
+      <div id="sideActs"></div>
+      <div id="sideBody"></div>
+    </div>
+  </div>
+</div>
+
+<div class="mask hidden" id="askMask">
+  <div class="modal" style="max-width:420px">
+    <h2 id="askTitle">입력</h2>
+    <div class="fld" style="margin:16px 0 0"><input id="askIn" autocomplete="off"></div>
+    <div class="mfoot">
+      <button class="tbtn ghost" id="askCancel">취소</button>
+      <button class="tbtn pri" id="askOk">확인</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask hidden" id="slotMask">
+  <div class="modal">
+    <h2>저장본</h2>
+    <div class="mdim">작업은 이 브라우저에 항상 자동 저장됩니다. 여기에는 되돌아갈 지점을 이름 붙여 따로 남겨둘 수 있습니다. 브라우저 데이터를 지우면 함께 사라지니, 중요한 건 <b>내보내기</b>로 파일에 보관하세요.</div>
+    <div class="fld">
+      <label>현재 그래프를 이름 붙여 저장</label>
+      <div style="display:flex;gap:7px">
+        <input id="slotName" placeholder="예: 단백질×VR 1차" style="flex:1">
+        <button class="tbtn pri" id="slotSaveBtn" style="flex:0 0 auto">저장</button>
+      </div>
+    </div>
+    <div class="fld">
+      <label>저장된 목록</label>
+      <div id="slotList"></div>
+    </div>
+    <div class="mfoot"><button class="tbtn ghost" id="slotClose">닫기</button></div>
+  </div>
+</div>
+
+<div class="mask hidden" id="bulkMask">
+  <div class="modal">
+    <h2>여러 줄 붙여넣기</h2>
+    <div class="mdim">한 줄에 연구 하나씩. 검색 결과에서 제목만 복사해 붙여넣으면 됩니다. 연도가 줄 안에 있으면 자동으로 떼어냅니다.</div>
+    <div class="fld"><textarea id="bulkIn" rows="10" placeholder="ProteinMPNN (2022)&#10;RFdiffusion 2023&#10;AlphaFold2"></textarea></div>
+    <div class="mfoot">
+      <button class="tbtn ghost" id="bulkClose">취소</button>
+      <button class="tbtn pri" id="bulkApply">추가</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask hidden" id="expMask">
+  <div class="modal">
+    <h2>내보내기</h2>
+    <div class="mdim">다운로드가 막힌 환경(아티팩트 미리보기 등)에서는 <b>복사</b>를 쓰세요.</div>
+    <div class="fld">
+      <label>Markdown — 정리본</label>
+      <textarea id="expMd" rows="9" readonly></textarea>
+      <div class="fh"><button class="abtn" id="expMdCopy">복사</button>
+        <button class="abtn" id="expMdDl">.md 다운로드</button></div>
+    </div>
+    <div class="fld">
+      <label>JSON — 그래프 원본 (가져오기로 복원)</label>
+      <textarea id="expJson" rows="6" readonly></textarea>
+      <div class="fh"><button class="abtn" id="expJsonCopy">복사</button>
+        <button class="abtn" id="expJsonDl">.json 다운로드</button></div>
+    </div>
+    <div class="mfoot"><button class="tbtn ghost" id="expClose">닫기</button></div>
+  </div>
+</div>
+
+<div class="mask hidden" id="impMask">
+  <div class="modal">
+    <h2>가져오기</h2>
+    <div class="mdim">내보낸 JSON을 붙여넣으면 현재 그래프를 대체합니다.</div>
+    <div class="fld"><textarea id="impIn" rows="12" placeholder='{"nodes":[...],"edges":[...]}'></textarea></div>
+    <div class="mfoot">
+      <button class="tbtn ghost" id="impClose">취소</button>
+      <button class="tbtn pri" id="impApply">불러오기</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

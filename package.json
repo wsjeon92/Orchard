@@ -1,0 +1,18 @@
+{
+  "name": "orchard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Orchard — 생각을 심고 돌보고 거두는 연구 아이디어 디벨롭 도구. 너비(키워드 교차)와 깊이(아이디어 전개) 두 축.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0",
+    "vite-plugin-singlefile": "^2.0.0"
+  }
+}

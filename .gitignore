@@ -1,0 +1,4 @@
+node_modules/
+dist/
+test/_md.txt
+test/*.png
