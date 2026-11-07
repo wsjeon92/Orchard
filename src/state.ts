@@ -12,6 +12,9 @@ const LS_OLD = [
 ];
 const LS_SLOTS = "kwgraph.slots";
 const LS_VIEW = "kwgraph.view";
+/* 마지막으로 브라우저에 저장한 시각. 연결된 파일의 mtime 과 견줘
+   새로고침 때 어느 쪽이 최신인지 가린다. */
+const LS_AT = "kwgraph.savedAt";
 
 export let S: GraphState = {
   title: "", nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1, topics: [],
@@ -102,6 +105,7 @@ export function save() {
   const m = document.getElementById("saveMark");
   try {
     localStorage.setItem(LS, JSON.stringify(strip()));
+    localStorage.setItem(LS_AT, String(Date.now()));
     if (m) {
       m.textContent = "저장됨";
       m.className = "on";
@@ -181,6 +185,11 @@ export function seed() {
 export function saveView() {
   try { localStorage.setItem(LS_VIEW, JSON.stringify(VIEW)); } catch { /* 무시 */ }
 }
+export function savedAt(): number {
+  const v = +(localStorage.getItem(LS_AT) || 0);
+  return Number.isFinite(v) ? v : 0;
+}
+
 export function loadView() {
   let loaded = false;
   try {

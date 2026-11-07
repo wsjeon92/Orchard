@@ -9,7 +9,7 @@
 
    Chrome·Edge 에서만 된다. 안 되는 브라우저에서는 이 기능을 숨기고 예전처럼 쓴다. */
 
-import { S, strip } from "./state";
+import { S, strip, savedAt } from "./state";
 import type { GraphState } from "./types";
 
 type Perm = "granted" | "denied" | "prompt";
@@ -174,7 +174,16 @@ export async function restore() {
   handle = h;
   needsPerm = !(await perm(h, false));
   if (!needsPerm) {
-    try { lastSeen = (await h.getFile()).lastModified; } catch { /* 나중에 다시 본다 */ }
+    /* 예전에는 여기서 파일 시각만 적어 두고 내용을 읽지 않았다. 그러면 뒤따르는
+       pollOnce 가 '이미 본 파일'로 보고 그냥 돌아서서, 브라우저에 남아 있던 옛
+       그래프가 그대로 살아남고 다음 변경 때 파일을 덮어썼다. 새 빌드를 받으려면
+       새로고침해야 하는데 그때마다 파일 쪽 변경이 지워지는 셈이었다.
+       이제 시각을 비교해서 더 새로운 쪽이 이긴다. */
+    try {
+      const f = await h.getFile();
+      if (f.lastModified > savedAt()) lastSeen = 0;   // 파일이 더 새롭다 → 읽어 온다
+      else lastSeen = f.lastModified;                 // 브라우저가 더 새롭다 → 우리 것을 지킨다
+    } catch { /* 나중에 다시 본다 */ }
     startPolling();
     void pollOnce();
   }
