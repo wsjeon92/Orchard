@@ -393,3 +393,31 @@ html.viewer #btnPhone{display:none}
 #btnLink.warn{border-color:#6b4a1f;background:#2a1f10;color:#e8c68a}
 #btnLink.busy::after{content:" ●";opacity:.6}
 html.viewer #btnLink{display:none}
+
+/* ---------------- 빈 곳 표시 ---------------- */
+/* 축소해서 글자가 숨겨진 상태라도 강조된 것의 이름은 보여야 한다.
+   어느 키워드가 비었는지 읽을 수 없으면 '다음에 어디를 손댈까'에 쓸 수 없다.
+   그래서 .faded 규칙보다 뒤에 두고 되살린다. */
+#world.faded .node.gap .lbl,#world.faded .node.gap .sub,
+#world.faded .node.gap .tag,#world.faded .elbl.gap{opacity:1}
+
+/* 이유마다 색을 달리 둔다 — 무엇을 해야 하는지가 이유마다 다르다.
+   의도를 적을 곳, 문헌을 채울 곳, 더 이을 곳은 서로 다른 작업이다. */
+.node.gap{box-shadow:0 0 0 2px var(--gapc),0 0 14px -2px var(--gapc)}
+.elbl.gap{box-shadow:0 0 0 2px var(--gapc)}
+.gap-orphan{--gapc:#e0683c}
+.gap-noWork{--gapc:#4e9bd8}
+.gap-leaf{--gapc:#6f9a4a}
+.gap-edgeNoWork{--gapc:#9b6fd0}
+
+#gapBar{position:absolute;left:12px;top:12px;z-index:6;display:flex;gap:6px;
+  flex-wrap:wrap;align-items:center;max-width:calc(100% - 24px)}
+#gapBar .gb{display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:7px;
+  border:1px solid #2b313c;background:#141821e8;color:var(--dim2);font-size:11.5px;
+  cursor:pointer;line-height:1.3}
+#gapBar .gb:hover{border-color:#3d4654;color:#e7eaf0}
+#gapBar .gb.on{border-color:var(--gapc);color:#e7eaf0;background:#1b2130f0}
+#gapBar .gb .dot{width:8px;height:8px;border-radius:50%;background:var(--gapc);flex:none}
+#gapBar .gb b{color:#e7eaf0;font-variant-numeric:tabular-nums}
+#gapBar .gb.none{cursor:default;opacity:.45}
+#gapBar .gb.none:hover{border-color:#2b313c;color:var(--dim2)}

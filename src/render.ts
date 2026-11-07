@@ -1,4 +1,5 @@
 import { kickAnim } from "./anim";
+import { gapSet } from "./gaps";
 import { elblEls, nodeEls, stage, world } from "./dom";
 import { bindNode } from "./interact";
 import {
@@ -19,12 +20,16 @@ export const Drop = { target: null as string | null, kind: null as "group" | "hu
 
 let lastFset: Set<string> | null = null;
 let lastQ = "";
+let lastGap: ReturnType<typeof gapSet> = null;
 
 export function render() {
   setHidden(hiddenSet());
   const hid = UI.hidden;
   const fset = UI.focusId ? focusSet(UI.focusId, VIEW.hops) : null;
   const q = UI.query.trim().toLowerCase();
+  /* 빈 곳 강조. 꺼져 있으면 null 이고 아무 것도 흐려지지 않는다.
+     집중·검색과 겹쳐 쓸 수 있도록 dim 조건에 or 로 더한다. */
+  const gap = lastGap = gapSet();
   const seen = new Set<string>();
 
   for (const n of S.nodes) {
@@ -53,7 +58,9 @@ export function render() {
     if (entering) setTimeout(() => nodeEls.get(n.id)?.classList.remove("enter"), 420);
     const common = (entering ? " enter" : "")
       + (UI.sel?.type === "node" && UI.sel.id === n.id ? " sel" : "")
-      + ((fset && !fset.has(n.id)) || (q && !matchNode(n, q)) ? " dim" : "")
+      + ((fset && !fset.has(n.id)) || (q && !matchNode(n, q))
+         || (gap && !gap.ids.has(n.id)) ? " dim" : "")
+      + (gap?.why.has(n.id) ? " gap gap-" + gap.why.get(n.id) : "")
       + (UI.marked.has(n.id) ? " mark" : "")
       + (Drop.kind === "group" && Drop.target === n.id ? " drop" : "");
 
@@ -159,6 +166,7 @@ export function applyView() {
 export const animAllowed = () => VIEW.anim;
 
 export function drawEdges(fset: Set<string> | null, q: string) {
+  const gap = lastGap;
   let out = "";
   const eseen = new Set<string>();
   const hid = UI.hidden;
@@ -170,7 +178,8 @@ export function drawEdges(fset: Set<string> | null, q: string) {
     if (e.kind === "deep" || e.kind === "part" || e.kind === "sub") {
       const A = nodeOf(e.a), B = nodeOf(e.b);
       if (!A || !B || hid.has(A.id) || hid.has(B.id)) continue;
-      const dim = (fset && (!fset.has(A.id) || !fset.has(B.id))) || noMatch(A) || noMatch(B);
+      const dim = (fset && (!fset.has(A.id) || !fset.has(B.id))) || noMatch(A) || noMatch(B)
+        || !!gap;
       if (e.kind === "part") {
         const ac = ctr(A), bc = ctr(B);
         out += `<line x1="${ac.x}" y1="${ac.y}" x2="${bc.x}" y2="${bc.y}" stroke="#4a3568" `
@@ -193,7 +202,8 @@ export function drawEdges(fset: Set<string> | null, q: string) {
        2개면 허브가 중점이라 직선이 되고, 3개면 벤츠 마크 모양이 된다. */
     const ms = (e.members ?? []).map(nodeOf).filter(Boolean) as GNode[];
     if (ms.length < 2 || ms.some((m) => hid.has(m.id))) continue;
-    const dim = (fset && !ms.every((m) => fset.has(m.id))) || ms.some(noMatch);
+    const dim = (fset && !ms.every((m) => fset.has(m.id))) || ms.some(noMatch)
+      || (gap && !gap.ids.has(e.id));
     const op = dim ? ' opacity="0.1"' : "";
     const pts = ms.map(ctr);
     const hub = {
@@ -222,6 +232,7 @@ export function drawEdges(fset: Set<string> | null, q: string) {
     /* 'named' 는 사람이 고른 이름이 있을 때만. 승격만 한 교차는 라벨에
        쓸 이름이 없으므로(노드가 그 이름을 갖는다) 선 색으로만 구분한다. */
     le.className = "elbl" + (e.label ? " named" : "")
+      + (gap?.why.has(e.id) ? " gap gap-" + gap.why.get(e.id) : "")
       + (isSel ? " sel" : "") + (dim ? " dim" : "")
       + (ms.length > 2 ? " hyper" : "")
       + (isPinned(e) ? " moved" : "")

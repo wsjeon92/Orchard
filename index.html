@@ -47,6 +47,7 @@
         <button id="multiUngroup">그룹에서 빼기</button>
         <button id="multiClear">해제</button>
       </div>
+      <div id="gapBar" hidden></div>
       <div id="hint">
         <span><b>빈 곳 더블클릭</b> 키워드</span>
         <span><b>오른쪽 점 드래그</b> 연결</span>
@@ -83,6 +84,10 @@
         <div class="vrow">
           <label class="sw"><input type="checkbox" id="viewerOn">읽기 전용 (폰 보기)</label>
           <div class="vhint">고치는 기능을 끄고 보기에만 맞춥니다. 좁은 화면에서는 저절로 켜집니다.</div>
+        </div>
+        <div class="vrow">
+          <label class="sw"><input type="checkbox" id="gapsOn">빈 곳 표시</label>
+          <div class="vhint">비어 있으면서 <b>중요한</b> 곳만 남기고 나머지를 흐리게 합니다. 비어 있는 것을 전부 표시하면 거의 모든 키워드가 켜져서 신호가 되지 않습니다.</div>
         </div>
         <div class="vrow">
           <button id="btnTidy" class="vbtn">겹침 정리</button>

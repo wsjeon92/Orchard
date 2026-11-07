@@ -16,6 +16,7 @@ const LS_VIEW = "kwgraph.view";
 export let S: GraphState = { title: "", nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1 };
 export let VIEW: ViewSettings = {
   labelZoom: 0.45, sizeByDeg: true, minimap: true, hops: 3, anim: true,
+  gaps: false, gapWhy: null,
 };
 
 /* OS·브라우저의 '동작 줄이기' 설정.

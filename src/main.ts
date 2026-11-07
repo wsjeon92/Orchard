@@ -11,6 +11,7 @@ import {
 import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
 } from "./history";
+import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
 import { bindMinimap, drawMini } from "./minimap";
 import {
   bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown, openPhone,
@@ -149,11 +150,49 @@ function syncViewPop() {
   ao.checked = VIEW.anim;
   // 잠그지 않는다. 시스템이 '동작 줄이기'면 왜 기본이 꺼짐인지만 알려주고 선택은 맡긴다.
   el("animHint").style.display = reduceMotion ? "" : "none";
+  el<HTMLInputElement>("gapsOn").checked = VIEW.gaps;
+  drawGapBar();
   el<HTMLInputElement>("viewerOn").checked = isViewer();
   const foldable = S.nodes.filter((n) => foldKids(n.id).length);
   el<HTMLInputElement>("foldAllSw").checked =
     foldable.length > 0 && foldable.every((n) => !!n.collapsed);
 }
+/* 빈 곳 범례. 이유마다 몇 개인지 보여주고, 누르면 그 이유만 남긴다.
+   개수를 같이 보여주는 이유: '왜 이것만 켜졌지'를 숫자로 바로 알 수 있어야 한다. */
+function drawGapBar() {
+  const bar = el("gapBar");
+  bar.innerHTML = "";
+  bar.hidden = !VIEW.gaps;
+  if (!VIEW.gaps) return;
+  const c = gapCounts(findGaps());
+  for (const why of GAP_ORDER) {
+    const n = c[why];
+    const b = document.createElement("button");
+    b.className = "gb gap-" + why
+      + (VIEW.gapWhy === why ? " on" : "") + (n ? "" : " none");
+    b.title = GAP_WHY[why].hint;
+    b.innerHTML = '<span class="dot"></span>' + GAP_WHY[why].name + " <b>" + n + "</b>";
+    if (n) b.onclick = () => {
+      VIEW.gapWhy = VIEW.gapWhy === why ? null : why;   // 다시 누르면 전부로
+      saveView(); drawGapBar(); render();
+    };
+    bar.appendChild(b);
+  }
+  if (VIEW.gapWhy) {
+    const all = document.createElement("button");
+    all.className = "gb";
+    all.textContent = "전부 보기";
+    all.onclick = () => { VIEW.gapWhy = null; saveView(); drawGapBar(); render(); };
+    bar.appendChild(all);
+  }
+}
+el("gapsOn").onchange = (e) => {
+  VIEW.gaps = (e.target as HTMLInputElement).checked;
+  if (!VIEW.gaps) VIEW.gapWhy = null;     // 껐다 켤 때 지난 필터가 남아 있으면 혼란스럽다
+  saveView();
+  drawGapBar();
+  render();
+};
 el("miniOn").onchange = (e) => {
   VIEW.minimap = (e.target as HTMLInputElement).checked;
   saveView();
@@ -307,6 +346,7 @@ const api = {
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
+  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER,
   isViewer, setViewer, narrowScreen,
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,
   encodeGraph, decodeGraph, shareUrl,

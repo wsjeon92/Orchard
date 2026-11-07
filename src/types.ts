@@ -1,3 +1,4 @@
+import type { GapWhy } from "./gaps";
 /** 노드 종류.
  *  너비 축: atom 키워드 / compound 합성 키워드 / group 그룹
  *  깊이 축: question 질문 / hypothesis 가설 / method 접근 / test 검증 / risk 리스크 */
@@ -126,6 +127,10 @@ export interface ViewSettings {
   /** 집중 모드에서 퍼져나갈 홉 수 */
   hops: number;
   anim: boolean;
+  /** 빈 곳 강조 — 비어 있으면서 중요한 곳만 남기고 나머지를 흐리게 */
+  gaps: boolean;
+  /** 한 이유만 보기. null 이면 전부 */
+  gapWhy: GapWhy | null;
 }
 
 export type Selection =
