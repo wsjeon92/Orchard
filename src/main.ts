@@ -52,19 +52,8 @@ initHistory(render);
 onAfterSave(snapshot);
 
 /* ---------------- 상단 바 ---------------- */
-function addFromBar() {
-  const inp = el<HTMLInputElement>("newkw");
-  const v = inp.value.trim();
-  if (!v) return;
-  const r = stage.getBoundingClientRect();
-  const c = screenToWorld(r.left + r.width / 2, r.top + r.height / 2);
-  inp.value = "";
-  select("node", addNode(v, c.x - 50, c.y - 18).id);
-}
-el("btnAdd").onclick = addFromBar;
-el("newkw").addEventListener("keydown", (e) => {
-  if ((e as KeyboardEvent).key === "Enter") addFromBar();
-});
+/* 키워드 추가는 캔버스 빈 곳 더블클릭 하나로 모았다. 도구막대 입력칸은 화면 중앙에만
+   놓을 수 있어서 더블클릭보다 못했고, 자리만 먹어 뒤쪽 버튼을 막고 있었다. */
 
 /* 그래프 이름 — 내보내기 파일명과 마크다운 제목에 쓰인다 */
 const titleEl = el<HTMLInputElement>("gtitle");

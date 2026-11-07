@@ -44,7 +44,7 @@ with sync_playwright() as pw:
     print("1) 폰에서 뷰어 자동 켜짐")
 
     # 편집 도구는 숨는다
-    hidden = {s: box(pg, s) for s in ("#btnAdd", "#newkw", "#btnExport", "#btnUndo", "#hint")}
+    hidden = {s: box(pg, s) for s in ("#btnSlots", "#gtitle", "#btnExport", "#btnUndo", "#hint")}
     for s, v in hidden.items():
         assert v and not v["shown"], f"{s} 가 폰에서 보인다"
     assert box(pg, "#find")["shown"], "검색은 남아야 한다"
@@ -154,7 +154,7 @@ with sync_playwright() as pw:
     pg.wait_for_function("() => !!window.Orchard")
     seed(pg)
     assert not pg.evaluate("() => Orchard.isViewer()"), "넓은 화면인데 뷰어다"
-    assert box(pg, "#btnAdd")["shown"] and box(pg, "#btnExport")["shown"], "노트북에서 편집 도구가 사라졌다"
+    assert box(pg, "#btnSlots")["shown"] and box(pg, "#btnExport")["shown"], "노트북에서 편집 도구가 사라졌다"
     side_w = pg.evaluate("""() => { const n = Orchard.S.nodes[0]; Orchard.select('node', n.id);
         return document.getElementById('side').getBoundingClientRect().width; }""")
     print(f"\n6) 노트북: 뷰어 아님, 패널 {round(side_w)}px (원래대로)")
@@ -164,7 +164,7 @@ with sync_playwright() as pw:
     pg.evaluate("() => Orchard.setViewer(true)")
     pg.wait_for_timeout(250)
     assert pg.evaluate("() => Orchard.isViewer()"), "손으로 켠 뷰어가 안 먹는다"
-    assert pg.evaluate("() => !document.getElementById('btnAdd').offsetWidth"), "켰는데 편집 도구가 남았다"
+    assert pg.evaluate("() => !document.getElementById('btnSlots').offsetWidth"), "켰는데 편집 도구가 남았다"
     pg.evaluate("() => Orchard.setViewer(null)")
     pg.wait_for_timeout(250)
     assert not pg.evaluate("() => Orchard.isViewer()"), "자동으로 안 돌아온다"

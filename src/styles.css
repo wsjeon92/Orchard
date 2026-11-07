@@ -13,11 +13,12 @@ code{background:var(--panel3);padding:1px 5px;border-radius:4px;font-size:11.5px
 
 #app{position:fixed;inset:0;display:flex;flex-direction:column}
 #top{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:8px;padding:0 12px;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
   background:var(--panel);border-bottom:1px solid var(--line);z-index:30}
 #brand{font-weight:650;letter-spacing:-.01em;white-space:nowrap}
 #brand span{color:var(--dim2);font-weight:400;font-size:12px;margin-left:8px}
 /* 그래프 이름 — 평소엔 글자만, 만지면 입력칸처럼 */
-#gtitle{width:150px;padding:5px 8px;border-radius:7px;border:1px solid transparent;
+#gtitle{width:190px;min-width:70px;flex:0 1 190px;padding:5px 8px;border-radius:7px;border:1px solid transparent;
   background:transparent;outline:none;font-size:13px;color:var(--dim);transition:.12s}
 #gtitle:hover{border-color:var(--line);color:var(--text)}
 #gtitle:focus{border-color:#5aa9ff;background:var(--panel2);color:var(--text);width:220px}
@@ -35,9 +36,6 @@ code{background:var(--panel3);padding:1px 5px;border-radius:4px;font-size:11.5px
 #saveMark{font-size:11.5px;color:var(--dim2);opacity:.45;transition:opacity .25s,color .25s;white-space:nowrap}
 #saveMark.on{opacity:1;color:var(--ok)}
 #saveMark.err{opacity:1;color:var(--err)}
-#newkw{width:180px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);
-  background:var(--panel2);outline:none}
-#newkw:focus{border-color:#5aa9ff}
 
 #main{flex:1;display:flex;min-height:0}
 /* 캔버스 안에는 사용자가 선택할 텍스트가 없다 (라벨 편집은 패널에서 한다).
@@ -284,7 +282,7 @@ html.noanim #topicsList .tzero{transition:none;animation:none}
 .sw{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:var(--text)}
 .sw input{accent-color:#5aa9ff;width:15px;height:15px;cursor:pointer}
 
-#find{width:150px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);
+#find{width:150px;min-width:64px;flex:0 1 150px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);
   background:var(--panel2);outline:none}
 #find:focus{border-color:var(--ok);width:210px}
 #find.on{border-color:var(--ok)}
@@ -322,8 +320,6 @@ html.viewer #world { touch-action: none }
 
 /* 고치는 도구는 숨긴다 */
 html.viewer #gtitle,
-html.viewer #newkw,
-html.viewer #btnAdd,
 html.viewer #btnUndo,
 html.viewer #btnRedo,
 html.viewer #btnSlots,
@@ -482,3 +478,7 @@ html.viewer #btnLink{display:none}
 
 /* 폰 뷰어에서는 숨긴다 — 보기 전용 화면에 편집 패널은 자리만 먹는다 */
 html.viewer #topics,html.viewer #btnTopics{display:none}
+
+#top::-webkit-scrollbar{height:0}
+#top>*{flex-shrink:0}
+#gtitle,#find{flex-shrink:1}
