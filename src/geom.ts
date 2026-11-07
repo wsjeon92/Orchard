@@ -120,9 +120,10 @@ export function layoutGroups() {
 }
 export const edgeLabelText = (e: GEdge): string => {
   if (e.label) return e.label;                   // 직접 고른 이름이 가장 우선
-  const promoted = (e.promoted ?? []).map((id) => nodeOf(id)?.label).filter(Boolean);
-  if (promoted.length) return promoted.join(", ");
   if ((e.cands ?? []).length) return `후보 ${e.cands.length}`;
+  /* 승격된 노드 이름을 여기서 또 띄우지 않는다. 그 노드는 part 선으로 바로 옆에
+     붙어 있어서, 같은 이름이 노드와 엣지 라벨로 두 번 보였다. 열매를 맺은 교차라는
+     표시는 render.ts 의 보라색이 이미 하고 있다. */
   return "+";
 };
 

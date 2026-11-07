@@ -310,6 +310,10 @@ export function promote(eid: string, candIdx: number): GNode | null {
   e.cands.splice(candIdx, 1);
   e.promoted ??= [];
   e.promoted.push(c.id);
+  /* 승격한 이름을 엣지 이름으로도 걸어뒀다면 떼어낸다 — 이제 그 이름은 노드가 갖는다.
+     엣지는 멤버를 더 붙일 수 있는 허브로 남겨둔다(없애면 교차를 다시 못 키운다).
+     이름만 떼면 같은 이름이 노드와 엣지에 두 번 그려지는 일이 없다. */
+  if (e.label === name) e.label = "";
   return c;
 }
 

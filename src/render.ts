@@ -219,7 +219,9 @@ export function drawEdges(fset: Set<string> | null, q: string) {
       elblEls.set(e.id, le);
       bindLabel(le);
     }
-    le.className = "elbl" + ((e.promoted ?? []).length || e.label ? " named" : "")
+    /* 'named' 는 사람이 고른 이름이 있을 때만. 승격만 한 교차는 라벨에
+       쓸 이름이 없으므로(노드가 그 이름을 갖는다) 선 색으로만 구분한다. */
+    le.className = "elbl" + (e.label ? " named" : "")
       + (isSel ? " sel" : "") + (dim ? " dim" : "")
       + (ms.length > 2 ? " hyper" : "")
       + (isPinned(e) ? " moved" : "")
