@@ -1,0 +1,9 @@
+{
+  "name": "orchard-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Orchard 그래프 파일을 읽고 쓰는 로컬 MCP 서버",
+  "bin": { "orchard-mcp": "server.js" },
+  "dependencies": { "@modelcontextprotocol/sdk": "^1.32.2" }
+}
