@@ -4,6 +4,16 @@
   "private": true,
   "type": "module",
   "description": "Orchard 그래프 파일을 읽고 쓰는 로컬 MCP 서버",
-  "bin": { "orchard-mcp": "server.js" },
-  "dependencies": { "@modelcontextprotocol/sdk": "^1.32.2" }
+  "bin": {
+    "orchard-mcp": "server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  },
+  "scripts": {
+    "bundle": "esbuild server.js --bundle --platform=node --format=esm --target=node18 --minify --outfile=bundle/server.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
 }

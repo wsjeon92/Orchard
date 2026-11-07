@@ -243,9 +243,28 @@ Claude 채팅 → MCP 서버 → v1.json → (폴링) → 브라우저
 
 ### 설치
 
+이 저장소를 받은 PC 마다 한 번씩 해야 한다. GitHub 는 코드를 나를 뿐 설치는 하지 않는다.
+
 ```bash
 cd ~/Orchard/mcp && npm install
 ```
+
+**npm install 없이 쓰려면** `mcp/bundle/server.js` 를 가리키면 된다. SDK 까지 한 파일에
+넣어 둔 것이라 node 만 있으면 돈다. 다른 PC 에서는 `git pull` → 설정 → 앱 재시작으로 끝난다.
+서버 코드를 고쳤으면 `cd mcp && npm run bundle` 로 다시 만든다.
+
+### 그래프 파일은 따로 옮겨야 한다
+
+설치보다 이쪽이 실제 걸림돌이다. 다른 PC 에는 `v1.json` 이 없거나 옛날 것이다.
+저장소에 그래프를 넣으면 공개된다는 점을 생각해서 정한다.
+
+| 방법 | 어떻게 |
+|---|---|
+| 클라우드 폴더 | `v1.json` 을 OneDrive·Drive 안에 두고, 브라우저의 `파일 연결`과 MCP 설정이 그 경로를 보게 한다. 양쪽 PC 에서 같은 파일을 본다 |
+| 비공개 저장소 | 그래프만 담는 private 저장소를 따로 만들고 `git pull` 로 맞춘다. 자동은 아니다 |
+| 링크로 그때그때 | `폰으로` 버튼의 링크를 다른 PC 브라우저에 붙여넣는다. 옮기기는 되지만 그 PC 의 파일과는 이어지지 않는다 |
+
+둘 다에서 동시에 고치면 클라우드 동기화가 충돌본을 만든다. 한 번에 한 PC 에서 쓰는 전제다.
 
 ### Claude 데스크톱에 등록
 
@@ -266,6 +285,9 @@ cd ~/Orchard/mcp && npm install
   }
 }
 ```
+
+두 경로는 **그 PC 에 맞게 바꾼다** — 앞은 저장소 안의 `mcp/server.js`
+(또는 `mcp/bundle/server.js`), 뒤는 그 PC 의 그래프 파일.
 
 윈도우에 node 가 있고 그쪽에서 돌리고 싶으면 `command` 를 `node`, 첫 인자를
 `\\wsl$\<배포판>\home\wsjeon\Orchard\mcp\server.js` 로 바꾼다. SDK 는 순수 JS 라
