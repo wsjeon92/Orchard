@@ -27,9 +27,14 @@ import {
 } from "./render";
 import {
   S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView, seed,
-  setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion,
+  setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion, normalize,
 } from "./state";
 import { bindViewer, isViewer, narrowScreen, setViewer } from "./viewer";
+import {
+  bindFileLink, checkNow as checkFile, flushNow as flushFile, isLinked,
+  link as linkFile, needsPermission, regrant as regrantFile, restore as restoreLink,
+  state as linkState, supported as fileSupported, touch as touchFile, unlink as unlinkFile,
+} from "./filelink";
 import { decodeGraph, encodeGraph, hasGraphInUrl, shareUrl, takeFromUrl } from "./share";
 
 /* ---------------- 선택 ---------------- */
@@ -160,6 +165,46 @@ el("animOn").onchange = (e) => {
   if (!VIEW.anim) { snapPositions(); paint(); }
 };
 el("foldAllSw").onchange = (e) => foldAll((e.target as HTMLInputElement).checked);
+/* ---------------- 파일 직접 연결 ----------------
+   내보내기/가져오기 왕복 없이 디스크의 파일 하나를 그래프의 자리로 삼는다.
+   브라우저에서 고치면 파일로, 파일이 바뀌면 브라우저로 따라온다. */
+function syncLinkBtn() {
+  const b = el("btnLink");
+  b.hidden = !fileSupported();
+  if (b.hidden) return;
+  const st = linkState();
+  b.className = "tbtn ghost" + (st.linked ? " on" : st.needsPerm ? " warn" : "")
+    + (st.dirty ? " busy" : "");
+  b.textContent = st.linked ? st.name : st.needsPerm ? "파일 다시 연결" : "파일 연결";
+  b.title = st.linked
+    ? `${st.name} 과 연결됨 — 고치면 바로 저장되고, 파일이 바뀌면 따라옵니다. 누르면 연결을 끊습니다.`
+    : st.needsPerm
+      ? "새로고침 뒤에는 파일 접근 권한을 다시 받아야 합니다. 누르세요."
+      : "그래프를 담을 .json 파일을 고릅니다";
+}
+
+bindFileLink(syncLinkBtn, (g) => {       // 파일이 바깥에서 바뀌었을 때
+  setGraph(g);
+  normalize();
+  syncTitleInput();
+  resetHistoryBase();
+  render();
+  syncLinkBtn();
+});
+onAfterSave(touchFile);                   // 그래프가 바뀔 때마다 파일에 쓴다
+void restoreLink().then(syncLinkBtn);
+
+el("btnLink").onclick = () => void (async () => {
+  const st = linkState();
+  if (st.needsPerm) { await regrantFile(); return; }
+  if (st.linked) {
+    if (confirm(`${st.name} 과의 연결을 끊을까요?\n\n`
+      + "그래프는 브라우저에 그대로 남고, 더 이상 파일에 쓰지 않습니다.")) await unlinkFile();
+    return;
+  }
+  await linkFile();
+})();
+
 el("btnPhone").onclick = () => void openPhone();
 el("phoneClose").onclick = () => el("phoneMask").classList.add("hidden");
 el("shareCopy").onclick = () => {
@@ -263,6 +308,7 @@ const api = {
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
   isViewer, setViewer, narrowScreen,
+  linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,
   encodeGraph, decodeGraph, shareUrl,
   stacks, resetHistory: () => { resetHistoryBase(); clearStacks(); },
   slotLoad: (name: string) => loadSlot(name),

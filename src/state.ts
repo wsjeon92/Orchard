@@ -89,8 +89,8 @@ export function strip() {
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 /** 변경 직후 호출된다. 스냅샷(실행 취소)도 여기에 걸어 둔다 — 제목·메모 입력은
  *  render 를 거치지 않고 save 만 부르기 때문에 여기 둬야 빠짐이 없다. */
-let afterSave: (() => void) | null = null;
-export function onAfterSave(fn: () => void) { afterSave = fn; }
+const afterSaveFns: (() => void)[] = [];
+export function onAfterSave(fn: () => void) { afterSaveFns.push(fn); }
 
 export function save() {
   const m = document.getElementById("saveMark");
@@ -111,7 +111,7 @@ export function save() {
       m.className = "err";
     }
   }
-  afterSave?.();
+  for (const fn of afterSaveFns) fn();
 }
 
 /** assoc 엣지는 멤버가 2개 이상인 하이퍼엣지다. 옛 저장본의 a/b 를 members 로 올린다. */
