@@ -406,9 +406,8 @@ html.viewer #btnLink{display:none}
 .node.gap{box-shadow:0 0 0 2px var(--gapc),0 0 14px -2px var(--gapc)}
 .elbl.gap{box-shadow:0 0 0 2px var(--gapc)}
 .gap-orphan{--gapc:#e0683c}
-.gap-noWork{--gapc:#4e9bd8}
 .gap-leaf{--gapc:#6f9a4a}
-.gap-edgeNoWork{--gapc:#9b6fd0}
+.gap-edgeNoWork{--gapc:#4e9bd8}
 
 #gapBar{position:absolute;left:12px;top:12px;z-index:6;display:flex;gap:6px;
   flex-wrap:wrap;align-items:center;max-width:calc(100% - 24px)}

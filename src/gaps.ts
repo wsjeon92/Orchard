@@ -9,16 +9,15 @@
    "지금 이 그래프에서 많이 이어진 쪽"을 가리킨다. */
 import { S, VIEW, isGroup } from "./state";
 
-export type GapWhy = "orphan" | "noWork" | "leaf" | "edgeNoWork";
+export type GapWhy = "orphan" | "leaf" | "edgeNoWork";
 
 /** 사람에게 보여줄 이름과 설명 — 범례와 힌트가 같은 문구를 쓴다 */
 export const GAP_WHY: Record<GapWhy, { name: string; hint: string }> = {
   orphan: { name: "의도 불명", hint: "어디에도 안 이어지고 메모도 없다. 왜 적어 뒀는지 기록할 곳" },
-  noWork: { name: "근거 없음", hint: "많이 이어졌는데 관련 연구가 비었다. 문헌을 먼저 채울 곳" },
   leaf: { name: "말단", hint: "이웃이 하나뿐이다. 더 이을 수 있는지 볼 곳" },
-  edgeNoWork: { name: "교차에 근거 없음", hint: "키워드 셋 이상을 묶은 교차인데 관련 연구가 비었다" },
+  edgeNoWork: { name: "근거 없음", hint: "이름을 붙인 교차인데 관련 연구가 비었다. 문헌을 채울 곳" },
 };
-export const GAP_ORDER: GapWhy[] = ["orphan", "noWork", "leaf", "edgeNoWork"];
+export const GAP_ORDER: GapWhy[] = ["orphan", "leaf", "edgeNoWork"];
 
 export interface Gap {
   id: string;
@@ -67,26 +66,23 @@ export function findGaps(): Gap[] {
   const kw = S.nodes.filter((n) => !isGroup(n));
   const out: Gap[] = [];
 
-  // 상위 25% 차수 경계. 2 미만으로는 내려가지 않는다 — 이웃 하나는 '말단'이 맡는다
-  const ds = kw.map((n) => deg.get(n.id) ?? 0).sort((a, b) => b - a);
-  const cut = Math.max(2, ds[Math.floor(ds.length * 0.25)] ?? 2);
-
   for (const n of kw) {
     const d = deg.get(n.id) ?? 0;
     if (!att.has(n.id) && !txt(n.note)) {
       out.push({ id: n.id, kind: "node", why: "orphan", score: 1 });
-    } else if (d >= cut && !hasWork(n)) {
-      out.push({ id: n.id, kind: "node", why: "noWork", score: d });
     } else if (d === 1) {
       out.push({ id: n.id, kind: "node", why: "leaf", score: 1 });
     }
   }
+  /* 문헌은 교차에 붙는다. 노드에 "차수가 높은데 문헌이 없다"를 물으면 틀린 곳을 가리킨다 —
+     차수가 높은 키워드일수록 '단백질', 'AI', '실험' 같은 축 이름이고, 축에는 대표 논문이
+     없다. 실제로 이 그래프에서 문헌이 붙은 자리는 이름을 붙인 교차와 구체적인 노드뿐이다.
+     그래서 노드 차수로 문헌을 묻지 않고, 이름을 붙인 교차만 묻는다.
+     멤버 수는 따지지 않는다. 'RFdiffusion'(둘)과 'BindClaw'(다섯)는 똑같이 근거가 필요하다. */
   for (const e of S.edges) {
     if (e.kind !== "assoc") continue;
-    const ms = membersOf(e);
-    // 멤버 셋 이상 + 이름이 붙은 것만. 둘짜리 무명 연결까지 세면 거의 전부가 걸린다
-    if (ms.length >= 3 && txt(e.label) && !hasWork(e)) {
-      out.push({ id: e.id, kind: "edge", why: "edgeNoWork", score: ms.length });
+    if (txt(e.label) && !hasWork(e)) {
+      out.push({ id: e.id, kind: "edge", why: "edgeNoWork", score: membersOf(e).length });
     }
   }
   return out.sort((a, b) =>
@@ -95,7 +91,7 @@ export function findGaps(): Gap[] {
 
 /** 이유별 개수 — 범례에 쓴다 */
 export function gapCounts(gs: Gap[]): Record<GapWhy, number> {
-  const c = { orphan: 0, noWork: 0, leaf: 0, edgeNoWork: 0 };
+  const c = { orphan: 0, leaf: 0, edgeNoWork: 0 };
   for (const g of gs) c[g.why]++;
   return c;
 }

@@ -4,13 +4,17 @@
 전부 표시하면 95% 가 켜지고 그건 아무 신호도 아니다. 그래서 세 가지로 나눈다.
 
   의도 불명  어디에도 안 이어지고 메모도 없다
-  근거 없음  차수가 상위 25% 안인데 works 가 비었다
   말단      이웃이 하나뿐이다
-  교차에 근거 없음  멤버 셋 이상 + 이름 있는 연결인데 works 가 비었다
+  근거 없음  이름을 붙인 교차인데 works 가 비었다
 
-차수 기준을 고정값(>=5)으로 박으면 그래프가 커질 때 전부가 넘고 작을 때 아무도 못
-넘는다. 상위 25% 라는 상대 기준이어야 크기와 무관하게 '많이 이어진 쪽'을 가리킨다.
-그 성질을 여기서 고정한다.
+한 번 틀렸던 것을 여기서 고정한다. 처음에는 "차수가 높은데 문헌이 없는 노드"를
+근거 없음으로 잡았는데, 그러면 '단백질'(14) 'AI'(12) '실험'(8) 같은 축 이름이
+상위를 채운다. 축에는 대표 논문이 없다 — '단백질의 중요 논문 5편'은 질문이 성립하지
+않는다. 실제로 이 그래프에서 문헌이 붙은 자리는 이름을 붙인 교차(BindCraft, bioEmu,
+mega scale …)와 구체적인 노드(VLR, RNA binder)뿐이다. 그래서 노드 차수로 문헌을
+묻지 않는다.
+
+멤버 수도 따지지 않는다. 'RFdiffusion'(둘)과 'BindClaw'(다섯)는 똑같이 근거가 필요하다.
 """
 import json, pathlib
 from playwright.sync_api import sync_playwright
@@ -52,8 +56,15 @@ def main():
         if share < 10: bad.append(f"너무 적게 켜진다 ({share}%)")
         if not r['bright']: bad.append("강조 테두리가 안 붙었다")
         if not r['dimmed']: bad.append("나머지가 흐려지지 않았다")
-        for why in ('orphan', 'noWork', 'leaf'):
+        for why in ('orphan', 'leaf', 'edgeNoWork'):
             if not r['counts'][why]: bad.append(f"{why} 가 0개 — 이 그래프에는 있어야 한다")
+        # 축 이름에는 문헌을 묻지 않는다
+        axis = pg.evaluate("""() => {
+          const gs = Orchard.findGaps().filter(g => g.kind === 'node');
+          const lb = gs.map(g => Orchard.nodeOf(g.id).label);
+          return ['단백질', 'AI', '실험', '신약개발', '설계/생성'].filter(x => lb.includes(x));
+        }""")
+        if axis: bad.append('축 키워드가 빈 곳으로 잡혔다: ' + ', '.join(axis))
 
         # --- 이유 하나만 보기
         r2 = pg.evaluate("""() => {
@@ -81,21 +92,23 @@ def main():
           const out = {};
           for (const n of [6, 30]) {
             Orchard.reset();
-            // 중심 하나에 n 개를 매달면 중심만 차수가 크다
             const hub = Orchard.addNode('허브', 0, 0);
             const leaves = [];
             for (let i = 0; i < n; i++) leaves.push(Orchard.addNode('잎' + i, 60 * i, 200).id);
-            for (const l of leaves) Orchard.addHyper([hub.id, l]);
+            for (const l of leaves) { const e = Orchard.addHyper([hub.id, l]); e.label = '연결' + l; }
             const gs = Orchard.findGaps();
-            out[n] = { noWork: Orchard.gapCounts(gs).noWork,
-                       hubIn: gs.some(g => g.id === hub.id && g.why === 'noWork') };
+            // 허브는 축이므로 잡히면 안 되고, 이름 붙인 교차는 전부 잡혀야 한다
+            out[n] = { edges: Orchard.gapCounts(gs).edgeNoWork,
+                       hubIn: gs.some(g => g.id === hub.id) };
           }
           return out;
         }""")
         for n, v in rel.items():
-            if not v['hubIn']:
-                bad.append(f"노드 {n}개 그래프에서 허브가 '근거 없음'에 안 잡혔다")
-        print(f"  상대 기준 확인: {rel}")
+            if v['hubIn']:
+                bad.append(f"노드 {n}개 그래프에서 축(허브)이 빈 곳으로 잡혔다")
+            if v['edges'] != int(n):
+                bad.append(f"노드 {n}개 그래프에서 이름 붙은 교차 {n}개 중 {v['edges']}개만 잡혔다")
+        print(f"  축 제외 확인: {rel}")
         pg.close()
         b.close()
 
