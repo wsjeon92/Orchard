@@ -116,6 +116,16 @@ export interface GraphState {
   edges: GEdge[];
   view: Viewport;
   seq: number;
+  /** 연구 주제 메모. 그래프와 같은 파일에 담겨 내보내기·가져오기를 따라간다 */
+  topics: Topic[];
+}
+
+/** 그래프를 보다가 떠오른 연구 주제. 그래프 요소를 가리키지 않는다 —
+    근거(문헌)는 그래프가 갖고, 여기는 생각을 적는 곳이다. */
+export interface Topic {
+  id: string;
+  title: string;
+  body: string;
 }
 
 export interface ViewSettings {

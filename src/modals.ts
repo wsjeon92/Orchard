@@ -1,4 +1,5 @@
 import { div, el } from "./dom";
+import { drawTopics } from "./topics";
 import {
   adopt, S, UI, VIEW, cut, esc, isGroup, kindOf, nodeOf, safeName, save, saveView,
   slotDelete, slots, slotSave, strip,
@@ -153,6 +154,7 @@ export function loadSlot(name: string) {
   adopt(s.data);
   resetHistoryBase();
   syncTitleInput();
+  drawTopics();
   render(); fit();
 }
 
@@ -255,6 +257,7 @@ export function bindModals(syncViewPop: () => void) {
       adopt(o);
       resetHistoryBase();
       syncTitleInput();
+      drawTopics();
       el("impMask").classList.add("hidden");
       render(); fit();
     } catch (e) {

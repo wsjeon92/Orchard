@@ -31,6 +31,7 @@ import {
   setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion, normalize,
 } from "./state";
 import { bindViewer, isViewer, narrowScreen, setViewer } from "./viewer";
+import { addTopic, bindTopics, drawTopics, setTopics, syncAnimClass, topicsOpen } from "./topics";
 import {
   bindFileLink, checkNow as checkFile, flushNow as flushFile, isLinked,
   link as linkFile, needsPermission, regrant as regrantFile, restore as restoreLink,
@@ -151,6 +152,7 @@ function syncViewPop() {
   // 잠그지 않는다. 시스템이 '동작 줄이기'면 왜 기본이 꺼짐인지만 알려주고 선택은 맡긴다.
   el("animHint").style.display = reduceMotion ? "" : "none";
   el<HTMLInputElement>("gapsOn").checked = VIEW.gaps;
+  syncAnimClass();
   drawGapBar();
   el<HTMLInputElement>("viewerOn").checked = isViewer();
   const foldable = S.nodes.filter((n) => foldKids(n.id).length);
@@ -200,6 +202,7 @@ el("miniOn").onchange = (e) => {
 };
 el("animOn").onchange = (e) => {
   VIEW.anim = (e.target as HTMLInputElement).checked;
+  syncAnimClass();
   saveView();
   if (!VIEW.anim) { snapPositions(); paint(); }
 };
@@ -226,6 +229,7 @@ bindFileLink(syncLinkBtn, (g) => {       // 파일이 바깥에서 바뀌었을 
   setGraph(g);
   normalize();
   syncTitleInput();
+  drawTopics();
   resetHistoryBase();
   render();
   syncLinkBtn();
@@ -278,6 +282,7 @@ el("viewerOn").onchange = (e) => {
   // 화면 크기와 같은 값이면 '자동'으로 되돌려 다음에 창 크기가 바뀌면 따라오게 한다
   setViewer(on === narrowScreen() ? null : on, () => { syncViewPop(); render(); });
 };
+bindTopics();
 bindModals(syncViewPop);
 bindCanvas();
 bindMinimap(applyView);
@@ -287,6 +292,7 @@ loadView();
 hopsEl.value = String(VIEW.hops);
 el("hopsN").textContent = String(VIEW.hops);
 if (!load()) seed();
+drawTopics();
 syncTitleInput();
 render();
 if (!S.view.x && !S.view.y) fit();
@@ -302,6 +308,7 @@ async function openFromUrl() {
   const open = () => {
     setGraph(g);
     syncTitleInput();
+    drawTopics();
     resetHistoryBase();
     render();
     fit();
@@ -327,7 +334,8 @@ function reset() {                       // 테스트가 깨끗한 상태에서 
   nodeEls.forEach((e) => e.remove()); nodeEls.clear();
   elblEls.forEach((e) => e.remove()); elblEls.clear();
   UI.sel = null; UI.focusId = null; UI.query = ""; UI.marked.clear(); UI.hidden.clear();
-  setGraph({ nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1 });
+  setGraph({ nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1, topics: [] });
+  drawTopics();
   resetHistoryBase(); clearStacks();
 }
 const api = {
@@ -347,6 +355,7 @@ const api = {
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
   findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER,
+  addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass,
   isViewer, setViewer, narrowScreen,
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,
   encodeGraph, decodeGraph, shareUrl,

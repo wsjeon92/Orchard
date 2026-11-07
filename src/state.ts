@@ -13,7 +13,9 @@ const LS_OLD = [
 const LS_SLOTS = "kwgraph.slots";
 const LS_VIEW = "kwgraph.view";
 
-export let S: GraphState = { title: "", nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1 };
+export let S: GraphState = {
+  title: "", nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1, topics: [],
+};
 export let VIEW: ViewSettings = {
   labelZoom: 0.45, sizeByDeg: true, minimap: true, hops: 3, anim: true,
   gaps: false, gapWhy: null,
@@ -84,6 +86,9 @@ export function strip() {
     })),
     view: S.view,
     seq: S.seq,
+    /* strip 은 화이트리스트다. 새 최상위 필드는 반드시 여기 적어야 한다 —
+       빠뜨리면 저장·내보내기에서 조용히 사라지고 아무 에러도 안 난다. */
+    topics: (S.topics ?? []).map((t) => ({ ...t })),
   } as GraphState;
 }
 
@@ -117,6 +122,7 @@ export function save() {
 
 /** assoc 엣지는 멤버가 2개 이상인 하이퍼엣지다. 옛 저장본의 a/b 를 members 로 올린다. */
 export function normalize() {
+  S.topics ??= [];                       // 주제 탭이 생기기 전 파일을 끌어온다
   S.nodes.forEach((n) => {
     n.works ??= [];
     n.parts ??= [];
@@ -135,7 +141,10 @@ export function normalize() {
 
 export function adopt(o: unknown): boolean {
   const g = o as GraphState | null;
-  if (!g || !Array.isArray(g.nodes) || !g.nodes.length) return false;
+  if (!g || !Array.isArray(g.nodes)) return false;
+  /* 빈 저장본은 걸러야 첫 방문에 seed() 가 돌지만, 주제 메모만 남은 그래프는 빈 게 아니다.
+     노드를 다 지우고 주제만 적어 둔 상태에서 새로고침하면 메모가 통째로 날아갔다. */
+  if (!g.nodes.length && !((g.topics as unknown[] | undefined)?.length)) return false;
   setGraph(Object.assign({ title: "", view: { x: 0, y: 0, k: 1 }, seq: 1, edges: [] }, g));
   normalize();
   S.seq = Math.max(S.seq || 1, S.nodes.length + S.edges.length + 1);
