@@ -61,7 +61,7 @@ export function drawTopics() {
     const fold = document.createElement("button");
     fold.className = "tfold";
     fold.title = t.id === openId ? "접기" : "펼치기";
-    fold.textContent = "▸";
+    fold.textContent = "▶";
     fold.onclick = (ev) => { ev.stopPropagation(); toggle(t.id); };
 
     const ti = document.createElement("input");
