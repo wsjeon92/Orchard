@@ -19,20 +19,23 @@ import { S, VIEW, isGroup } from "./state";
 
 export type GapWhy =
   | "edgeRipe" | "nodeParked" | "groupLoose"      // 교차해 봐라
-  | "orphan" | "leaf" | "edgeNoWork";             // 채워라
+  | "edgeBlank" | "edgeNoWork" | "orphan" | "leaf";   // 채워라
 
 /** 사람에게 보여줄 이름과 설명 — 범례와 힌트가 같은 문구를 쓴다 */
 export const GAP_WHY: Record<GapWhy, { name: string; hint: string }> = {
   edgeRipe: { name: "익은 교차", hint: "문헌이 쌓였는데 아직 개념으로 안 올렸다. 올려서 다시 교차할 곳" },
   nodeParked: { name: "교차 없음", hint: "그래프에 넣어 뒀는데 아직 아무 것과도 교차하지 않았다" },
   groupLoose: { name: "떠 있는 묶음", hint: "묶음 자체가 교차에 안 들어갔다. 묶음째로 교차해 볼 곳" },
+  edgeBlank: { name: "이름 없음", hint: "이어 놓고 뭐라 부를지 안 정했다. 이미 있는 연구면 그 이름을 적을 곳" },
   orphan: { name: "의도 불명", hint: "어디에도 안 이어지고 메모도 없다. 왜 적어 뒀는지 기록할 곳" },
   leaf: { name: "말단", hint: "이웃이 하나뿐이다. 더 이을 수 있는지 볼 곳" },
   edgeNoWork: { name: "근거 없음", hint: "이름을 붙인 교차인데 관련 연구가 비었다. 문헌을 채울 곳" },
 };
 export const GAP_ORDER: GapWhy[] = [
   "edgeRipe", "nodeParked", "groupLoose",
-  "orphan", "leaf", "edgeNoWork",
+  /* 교차의 일생이 순서다 — 잇는다 → 이름 붙인다 → 문헌 채운다 → 익는다 → 승격.
+     이름 없는 것이 가장 쉽게 썩는다. 방금은 왜 이었는지 알지만 일주일 뒤엔 모른다 */
+  "edgeBlank", "edgeNoWork", "orphan", "leaf",
 ];
 
 export interface Gap {
@@ -122,8 +125,14 @@ export function findGaps(): Gap[] {
      멤버 수는 따지지 않는다. 'RFdiffusion'(둘)과 'BindClaw'(다섯)는 똑같이 근거가 필요하다. */
   for (const e of S.edges) {
     if (e.kind !== "assoc") continue;
-    if (txt(e.label) && !hasWork(e)) {
-      out.push({ id: e.id, kind: "edge", why: "edgeNoWork", score: membersOf(e).length });
+    if (txt(e.label)) {
+      if (!hasWork(e)) {
+        out.push({ id: e.id, kind: "edge", why: "edgeNoWork", score: membersOf(e).length });
+      }
+    } else if (!(e.promoted ?? []).length && !txt(e.note)) {
+      /* 승격한 교차는 이름이 비는 것이 정상이다 — 이름이 노드로 옮겨 갔다.
+         그것까지 잡으면 일을 끝낸 자리를 안 끝났다고 말하게 된다 */
+      out.push({ id: e.id, kind: "edge", why: "edgeBlank", score: membersOf(e).length });
     }
   }
 

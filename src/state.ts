@@ -35,7 +35,7 @@ export let VIEW: ViewSettings = {
   labelZoom: 0.45, sizeByDeg: true, minimap: true, hops: 3, anim: true,
   gaps: false, gapWhy: null,
   ripeFloor: RIPE_FLOOR, ripeMax: RIPE_MAX,
-  crossMin: CROSS_MIN, crossMax: CROSS_MAX,
+  crossMin: CROSS_MIN, crossMax: CROSS_MAX, crossMode: "score",
 };
 
 /* OS·브라우저의 '동작 줄이기' 설정.

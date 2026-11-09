@@ -14,7 +14,8 @@ import {
 } from "./history";
 import {
   bindCross, crossCands, crossDismiss, crossLabel, crossOpen, crossRestoreAll,
-  crossSkipped, crossWorksText, drawCross, setCross, setCrossCloseOther, syncCrossN,
+  crossDraw, crossDrawn, crossScanOf, crossScannable, crossSkipped, crossWorksText,
+  drawCross, setCross, setCrossCloseOther, syncCrossN,
 } from "./cross";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
 import { bindMinimap, drawMini } from "./minimap";
@@ -50,6 +51,8 @@ import { decodeGraph, encodeGraph, hasGraphInUrl, shareUrl, takeFromUrl } from "
 function select(type: "node" | "edge" | null, id?: string) {
   setSel(type && id ? ({ type, id } as const) : null);
   render();
+  /* 훑기 모드는 캔버스 선택을 따라간다 — 고르는 칸을 따로 두지 않기로 했다 */
+  if (crossOpen() && VIEW.crossMode === "scan") drawCross();
 }
 setSelect(select);
 setApplyView(applyView);
@@ -383,7 +386,7 @@ const api = {
   animRunning, kickAnim, snapPositions, reduceMotion,
   findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER,
   crossCands, crossDismiss, crossRestoreAll, crossSkipped, crossLabel, crossWorksText,
-  crossOpen, setCross, drawCross,
+  crossOpen, setCross, drawCross, crossScanOf, crossScannable, crossDraw, crossDrawn,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass,
   isViewer, setViewer, narrowScreen,
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,

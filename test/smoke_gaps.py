@@ -37,7 +37,7 @@ from conftest_paths import url, launch
 
 REAL = pathlib.Path('/mnt/user-data/uploads/Orchard/v1.json')
 ASK = ('edgeRipe', 'nodeParked', 'groupLoose')
-FILL = ('orphan', 'leaf', 'edgeNoWork')
+FILL = ('edgeBlank', 'edgeNoWork', 'orphan', 'leaf')
 
 
 def seeded(pg, graph):
@@ -75,8 +75,11 @@ def main():
         if not r['bright']: bad.append("노드 강조 테두리가 안 붙었다")
         if not r['grpBright']: bad.append("묶음 강조가 안 붙었다 — .grp.gap 규칙이 없다")
         if not r['dimmed']: bad.append("나머지가 흐려지지 않았다")
-        for why in ASK + FILL:
+        for why in ASK + ('edgeNoWork', 'orphan', 'leaf'):
             if not r['counts'][why]: bad.append(f"{why} 가 0개 — 이 그래프에는 있어야 한다")
+        # 이름 없는 교차: 이 그래프에는 승격된 것 셋뿐이라 0이어야 한다
+        if r['counts']['edgeBlank']:
+            bad.append(f"승격해서 이름이 빈 교차를 빈 곳으로 잡았다: {r['counts']['edgeBlank']}개")
         if sorted(r['counts']) != sorted(ASK + FILL):
             bad.append("gapCounts 가 여섯 범주를 다 안 센다: %r" % sorted(r['counts']))
 
@@ -117,6 +120,29 @@ def main():
         print(f"  교차 없음 순위: {rank}")
         if [s for _, s in rank] != sorted((s for _, s in rank), reverse=True):
             bad.append("교차 없음이 순위대로 정렬되지 않았다: %r" % rank)
+
+        # 이름 없는 교차: 새로 이으면 잡히고, 이름을 붙이거나 승격하면 빠진다
+        blank = pg.evaluate("""() => {
+          /* 새 노드 둘로 만든다. 기존 노드를 쓰면 이미 이어진 쌍일 때
+             addHyper 가 기존 엣지를 돌려줘서(중복 방지) 빈 교차가 안 생긴다 */
+          const p1 = Orchard.addNode('빈교차A', 9000, 9000);
+          const p2 = Orchard.addNode('빈교차B', 9200, 9000);
+          const e = Orchard.addHyper([p1.id, p2.id]);
+          const made = Orchard.findGaps().filter(g => g.why === 'edgeBlank').length;
+          e.label = '이름';
+          const named = Orchard.findGaps().filter(g => g.why === 'edgeBlank').length;
+          e.label = ''; e.promoted = ['x'];
+          const promoted = Orchard.findGaps().filter(g => g.why === 'edgeBlank').length;
+          e.promoted = []; e.note = '왜 이었는지';
+          const noted = Orchard.findGaps().filter(g => g.why === 'edgeBlank').length;
+          Orchard.S.edges.splice(Orchard.S.edges.indexOf(e), 1);
+          for (const p of [p2, p1]) Orchard.S.nodes.splice(Orchard.S.nodes.indexOf(p), 1);
+          return { made, named, promoted, noted };
+        }""")
+        if blank['made'] != 1: bad.append("새로 이은 이름 없는 교차가 안 잡힌다: %r" % blank['made'])
+        for k, msg in (('named', '이름을 붙였는데'), ('promoted', '승격했는데'), ('noted', '메모를 적었는데')):
+            if blank[k]: bad.append(f"{msg} 여전히 이름 없음으로 잡힌다")
+        print(f"  이름 없는 교차: {blank}")
 
         # --- 이유 하나만 보기
         r2 = pg.evaluate("""() => {

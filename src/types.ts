@@ -1,3 +1,4 @@
+import type { CrossMode } from "./cross";
 import type { GapWhy } from "./gaps";
 /** 노드 종류.
  *  너비 축: atom 키워드 / compound 합성 키워드 / group 그룹
@@ -153,6 +154,8 @@ export interface ViewSettings {
   crossMin: number;
   /** 교차 후보 — 한 번에 권하는 최대 개수. 사람 쪽 값 */
   crossMax: number;
+  /** 교차 후보 모드 — 권함(점수) / 훑기(한 키워드 전부) / 무작위 */
+  crossMode: CrossMode;
 }
 
 export type Selection =

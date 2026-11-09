@@ -175,6 +175,87 @@ def main():
         if act['others'] != 1: bad.append("관계없는 후보(c1 × c2)까지 사라졌다: %r" % act['others'])
         print(f"  만들기/치움/되돌리기: {act}")
 
+        # ---------- 훑기: 경유를 보지 않고 전부 ----------
+        scan = pg.evaluate("""() => {
+          Orchard.reset();
+          const a = Orchard.addNode('가',0,0), b = Orchard.addNode('나',300,0);
+          const c = Orchard.addNode('다',0,200), d = Orchard.addNode('라',300,200);
+          const extra = Orchard.addNode('마',600,0);
+          Orchard.groupWith(c.id, d.id);                 // 그룹 노드가 하나 생긴다
+          Orchard.addHyper([a.id, b.id]).label = '이미';   // 가-나 는 이어졌다
+          const names = id => Orchard.crossScanOf(id).map(n => n.label).sort();
+          const grp = Orchard.S.nodes.find(n => n.kind === 'group');
+          return {
+            fromA: names(a.id),                          // 나 는 빠지고 나머지는 전부
+            self: Orchard.crossScanOf(a.id).some(n => n.id === a.id),
+            grpIn: names(a.id).some(x => Orchard.S.nodes.find(n => n.label === x && n.kind === 'group')),
+            grpScannable: Orchard.crossScannable(grp.id),
+            none: Orchard.crossScanOf('없는id').length,
+          };
+        }""")
+        print(f"  훑기(가 기준): {scan['fromA']}")
+        if sorted(scan['fromA']) != ['다', '라', '마']:
+            bad.append("훑기 결과가 틀렸다 — 이어진 '나'는 빠지고 다·라·마만 나와야: %r" % scan['fromA'])
+        if scan['self']: bad.append("훑기에 자기 자신이 들어 있다")
+        if scan['grpIn']: bad.append("훑기에 묶음이 들어 있다")
+        if scan['grpScannable']: bad.append("묶음을 훑기 대상으로 삼을 수 있다고 나온다")
+        if scan['none']: bad.append("없는 id 인데 결과가 나온다")
+
+        # 훑기는 경유를 안 본다 — 경유 0개인 쌍도 반드시 나온다
+        blind = pg.evaluate("""() => {
+          Orchard.VIEW.crossMax = 9999;
+          const cs = Orchard.crossCands().map(c => [c.a, c.b].sort().join('|'));
+          Orchard.VIEW.crossMax = 10;
+          const a = Orchard.S.nodes.find(n => n.label === '가');
+          const scan = Orchard.crossScanOf(a.id).map(n => [a.id, n.id].sort().join('|'));
+          return { scan: scan.length, alsoScored: scan.filter(k => cs.includes(k)).length };
+        }""")
+        if blind['scan'] <= blind['alsoScored']:
+            bad.append("훑기가 점수 후보보다 넓지 않다: %r" % blind)
+        print(f"  훑기는 점수 후보보다 넓다: {blind}")
+
+        # ---------- 무작위: 안 이어진 쌍만, 뽑을 때마다 바뀐다 ----------
+        rnd = pg.evaluate("""() => {
+          const linked = () => {
+            const s = new Set();
+            for (const e of Orchard.S.edges) {
+              if (e.kind !== 'assoc') continue;
+              const m = e.members || [];
+              for (let i=0;i<m.length;i++) for (let j=i+1;j<m.length;j++) s.add([m[i],m[j]].sort().join('|'));
+            }
+            return s;
+          };
+          const L = linked();
+          const draws = [];
+          for (let k = 0; k < 12; k++) draws.push(Orchard.crossDraw(2).map(p => p.sort().join('|')));
+          const flat = draws.flat();
+          return {
+            bad: flat.filter(k => L.has(k)).length,
+            uniq: new Set(flat).size,
+            sizes: [...new Set(draws.map(d => d.length))],
+            kept: JSON.stringify(Orchard.crossDrawn().map(p=>p.sort().join('|'))) === JSON.stringify(draws[11]),
+          };
+        }""")
+        if rnd['bad']: bad.append("무작위가 이미 이어진 쌍을 뽑았다: %d" % rnd['bad'])
+        if rnd['uniq'] < 2: bad.append("12번 뽑았는데 늘 같은 쌍이다 — 무작위가 아니다")
+        if rnd['sizes'] != [2]: bad.append("뽑은 개수가 요청과 다르다: %r" % rnd['sizes'])
+        if not rnd['kept']: bad.append("마지막으로 뽑은 것이 유지되지 않는다 — 다시 그릴 때 바뀐다")
+        print(f"  무작위 12회: 서로 다른 쌍 {rnd['uniq']}개, 이미 이어진 것 {rnd['bad']}개")
+
+        # ---------- 모드 전환 ----------
+        modes = pg.evaluate("""() => {
+          const out = {};
+          for (const m of ['score', 'scan', 'random']) {
+            Orchard.VIEW.crossMode = m; Orchard.setCross(true); Orchard.drawCross();
+            out[m] = { on: [...document.querySelectorAll('.ctab.on')].map(t => t.textContent),
+                       tabs: document.querySelectorAll('.ctab').length };
+          }
+          return out;
+        }""")
+        if any(v['tabs'] != 3 for v in modes.values()): bad.append("탭이 3개가 아니다: %r" % modes)
+        if [v['on'] for v in modes.values()] != [['권함'], ['훑기'], ['무작위']]:
+            bad.append("모드 전환이 탭에 안 비친다: %r" % modes)
+
         # ---------- 패널은 주제와 같은 자리를 쓴다 ----------
         ui = pg.evaluate("""() => {
           Orchard.setCross ? 0 : 0;
