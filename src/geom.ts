@@ -98,26 +98,22 @@ export function migratePin(e: GEdge) {
   e.ly = null;
 }
 
-/* ---------------- 그룹 박스 ---------------- */
-export const GPAD = 20, GHEAD = 16;
-/** 그룹 박스를 멤버들로부터 계산한다 — 그룹은 자체 좌표를 따로 들고 있지 않다 */
+/* ---------------- 그룹 ----------------
+
+   그룹은 더 이상 멤버를 감싸는 상자가 아니다. 이름이 붙은 서브 궤도 한 층이고,
+   그룹 노드는 그 고리 위에 앉는 작은 표지다. 상자였을 때는 멤버가 궤도를 따라
+   호로 늘어서자마자 상자가 화면을 가로질렀다 — '대체 결합 포맷' 하나가 3345px.
+   계층은 반지름이 이미 말하고 있으니 상자는 할 일이 없다. */
+export const GW = 168, GH = 40;
+/** 그룹은 고정 크기 표지다. 좌표는 궤도 배치가 넣는다 — 여기서 건드리지 않는다 */
 export function layoutGroups() {
   for (const g of S.nodes) {
     if (!isGroup(g)) continue;
-    const ms = (g.members ?? []).map(nodeOf).filter(Boolean) as GNode[];
-    if (!ms.length) { g._w = 160; g._h = 60; continue; }
-    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    for (const m of ms) {
-      x0 = Math.min(x0, px(m)); y0 = Math.min(y0, py(m));
-      x1 = Math.max(x1, px(m) + (m._w ?? 140));
-      y1 = Math.max(y1, py(m) + (m._h ?? 38));
-    }
-    g.x = x0 - GPAD; g.y = y0 - GPAD - GHEAD;
-    g._rx = g.x; g._ry = g.y;
-    g._w = x1 - x0 + GPAD * 2;
-    g._h = y1 - y0 + GPAD * 2 + GHEAD;
+    g._w = GW;
+    g._h = GH;
   }
 }
+
 export const edgeLabelText = (e: GEdge): string => {
   if (e.label) return e.label;                   // 직접 고른 이름이 가장 우선
   if ((e.cands ?? []).length) return `후보 ${e.cands.length}`;

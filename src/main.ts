@@ -18,7 +18,7 @@ import {
   drawCross, setCross, setCrossCloseOther, syncCrossN,
 } from "./cross";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
-import { tidyOrbit } from "./orbit";
+import { orbitRings, plan as orbitPlan, tidyOrbit } from "./orbit";
 import { bindMinimap, drawMini } from "./minimap";
 import {
   bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown, openPhone,
@@ -401,7 +401,7 @@ const api = {
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
-  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit,
+  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings,
   crossCands, crossDismiss, crossRestoreAll, crossSkipped, crossLabel, crossWorksText,
   crossOpen, setCross, drawCross, crossScanOf, crossScannable, crossDraw, crossDrawn,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass,

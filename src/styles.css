@@ -59,18 +59,19 @@ code{background:var(--panel3);padding:1px 5px;border-radius:4px;font-size:11.5px
   font-size:11.5px;color:var(--dim)}
 #crumb button:hover{color:var(--text);background:var(--panel3)}
 
-/* ---------- 그룹 (노드 뒤에 깔리는 컨테이너) ---------- */
-.grp{position:absolute;z-index:0;border-radius:16px;border:1.5px dashed color-mix(in srgb,var(--group) 50%,transparent);
-  background:color-mix(in srgb,var(--group) 7%,transparent);transition:border-color .12s,opacity .18s;cursor:grab}
-.grp:hover{border-color:color-mix(in srgb,var(--group) 80%,transparent)}
+/* ---------- 그룹 (자기 궤도 고리 위에 앉는 표지) ---------- */
+.grp{position:absolute;z-index:2;border-radius:12px;border:1.5px dashed color-mix(in srgb,var(--group) 60%,transparent);
+  background:color-mix(in srgb,var(--group) 13%,var(--panel2));box-shadow:0 2px 10px rgba(0,0,0,.3);
+  display:flex;align-items:center;justify-content:center;gap:7px;padding:0 10px;
+  transition:border-color .12s,opacity .18s;cursor:grab}
+.grp:hover{border-color:color-mix(in srgb,var(--group) 90%,transparent)}
 .grp.sel{border-style:solid;border-color:var(--text);
   box-shadow:0 0 0 3px rgba(231,234,240,.1)}
-.grp.drop{border-style:solid;border-color:var(--ok);background:color-mix(in srgb,var(--ok) 11%,transparent)}
+.grp.drop{border-style:solid;border-color:var(--ok);background:color-mix(in srgb,var(--ok) 20%,transparent)}
 .grp.dim{opacity:.12;pointer-events:none}
-.grp .gt{position:absolute;top:-11px;left:14px;padding:2px 9px;border-radius:7px;background:#1b2028;
-  border:1px solid color-mix(in srgb,var(--group) 45%,var(--line));font-size:11.5px;color:#c6d0de;
-  white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.grp .gn{position:absolute;top:-11px;right:12px;padding:2px 7px;border-radius:7px;background:#1b2028;
+.grp .gt{font-size:12.5px;color:#d4dced;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;pointer-events:none}
+.grp .gn{flex:0 0 auto;padding:1px 6px;border-radius:7px;background:#1b2028;
   border:1px solid var(--line);font-size:10.5px;color:var(--dim2);pointer-events:none}
 
 /* ---------- 노드 ---------- */
@@ -412,6 +413,9 @@ html.viewer #btnLink{display:none}
 /* 궤도 — 태양계 탑뷰. 배경이지 내용이 아니므로 아주 흐리게 */
 .orb{fill:none;stroke:#7c8bb0;stroke-width:1.2;stroke-dasharray:4 10;opacity:1;
   pointer-events:none;vector-effect:non-scaling-stroke}
+/* 궤도 이름 — 그룹 고리에만 붙는다. 그룹 이름이 그 궤도의 이름이다 */
+.orbl{fill:#8e9cbb;font-size:13px;pointer-events:none;text-anchor:middle;
+  dominant-baseline:middle;paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
 .node.gap{box-shadow:0 0 0 2px var(--gapc),0 0 14px -2px var(--gapc)}
 .elbl.gap{box-shadow:0 0 0 2px var(--gapc)}
 .grp.gap{border-style:solid;border-color:var(--gapc);
