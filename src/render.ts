@@ -295,9 +295,9 @@ function svgSet(out: string) {
 }
 
 /* select 는 panel/main 쪽 순환을 피하려고 주입받는다 */
-let selectFn: (type: "node" | "edge" | null, id?: string) => void = () => {};
-export function setSelect(fn: (type: "node" | "edge" | null, id?: string) => void) { selectFn = fn; }
-export const select = (type: "node" | "edge" | null, id?: string) => selectFn(type, id);
+let selectFn: (type: "node" | "edge" | "orbit" | null, id?: string) => void = () => {};
+export function setSelect(fn: (type: "node" | "edge" | "orbit" | null, id?: string) => void) { selectFn = fn; }
+export const select = (type: "node" | "edge" | "orbit" | null, id?: string) => selectFn(type, id);
 const selectEdge = (id: string) => selectFn("edge", id);
 
 /* 폰에서는 패널이 캔버스 위를 덮는다. 노트북처럼 옆에 붙는 게 아니라서,

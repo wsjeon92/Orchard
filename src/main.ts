@@ -18,7 +18,7 @@ import {
   drawCross, setCross, setCrossCloseOther, syncCrossN,
 } from "./cross";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
-import { FIRST_RING, newRingRadius, orbitHits, orbitIndex, orbitRings, orbitSays, placeOnSubOrbit, plan as orbitPlan, subRings, tidyOrbit } from "./orbit";
+import { FIRST_RING, newRingRadius, orbitHits, orbitIndex, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, subRings, tidyOrbit } from "./orbit";
 import { bindMinimap, drawMini } from "./minimap";
 import {
   bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown, openPhone,
@@ -36,7 +36,7 @@ import {
 import {
   RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView,
   seed, syncDataKey,
-  setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion, normalize,
+  setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion, normalize, isGroup,
 } from "./state";
 import { bindViewer, isViewer, narrowScreen, setViewer } from "./viewer";
 import {
@@ -50,7 +50,16 @@ import {
 import { decodeGraph, encodeGraph, hasGraphInUrl, shareUrl, takeFromUrl } from "./share";
 
 /* ---------------- 선택 ---------------- */
-function select(type: "node" | "edge" | null, id?: string) {
+function select(type: "node" | "edge" | "orbit" | null, id?: string) {
+  /* 궤도 노드를 고르면 그 노드가 아니라 **그 궤도**를 연다. 창이 둘이면 같은 것을
+     두 군데서 고치게 된다 — 궤도 노드는 담는 물건이 아니라 고리의 이름이다. */
+  if (type === "node" && id) {
+    const n = nodeOf(id);
+    if (n && isGroup(n)) {
+      const key = orbitOfNode(id);
+      if (key) { type = "orbit"; id = key; }
+    }
+  }
   setSel(type && id ? ({ type, id } as const) : null);
   render();
   /* 훑기 모드는 캔버스 선택을 따라간다 — 고르는 칸을 따로 두지 않기로 했다 */
@@ -397,7 +406,7 @@ const api = {
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
-  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, newRingRadius, placeOnSubOrbit, FIRST_RING,
+  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, newRingRadius, placeOnSubOrbit, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
   crossCands, crossDismiss, crossRestoreAll, crossSkipped, crossLabel, crossWorksText,
   crossOpen, setCross, drawCross, crossScanOf, crossScannable, crossDraw, crossDrawn,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass,

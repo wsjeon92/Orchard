@@ -73,9 +73,14 @@ def main():
         if share > 60: bad.append(f"너무 많이 켜진다 ({share}%) — 신호가 안 된다")
         if share < 10: bad.append(f"너무 적게 켜진다 ({share}%)")
         if not r['bright']: bad.append("노드 강조 테두리가 안 붙었다")
-        if not r['grpBright']: bad.append("궤도 강조가 안 붙었다 — .orbl.gap 규칙이 없다")
+        if r['counts']['groupLoose'] and not r['grpBright']:
+            bad.append("궤도 강조가 안 붙었다 — .orbl.gap 규칙이 없다")
         if not r['dimmed']: bad.append("나머지가 흐려지지 않았다")
-        for why in ASK + ('edgeNoWork', 'orphan', 'leaf'):
+        # groupLoose 는 뺀다 — 뜻이 바뀌었다. 궤도 노드는 이제 교차에 못 들어가므로
+        # "묶음이 교차했나"를 물을 수 없고, "식구 중 아무도 교차 안 했나"를 묻는다.
+        # 실제 그래프의 궤도는 식구가 다 교차해 있어서 0 이 맞다 — 아래 gl 검사가
+        # 만들어 둔 상황에서 이 범주가 켜지는지를 본다.
+        for why in ('edgeRipe', 'nodeParked', 'edgeNoWork', 'orphan', 'leaf'):
             if not r['counts'][why]: bad.append(f"{why} 가 0개 — 이 그래프에는 있어야 한다")
         # 승격해서 이름이 빈 교차는 잡히면 안 된다 — 아래 blank 검사가 그걸 본다.
         # 절대 개수는 사용자가 이름 없는 교차를 만들면 달라지므로 보지 않는다
@@ -198,12 +203,15 @@ def main():
           Orchard.reset();
           const a = Orchard.addNode('가', 0, 0), x = Orchard.addNode('나', 300, 0);
           const c = Orchard.addNode('다', 600, 0), d = Orchard.addNode('라', 900, 0);
-          Orchard.groupWith(a.id, x.id);            // 멤버 둘, 교차 없음 → 잡힌다
-          Orchard.groupWith(c.id, d.id);            // 멤버 둘, 교차 있음 → 안 잡힌다
+          const out = Orchard.addNode('마', 1200, 0);     // 어느 묶음에도 안 속한 상대
+          Orchard.groupWith(a.id, x.id);            // 식구 둘, 아무도 교차 안 함 → 잡힌다
+          Orchard.groupWith(c.id, d.id);            // 식구 하나가 교차함 → 안 잡힌다
           const gs0 = Orchard.findGaps();
           const grps = Orchard.S.nodes.filter(n => n.kind === 'group');
           const used = grps[1];
-          const e = Orchard.addHyper([used.id, a.id]); e.label = '묶음 교차';
+          /* 궤도 노드 자체는 이제 교차에 못 들어간다. 식구를 교차시킨다 —
+             묻는 것이 '이 묶음이 교차했나'에서 '식구가 교차했나'로 바뀌었다 */
+          const e = Orchard.addHyper([c.id, out.id]); e.label = '식구 교차';
           const gs1 = Orchard.findGaps();
           return {
             before: gs0.filter(g => g.why === 'groupLoose').length,

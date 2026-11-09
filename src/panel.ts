@@ -8,10 +8,11 @@ import {
 } from "./graph";
 import { kickAnim } from "./anim";
 import { DEPTH_ORDER, KIND, SEARCH } from "./kinds";
-import { newRingRadius, placeOnSubOrbit, subRings } from "./orbit";
+import { newRingRadius, orbitView, placeOnSubOrbit, setOrbitRadius, subRings } from "./orbit";
+import type { OrbitView } from "./orbit";
 import { ask, openBulk } from "./modals";
 import { lightRedraw, render, select, setFocus, toggleFold } from "./render";
-import { S, UI, cut, edgeOf, esc, isGroup, kindOf, nodeOf, save } from "./state";
+import { S, UI, cut, edgeOf, esc, isGroup, kindOf, nodeOf, save, setSel } from "./state";
 import type { GEdge, GNode, NodeKind, Work } from "./types";
 import { isViewer } from "./viewer";
 
@@ -86,7 +87,8 @@ function keywordPicker(
 
 export function renderSide() {
   if (!UI.sel) { side.classList.add("hidden"); return; }
-  const obj = UI.sel.type === "node" ? nodeOf(UI.sel.id) : edgeOf(UI.sel.id);
+  const obj = UI.sel.type === "node" ? nodeOf(UI.sel.id)
+    : UI.sel.type === "edge" ? edgeOf(UI.sel.id) : orbitView(UI.sel.id);
   if (!obj) { UI.sel = null; side.classList.add("hidden"); return; }
   side.classList.remove("hidden");
 
@@ -95,7 +97,134 @@ export function renderSide() {
   acts.innerHTML = ""; body.innerHTML = "";
 
   if (UI.sel.type === "node") nodePanel(obj as GNode, kindEl, titleEl, acts, body);
-  else edgePanel(obj as GEdge, kindEl, titleEl, acts, body);
+  else if (UI.sel.type === "edge") edgePanel(obj as GEdge, kindEl, titleEl, acts, body);
+  else orbitPanel(obj as OrbitView, kindEl, titleEl, acts, body);
+}
+
+/* ---------------- 궤도 창 ----------------
+
+   고리는 저장되는 물건이 아니라 구조와 좌표에서 나온다. 그래서 창도 "무엇이
+   이 고리를 이루고 있나"를 보여 주는 쪽으로 짰다 — 중심, 크기, 식구.
+
+   이름을 쓰면 궤도 노드가 생긴다. '새 궤도 = 궤도 노드'와 같은 규칙이라
+   배울 것이 하나뿐이다. 반대로 이름을 지우면 그 노드가 사라지고 고리는
+   이름 없는 고리로 돌아간다. */
+function orbitPanel(v: OrbitView, kindEl: HTMLElement, titleEl: HTMLElement,
+                    acts: HTMLElement, body: HTMLElement) {
+  const gnode = v.group ? nodeOf(v.group) : null;
+  const main = v.kind === "main";
+  kindEl.innerHTML = `<i style="background:#8e9cb8"></i>궤도`
+    + `<span style="color:#5c6472">· ${main ? "메인" : "서브"} · 반지름 ${Math.round(v.r)}</span>`;
+  titleEl.textContent = v.label;
+  titleEl.contentEditable = main ? "false" : "true";
+  titleEl.oninput = main ? null : () => {
+    const name = (titleEl.textContent ?? "").replace(/\n+$/, "").trim();
+    if (gnode) { gnode.label = name; lightRedraw(); return; }
+    if (!name) return;
+    /* 이름 없는 고리에 이름을 쓰면 그 고리가 궤도 노드를 얻는다 */
+    const g = addNode(name, 0, 0, "group");
+    if (v.planet) addEdge(v.planet, g.id, "sub");
+    for (const id of v.ids) addMember(g.id, id);
+    const p = v.planet ? nodeOf(v.planet) : null;
+    if (p) { g.x = p.x; g.y = p.y; g._rx = g.x; g._ry = g.y; }
+    setSel({ type: "orbit", id: "s:" + v.planet + ":" + g.id + "#0" });
+    render();
+  };
+
+  const r1 = row(acts, "크기");
+  const inp = document.createElement("input");
+  inp.className = "inp";
+  inp.style.cssText = "width:88px;flex:0 0 auto";
+  inp.value = String(Math.round(v.r));
+  inp.onkeydown = (ev) => { if (ev.key === "Enter") inp.blur(); };
+  inp.onblur = () => {
+    const n = Math.round(Number(inp.value));
+    if (!(n > 0) || n === Math.round(v.r)) { inp.value = String(Math.round(v.r)); return; }
+    setOrbitRadius(v.key, n);
+    save(); render();
+  };
+  r1.appendChild(inp);
+  addAct(r1, "작게", "", () => { setOrbitRadius(v.key, v.r / 1.3); save(); render(); });
+  addAct(r1, "크게", "", () => { setOrbitRadius(v.key, v.r * 1.3); save(); render(); });
+
+  const r2 = row(acts, "");
+  if (v.planet) {
+    const p = nodeOf(v.planet);
+    if (p) addAct(r2, `중심 · ${cut(p.label || "(제목 없음)", 14)}`, "",
+      () => select("node", v.planet));
+  } else {
+    const s = document.createElement("span");
+    s.style.cssText = "font-size:11px;color:#5c6472";
+    s.textContent = "중심 · 가상의 태양";
+    r2.appendChild(s);
+  }
+  if (gnode) addAct(r2, "궤도 해체", "", () => { ungroup(gnode.id); select(null); render(); });
+
+  sect(body, `식구 ${v.ids.length}명`);
+  const w = div(body, "chips");
+  for (const id of v.ids) {
+    const n = nodeOf(id);
+    if (!n) continue;
+    const c = btn(w, "chip", n.label || "(제목 없음)", () => select("node", id));
+    if (main) continue;
+    const x = document.createElement("button");
+    x.className = "abtn sm";
+    x.textContent = "빼기";
+    x.title = "이 궤도에서 뺀다 — 노드는 남는다";
+    x.onclick = (ev) => {
+      ev.stopPropagation();
+      const from = gnode ? gnode.id : v.planet;
+      S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.a === from && e.b === id));
+      render();
+    };
+    c.appendChild(document.createTextNode(" "));
+    c.appendChild(x);
+  }
+  if (!v.ids.length) div(body, "empty").textContent = "식구가 없습니다.";
+
+  if (main) {
+    div(body, "empty").innerHTML = "메인 궤도의 소속은 <b>상위가 없다</b>는 사실에서 나옵니다. "
+      + "여기서 빼려면 다른 노드의 하위로 붙이세요.";
+  } else if (v.planet) {
+    /* 새 키워드를 바로 만들어 이 궤도에 넣는 길. 쉼표로 여러 개 */
+    const addRow = div(body, "addrow");
+    const mk = document.createElement("input");
+    mk.className = "inp";
+    mk.placeholder = "새 키워드, 쉼표로 여러 개";
+    addRow.appendChild(mk);
+    const go = btn(addRow, "abtn pri", "추가", () => {
+      const host = gnode ?? nodeOf(v.planet);
+      if (host && addSubKeywords(host, mk.value)) mk.value = "";
+    });
+    mk.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") { ev.preventDefault(); go.click(); }
+    });
+    const pool = S.nodes.filter((x) => kindOf(x).axis === "b" && !isGroup(x)
+      && x.id !== v.planet && !subParentEdge(x.id) && !isSubDescendant(x.id, v.planet)).sort(byLabel);
+    keywordPicker(body, "이 궤도에 키워드 넣기", pool, (id) => {
+      const from = gnode ? gnode.id : v.planet;
+      addEdge(from, id, "sub");
+      placeOnSubOrbit(v.planet, id, v.key);
+      kickAnim();
+      render();
+    });
+  }
+
+  /* 궤도 노드에 남아 있는 교차. 이제 궤도 노드는 연결을 받지 않지만, 예전에
+     붙은 것은 지우지 않는다 — 연구 내용이라 조용히 사라지면 안 된다 */
+  if (gnode) {
+    const old = S.edges.filter((e) => e.kind === "assoc" && (e.members ?? []).includes(gnode.id));
+    if (old.length) {
+      sect(body, `예전에 붙은 교차 ${old.length}개`);
+      const ow = div(body, "chips");
+      for (const e of old) {
+        btn(ow, "chip", e.label || e.note || "(무명)", () => select("edge", e.id));
+      }
+      div(body, "empty").textContent =
+        "궤도는 더 이상 교차에 들어가지 않습니다. 이 교차들은 남아 있으니 "
+        + "필요하면 식구 노드로 옮기세요.";
+    }
+  }
 }
 
 function nodePanel(n: GNode, kindEl: HTMLElement, titleEl: HTMLElement,
@@ -270,10 +399,14 @@ export function groupWith(aId: string, targetId: string) {
     return;
   }
   g = addNode("", 0, 0, "group");
+  /* 새 궤도의 중심은 받은 쪽이 있던 자리다. 궤도 노드는 그려지지 않으니 거기
+     가만히 있고, **둘 다** 고리 위로 올라간다 — 받은 쪽을 제자리에 두면 그 하나만
+     중심에 박혀서 고리가 동그랗지 않게 되고, 고리가 통째로 사라진다. */
   g.x = t.x; g.y = t.y; g._rx = g.x; g._ry = g.y;
   addMember(g.id, targetId);
   addMember(g.id, aId);
-  if (!placeOnSubOrbit(g.id, aId)) parkBeside(a, memberIds(g));
+  if (!placeOnSubOrbit(g.id, targetId)) parkBeside(a, memberIds(g));
+  placeOnSubOrbit(g.id, aId);
   kickAnim();
   select("node", g.id);
   setTimeout(() => el("sideTitle")?.focus(), 30);
@@ -422,7 +555,7 @@ function renderSubs(body: HTMLElement, n: GNode) {
     if (ev.key === "Enter") { ev.preventDefault(); add.click(); }
   });
 
-  const pool = S.nodes.filter((x) => kindOf(x).axis === "b" && x.id !== n.id
+  const pool = S.nodes.filter((x) => kindOf(x).axis === "b" && !isGroup(x) && x.id !== n.id
     && !subParentEdge(x.id) && !isSubDescendant(x.id, n.id)).sort(byLabel);
   keywordPicker(body, "이미 있는 키워드를 하위로 붙이기", pool, (id) => {
     attachSub(n, id);
@@ -536,7 +669,10 @@ function edgePanel(e: GEdge, kindEl: HTMLElement, titleEl: HTMLElement,
       c.appendChild(x);
     }
   });
-  const pool = S.nodes.filter((n) => kindOf(n).axis === "b" && !(e.members ?? []).includes(n.id))
+  /* 궤도 노드는 교차에 안 들어간다. 모든 연결은 노드들 사이에서 일어난다 —
+     궤도는 담는 물건이 아니라 고리의 이름이라 교차의 대상이 될 것이 없다 */
+  const pool = S.nodes.filter((n) => kindOf(n).axis === "b" && !isGroup(n)
+    && !(e.members ?? []).includes(n.id))
     .sort(byLabel);
   keywordPicker(body, "키워드를 찾아 이 엣지에 추가", pool, (id) => {
     edgeAddMember(e.id, id);

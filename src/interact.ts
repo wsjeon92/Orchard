@@ -6,7 +6,7 @@ import {
 } from "./graph";
 import { groupWith } from "./panel";
 import { Drop, applyView, paint, render, select, setBindLabel, setDragLine } from "./render";
-import { orbitIndex } from "./orbit";
+import { orbitIndex, orbitOfNode } from "./orbit";
 import { S, UI, VIEW, edgeOf, isGroup, nodeOf, save } from "./state";
 import { ask, closeAll } from "./modals";
 import { redo, undo } from "./history";
@@ -17,8 +17,8 @@ type Drag =
   | { type: "node"; id: string; dx: number; dy: number; moved: boolean; group: string[] | null; alt: boolean;
       /** 이 궤도 위에서만 움직인다. 없으면 자유 */
       orb: { c: { x: number; y: number }; r: number } | null }
-  | { type: "orb"; c: { x: number; y: number }; ids: string[]; ang: Map<string, number>;
-      sat: Map<string, string[]>; moved: boolean }
+  | { type: "orb"; key: string; c: { x: number; y: number }; ids: string[];
+      ang: Map<string, number>; sat: Map<string, string[]>; moved: boolean }
   | { type: "link"; from: string; cur: { x: number; y: number } }
   | { type: "elbl"; eid: string; ox: number; oy: number; moved: boolean }
   | { type: "band"; sx: number; sy: number; cx: number; cy: number; moved: boolean }
@@ -221,7 +221,8 @@ export function bindCanvas() {
     const ol = (ev.target as Element).closest?.(".orbl") as SVGTextElement | null;
     if (ol?.dataset.id && nodeOf(ol.dataset.id)) {
       drag = null;
-      select("node", ol.dataset.id);
+      const key = orbitOfNode(ol.dataset.id);
+      select("orbit", key ?? ol.dataset.id);
       ev.preventDefault();
       return;
     }
@@ -241,7 +242,7 @@ export function bindCanvas() {
           const sd = ix.sat.get(id);
           if (sd) sat.set(id, sd);
         }
-        drag = { type: "orb", c: R.c, ids: R.ids, ang, sat, moved: false };
+        drag = { type: "orb", key: oh.dataset.orb ?? "", c: R.c, ids: R.ids, ang, sat, moved: false };
         ev.preventDefault();
         return;
       }
@@ -389,7 +390,9 @@ export function bindCanvas() {
     if (d.type === "orb") {
       drag = null;
       stage.classList.remove("panning");
-      if (d.moved) save();
+      /* 끌지 않고 그냥 눌렀으면 그 궤도를 연다 — 노드와 같은 방식이다 */
+      if (!d.moved) { select("orbit", d.key); return; }
+      save();
       render();
       return;
     }

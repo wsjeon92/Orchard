@@ -482,8 +482,14 @@ export function orbitIndex(): OrbIndex {
     if (!p || UI.hidden.has(pid)) continue;
     const c = { x: cx(p), y: cy(p) };
     const all: string[] = [];
+    /* 중심이 궤도 노드면 그 이름이 이 고리의 이름이다. 궤도 노드는 그려지지 않으니
+       이름을 고리가 받지 않으면 아무 데도 안 보인다 — 뿌리 궤도 노드가 통째로
+       화면에서 사라졌다. 자식으로 매달린 궤도 노드는 자기가 연 고리가 이름을 받는다. */
+    const own = isGroup(p) ? p.id : "";
     for (const g of s.rings) {
-      add("s:" + pid + ":" + g.key, c, g.ns, g.label, g.group);
+      const names = own && g.key === "#1";     // 이름이 비어 있어도 그 노드가 이 고리의 이름이다
+      add("s:" + pid + ":" + g.key, c, g.ns, g.label || (names ? p.label : ""),
+        g.group || (names ? own : ""));
       for (const n of g.ns) {
         all.push(n.id);
         /* 식구의 식구까지. 행성을 끌면 달의 달도 따라와야 한다 */
@@ -655,4 +661,66 @@ export function placeOnSubOrbit(pid: string, cid: string, ringKey?: string): boo
   c.x = Math.round(centre.x + Math.cos(a) * r - (c._w ?? 140) / 2);
   c.y = Math.round(centre.y + Math.sin(a) * r - (c._h ?? 38) / 2);
   return true;
+}
+
+/* ---------------- 궤도 창이 보는 것 ----------------
+
+   고리는 저장되는 물건이 아니라 구조와 좌표에서 나오는 것이라, 창에 띄우려면
+   한 번에 읽어 줄 창구가 필요하다. 키는 orbitIndex 가 쓰는 것과 같다. */
+
+export interface OrbitView {
+  key: string;
+  /** main 은 태양을 도는 동심원, sub 는 행성을 도는 고리 */
+  kind: "main" | "sub";
+  label: string;
+  /** 이 고리에 이름을 준 궤도 노드. 이름 없는 고리면 "" */
+  group: string;
+  /** 중심 행성. 메인 고리면 "" (가상의 태양) */
+  planet: string;
+  c: { x: number; y: number };
+  r: number;
+  ids: string[];
+}
+
+export function orbitView(key: string): OrbitView | null {
+  const live = orbitIndex();
+  const R = live.rings.get(key);
+  if (!R) return null;
+  const main = key.startsWith("m:");
+  const planet = main ? "" : key.slice(2, key.indexOf(":", 2));
+  const o = plan();
+  const label = main
+    ? o.layers.find((l) => "m:" + l.depth === key)?.name ?? key
+    : R.label || "직접";
+  return { key, kind: main ? "main" : "sub", label, group: R.group, planet, c: R.c, r: R.r, ids: R.ids };
+}
+
+/** 고리 크기를 바꾼다 — 식구는 각도를 지킨 채 새 반지름으로, 위성은 따라간다.
+    궤도 띠를 끄는 것과 창에서 숫자를 넣는 것이 같은 일을 하도록 한 군데에 둔다 */
+export function setOrbitRadius(key: string, r: number): boolean {
+  const v = orbitView(key);
+  if (!v || !(r > 0)) return false;
+  const live = orbitIndex();
+  for (const id of v.ids) {
+    const n = nodeOf(id);
+    if (!n) continue;
+    const a = Math.atan2(cy(n) - v.c.y, cx(n) - v.c.x);
+    const ox = n.x, oy = n.y;
+    n.x = Math.round(v.c.x + Math.cos(a) * r - (n._w ?? 140) / 2);
+    n.y = Math.round(v.c.y + Math.sin(a) * r - (n._h ?? 38) / 2);
+    /* 위성도 같은 만큼 민다 — 안 그러면 위성 궤도만 제자리에 남아 중심이 빈다 */
+    for (const sid of live.sat.get(id) ?? []) {
+      const m = nodeOf(sid);
+      if (m) { m.x += n.x - ox; m.y += n.y - oy; }
+    }
+  }
+  return true;
+}
+
+/** 이 궤도 노드가 **이름을 준** 고리. 자식으로 매달렸으면 자기가 연 고리,
+    뿌리면 자기를 도는 고리. 둘 다 아니면 앉아 있는 고리 */
+export function orbitOfNode(id: string): string | undefined {
+  const live = orbitIndex();
+  for (const [key, R] of live.rings) if (R.group === id) return key;
+  return live.of.get(id);
 }

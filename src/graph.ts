@@ -237,7 +237,8 @@ export function addNode(
 
 /** 멤버 2개 이상을 하나의 허브로 묶는 assoc 엣지 */
 export function addHyper(ids: string[]): GEdge | null {
-  const ms = Array.from(new Set(ids.filter((id) => nodeOf(id))));
+  /* 궤도 노드는 교차에 안 들어간다 — 담는 물건이 아니라 고리의 이름이다 */
+  const ms = Array.from(new Set(ids.filter((id) => nodeOf(id) && !isGroup(nodeOf(id)))));
   if (ms.length < 2) return null;
   const key = ms.slice().sort().join("|");
   const dup = S.edges.find(
@@ -254,6 +255,9 @@ export function addHyper(ids: string[]): GEdge | null {
 
 export function addEdge(a: string, b: string, kind: GEdge["kind"] = "assoc"): GEdge | null {
   if (a === b) return null;
+  /* 궤도 노드는 연결을 받지 않는다. sub 만 — 그게 담는 길이다.
+     모든 연결은 노드들 사이에서 일어난다 */
+  if (kind !== "sub" && (isGroup(nodeOf(a)) || isGroup(nodeOf(b)))) return null;
   if (kind === "assoc") return addHyper([a, b]);
   const dup = S.edges.find((e) => e.kind === kind && e.a === a && e.b === b);
   if (dup) return dup;
@@ -271,7 +275,7 @@ export function addMember(gid: string, nid: string) {
 
 export function edgeAddMember(eid: string, nid: string) {
   const e = edgeOf(eid);
-  if (!e || e.kind !== "assoc" || !nodeOf(nid)) return;
+  if (!e || e.kind !== "assoc" || !nodeOf(nid) || isGroup(nodeOf(nid))) return;
   if (!e.members!.includes(nid)) e.members!.push(nid);
 }
 export function edgeDelMember(eid: string, nid: string): "removed" | "dropped" | null {

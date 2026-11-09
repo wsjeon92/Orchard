@@ -55,7 +55,7 @@ with sync_playwright() as pw:
     assert set(gs[0]["members"]) == {"안정성", "발현", "결합"}, f"멤버가 다르다: {gs}"
     assert pg.evaluate("() => Orchard.UI.marked.size") == 0, "선택이 안 풀렸다"
     sel = pg.evaluate("() => Orchard.UI.sel")
-    assert sel and sel["type"] == "node", f"새 그룹이 열리지 않았다: {sel}"
+    assert sel and sel["type"] == "orbit", f"새 궤도 창이 열리지 않았다: {sel}"
 
     # --- 2) 둘을 골라 그룹에서 빼기 ---
     mark(pg, ["안정성", "발현"])

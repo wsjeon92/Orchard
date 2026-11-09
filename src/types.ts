@@ -163,6 +163,9 @@ export interface ViewSettings {
 export type Selection =
   | { type: "node"; id: string }
   | { type: "edge"; id: string }
+  /** 궤도. id 는 저장되는 것이 아니라 구조에서 나오는 고리 키라서, 구조가
+   *  바뀌면 가리키는 곳이 없어질 수 있다 — 못 찾으면 조용히 선택을 푼다 */
+  | { type: "orbit"; id: string }
   | null;
 
 export interface Slot {

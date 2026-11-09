@@ -100,8 +100,12 @@ export function findGaps(): Gap[] {
   for (const n of S.nodes) {
     if (isGroup(n)) {
       /* 묶음은 멤버가 둘 이상일 때만 교차 대상이다 — 하나짜리 묶음은 교차가 아니다 */
-      if (deg(n.id) === 0 && memberIds(n).length >= 2) {
-        out.push({ id: n.id, kind: "node", why: "groupLoose", score: memberIds(n).length });
+      /* 궤도 노드 자체는 이제 교차에 들어가지 않으니 그 차수를 묻는 것은 뜻이 없다.
+         묻는 것은 **식구들**이다 — 고리는 지어 놓았는데 그 안의 어느 것도 한 번도
+         교차하지 않았다면, 그 묶음은 아직 아무 일도 하고 있지 않다. */
+      const ms = memberIds(n);
+      if (ms.length >= 2 && ms.every((m) => deg(m) === 0)) {
+        out.push({ id: n.id, kind: "node", why: "groupLoose", score: ms.length });
       }
       continue;
     }

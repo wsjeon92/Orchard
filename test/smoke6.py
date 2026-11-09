@@ -35,15 +35,18 @@ with sync_playwright() as p:
     rec(("한 개 추가", pg.evaluate("""() => {
         const g=Orchard.S.nodes.find(n=>n.kind==='group');
         const v=Orchard.S.nodes.find(n=>n.label==='VAE');
+        // 상자는 없어졌다 — 이제 '궤도 위에 있나'를 본다
+        const ix = Orchard.orbitIndex();
+        const key = Orchard.orbitOfNode(g.id);
         return {멤버:Orchard.memberIds(g).map(m=>(Orchard.S.nodes.find(x=>x.id===m)||{}).label),
                 노드종류:v.kind,
-                박스안:v.x>=g.x && v.x+v._w<=g.x+g._w && v.y>=g.y && v.y+v._h<=g.y+g._h};
+                궤도위:ix.of.get(v.id) === key};
     }""")))
 
     # 쉼표로 여러 개
     inp2 = pg.locator("#sideBody .addrow .inp").first
     inp2.fill("정규화 흐름, 에너지 기반 모델")
-    pg.locator("#sideBody .addrow button", has_text="멤버로 추가").first.click()
+    pg.locator("#sideBody .addrow button", has_text="추가").first.click()
     pg.wait_for_timeout(350)
     rec(("쉼표로 여러 개", pg.evaluate("""() => {
         const g=Orchard.S.nodes.find(n=>n.kind==='group');
@@ -51,14 +54,16 @@ with sync_playwright() as p:
         const xs=ms.map(m=>Math.round(m.x));
         const overlap = ms.some((a,i)=>ms.some((c,j)=>i!==j &&
             a.x < c.x+c._w && a.x+a._w > c.x && a.y < c.y+c._h && a.y+a._h > c.y));
+        const ix = Orchard.orbitIndex();
+        const key = Orchard.orbitOfNode(g.id);
         return {멤버:ms.map(m=>m.label), x좌표:xs, 겹침:overlap,
-                전부박스안:ms.every(m=>m.x>=g.x && m.x+m._w<=g.x+g._w)};
+                전부궤도위:ms.every(m=>ix.of.get(m.id) === key)};
     }""")))
 
     # 입력칸이 비워졌는지 / 빈 입력은 무시되는지
     rec(("입력칸 비움", pg.locator("#sideBody .addrow .inp").first.input_value()))
     before = pg.evaluate("Orchard.S.nodes.length")
-    pg.locator("#sideBody .addrow button", has_text="멤버로 추가").first.click()
+    pg.locator("#sideBody .addrow button", has_text="추가").first.click()
     pg.wait_for_timeout(200)
     rec(("빈 입력 무시", pg.evaluate("Orchard.S.nodes.length") == before))
 
