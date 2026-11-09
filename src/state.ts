@@ -19,9 +19,20 @@ const LS_AT = "kwgraph.savedAt";
 export let S: GraphState = {
   title: "", nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1, topics: [],
 };
+/* 익은 교차의 기본 설정.
+
+   둘 다 "이 그래프에 맞춰 고른 값"이 아니라 서로 성격이 다른 값이다.
+   · RIPE_FLOOR 는 분야 쪽 값이다. 문헌이 몇 편이면 '쌓였다'고 할지는 분야마다
+     다르다 — ML 에서 3편은 아무것도 아니고 좁은 분야에서는 많다. 그래서 설정이다.
+   · RIPE_MAX 는 사람 쪽 값이다. 한 번에 보고 행동할 수 있는 개수는 그래프가
+     커져도 늘지 않는다. 그래서 그래프 크기와 무관한 상수다. */
+export const RIPE_FLOOR = 3;
+export const RIPE_MAX = 10;
+
 export let VIEW: ViewSettings = {
   labelZoom: 0.45, sizeByDeg: true, minimap: true, hops: 3, anim: true,
   gaps: false, gapWhy: null,
+  ripeFloor: RIPE_FLOOR, ripeMax: RIPE_MAX,
 };
 
 /* OS·브라우저의 '동작 줄이기' 설정.

@@ -1,6 +1,7 @@
 import { px, py } from "./geom";
 import {
-  S, UI, VIEW, edgeOf, isGroup, kindOf, nodeOf, setFocusId, setSel, uid,
+  RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, isGroup, kindOf, nodeOf,
+  setFocusId, setSel, uid,
 } from "./state";
 import type { GEdge, GNode, NodeKind } from "./types";
 
@@ -295,19 +296,22 @@ export function dropNode(id: string) {
   if (UI.focusId === id) setFocusId(null);
 }
 
-/** 교차의 후보 이름 하나를 합성 키워드 노드로 승격 — 멤버가 몇이든 전부 구성요소가 된다 */
-export function promote(eid: string, candIdx: number): GNode | null {
+/** 이름 하나를 합성 키워드 노드로 승격 — 멤버가 몇이든 전부 구성요소가 된다.
+
+    후보 목록에 없는 이름도 받는다. 승격은 이 도구에서 개념이 합성되는 유일한 길인데
+    (교차가 개념이 되고, 그 개념이 다시 교차한다) 지금까지 후보 목록을 거친 이름만
+    올릴 수 있었다. 엣지 이름이 후보에 없는 경우 — 가져온 데이터, 또는 한 번 승격한
+    뒤 — 올릴 방법이 아예 없었다. */
+export function promoteName(eid: string, name: string): GNode | null {
   const e = edgeOf(eid);
-  if (!e) return null;
-  const name = (e.cands ?? [])[candIdx];
-  if (!name) return null;
+  if (!e || !name.trim()) return null;
   const ms = (e.members ?? []).map(nodeOf).filter(Boolean) as GNode[];
   if (ms.length < 2) return null;
   const hx = ms.reduce((s, m) => s + m.x + (m._w ?? 140) / 2, 0) / ms.length;
   const hy = ms.reduce((s, m) => s + m.y + (m._h ?? 38) / 2, 0) / ms.length;
   const c = addNode(name, hx - 80, hy + 100, "compound", { parts: ms.map((m) => m.id) });
   ms.forEach((m) => addEdge(m.id, c.id, "part"));
-  e.cands.splice(candIdx, 1);
+  e.cands = (e.cands ?? []).filter((x) => x !== name);
   e.promoted ??= [];
   e.promoted.push(c.id);
   /* 승격한 이름을 엣지 이름으로도 걸어뒀다면 떼어낸다 — 이제 그 이름은 노드가 갖는다.
@@ -315,6 +319,85 @@ export function promote(eid: string, candIdx: number): GNode | null {
      이름만 떼면 같은 이름이 노드와 엣지에 두 번 그려지는 일이 없다. */
   if (e.label === name) e.label = "";
   return c;
+}
+
+/** 후보 목록의 n 번째를 승격 — promoteName 의 얇은 껍데기 */
+export function promote(eid: string, candIdx: number): GNode | null {
+  const e = edgeOf(eid);
+  return e ? promoteName(eid, (e.cands ?? [])[candIdx] ?? "") : null;
+}
+
+/* 익은 교차의 경계 — 백분율이 아니라 주의력 예산으로 정한다.
+
+   처음엔 "문헌 3편 이상"으로 박았다가 실제 그래프에서 52개 중 29개(56%)가 켜졌다.
+   그래서 "상위 25%" 로 바꿨더니 12개가 나와 그럴듯해 보였는데, 그건 이 그래프의
+   분포에 맞춘 값이지 규칙이 아니다. 분포가 다른 분야에서는 아무 뜻도 없다.
+
+   분야를 가리지 않고 성립하는 것은 둘뿐이다.
+     · 사람이 한 번에 행동할 수 있는 개수는 그래프 크기에 비례하지 않는다.
+       노드가 1000개여도 250개를 권하면 못 쓴다.
+     · 문헌이 몇 편이면 '쌓였다'고 할지는 분야마다 다르다. ML 에서 3편은 아무것도
+       아니고, 좁은 분야에서는 많다. 그래서 이건 규칙이 아니라 설정값이다.
+
+   그래서 경계를 이렇게 잡는다 — 바닥 이상이면서, 권장 개수를 넘기는 한 경계를 올린다.
+   걸러내는 게 아니라 대기열이다. 위 10개를 처리하면 다음이 올라온다. 후보가 애초에
+   적으면 경계가 바닥으로 내려가 전부 보인다. */
+
+/* 기본값은 state.ts 에 있다(그래야 VIEW 기본값과 한 군데에서 정해진다).
+   보기 패널에서 바꾼 값은 VIEW 에 남고, 인자를 비우면 그 값을 쓴다 —
+   직접 넘기는 건 테스트뿐이다. */
+const floorNow = () => VIEW.ripeFloor ?? RIPE_FLOOR;
+const maxNow = () => VIEW.ripeMax ?? RIPE_MAX;
+
+/** 아직 주장이 없는, 이름 붙은 교차 — 익음 판정의 모수 */
+function unclaimed(): GEdge[] {
+  return S.edges.filter((e) => e.kind === "assoc"
+    && !!(e.label ?? "").trim()
+    && !(e.note ?? "").trim()
+    && !(e.promoted ?? []).length);
+}
+
+/** 이 그래프에서 '익었다'고 볼 문헌 수 경계 */
+export function ripeCut(floor = floorNow(), max = maxNow()): number {
+  const ws = unclaimed()
+    .map((e) => (e.works ?? []).length)
+    .filter((n) => n >= floor)
+    .sort((a, b) => b - a);
+  if (ws.length <= max) return floor;            // 후보가 적으면 전부 보여준다
+  /* 개수가 max 이상으로 유지되는 가장 높은 경계. ws 는 내림차순이므로
+     ws[max - 1] 이 "max 번째로 문헌이 많은 교차의 문헌 수" 다. */
+  return Math.max(floor, ws[max - 1]);
+}
+
+/** 지금 권할 익은 교차 — 많아야 max 개.
+
+    경계만으로는 모자란다. 교차 40개가 전부 문헌 5편이면 경계가 5가 되고 40개가
+    다 걸린다. 경계는 "얼마나 쌓여야 익은 것인가"를 정하고, 자르기는 "한 번에 몇 개를
+    권할 것인가"를 정한다. 둘은 다른 질문이다.
+
+    문헌 수가 같으면 id 순으로 자른다 — 그래야 화면을 다시 그려도 순서가 안 바뀐다. */
+export function ripeEdges(floor = floorNow(), max = maxNow()): GEdge[] {
+  const cut = ripeCut(floor, max);
+  return unclaimed()
+    .filter((e) => (e.works ?? []).length >= cut)
+    .sort((a, b) => (b.works ?? []).length - (a.works ?? []).length
+      || a.id.localeCompare(b.id))
+    .slice(0, max);
+}
+
+/** 이 교차가 지금 권해지고 있는가 — 근거는 쌓였는데 아직 주장이 없다.
+
+    메모가 있으면 제외한다. 메모는 이미 주장을 세운 자리다 — 이 그래프에서
+    developability(문헌 6편)와 타이머 바인더(906자 메모)가 그렇고, 둘 다 이미
+    연구 주제로 올라가 있다. 거기에 "올리세요"라고 권하는 건 뒷북이다.
+
+    승격을 권하는 이유: 승격은 개념이 합성되는 유일한 길이다. 교차가 개념이 되고
+    그 개념이 다시 교차한다. 안 하면 그래프가 평평하게 남는다 — 실제로 승격은
+    3회 쓰이고 멈췄고, 그 3회로 만든 합성 키워드 하나가 지금 최대 허브다.
+
+    목록을 통째로 받아 두고 물으면 매번 다시 세지 않는다. */
+export function isRipe(e: GEdge, list = ripeEdges()): boolean {
+  return list.some((x) => x.id === e.id);
 }
 
 /* ---------------- 그룹 ---------------- */

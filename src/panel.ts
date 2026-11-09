@@ -3,8 +3,8 @@ import { edgeLabelText, isPinned } from "./geom";
 import {
   addEdge, addHyper, addNode, canGroup, deepAncestors, deepChildren, descendantsOf,
   dropEdge, dropNode, edgeAddMember, edgeDelMember, foldKids, groupOf, isSubDescendant,
-  parkBeside, parseWorkLine, promote, removeFromGroup, subChildren, subParentEdge,
-  tidyGroup, tidySubs, ungroup,
+  isRipe, parkBeside, parseWorkLine, promote, promoteName, removeFromGroup, ripeCut, subChildren,
+  subParentEdge, tidyGroup, tidySubs, ungroup,
 } from "./graph";
 import { DEPTH_ORDER, KIND, SEARCH } from "./kinds";
 import { ask, openBulk } from "./modals";
@@ -481,6 +481,24 @@ function edgePanel(e: GEdge, kindEl: HTMLElement, titleEl: HTMLElement,
   hint.textContent = "이 교차를 뭐라고 부를까";
   h.appendChild(hint);
 
+  /* 익은 교차에는 승격을 권한다.
+     교차에 문헌이 쌓였다는 건 그 이름이 이미 독립된 개념으로 읽힌다는 뜻이고,
+     노드가 되어야 다른 것과 다시 교차할 수 있다. 승격하지 않으면 그래프가 평평하게
+     남는다 — 개념들이 결합만 하고 합성되지 않는다. */
+  if (!isViewer() && isRipe(e)) {
+    const box = div(body, "ripe");
+    const t = div(box, "rt");
+    t.innerHTML = `문헌 <b>${(e.works ?? []).length}편</b>이 쌓인 교차입니다. `
+      + `<b>${esc(e.label)}</b>를 개념으로 올리면 다른 키워드와 다시 교차할 수 있습니다.`;
+    btn(box, "abtn pur sm", "개념으로 올리기", () => {
+      const made = promoteName(e.id, e.label);
+      if (made) select("node", made.id); else render();
+    });
+    /* 지금 경계가 몇 편인지 보여준다 — 규칙이 보이지 않으면 바꿀 수도 없다 */
+    const w = div(box, "rw");
+    w.textContent = `이 그래프의 기준: 문헌 ${ripeCut()}편 이상, 메모 없음, 아직 안 올림`;
+  }
+
   const addRow = div(body, "addrow");
   const inp = document.createElement("input");
   inp.className = "inp";
@@ -538,6 +556,11 @@ function edgePanel(e: GEdge, kindEl: HTMLElement, titleEl: HTMLElement,
     s.style.cssText = "font-size:11px;color:var(--dim2)";
     s.textContent = "엣지 이름";
     rowEl.appendChild(s);
+    // 후보에 없는 이름도 올릴 수 있다 — 승격이 후보 목록을 거쳐야 할 이유는 없다
+    btn(rowEl, "abtn pur sm", "노드로 승격", () => {
+      const made = promoteName(e.id, e.label);
+      if (made) select("node", made.id); else render();
+    });
     btn(rowEl, "abtn sm", "이름 지우기", () => { e.label = ""; render(); });
   }
 

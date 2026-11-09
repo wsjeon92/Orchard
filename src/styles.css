@@ -223,6 +223,12 @@ code{background:var(--panel3);padding:1px 5px;border-radius:4px;font-size:11.5px
 .empty{color:var(--dim2);font-size:12.5px;line-height:1.65}
 .empty b{color:var(--dim)}
 
+/* 익은 교차 안내 — 승격은 개념이 합성되는 유일한 길이라 눈에 띄어야 한다 */
+.ripe{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:10px;
+  padding:10px 11px;border-radius:9px;background:#1f1a29;border:1px solid #4a3568}
+.ripe .rt{font-size:12.5px;line-height:1.6;color:#c8b6e8}
+.ripe .rt b{color:#e3d4ff}
+
 #hint{position:absolute;left:12px;bottom:12px;display:flex;gap:13px;flex-wrap:wrap;padding:7px 12px;
   border-radius:9px;background:rgba(21,24,30,.9);border:1px solid var(--line);font-size:11.5px;
   color:var(--dim2);pointer-events:none;backdrop-filter:blur(6px);max-width:calc(100% - 150px)}
@@ -482,3 +488,14 @@ html.viewer #topics,html.viewer #btnTopics{display:none}
 #top::-webkit-scrollbar{height:0}
 #top>*{flex-shrink:0}
 #gtitle,#find{flex-shrink:1}
+
+/* 지금 적용 중인 경계 — 규칙이 보여야 사용자가 자기 분야에 맞게 바꿀 수 있다 */
+.ripe .rw{font-size:11px;color:#8a7aa8;letter-spacing:0}
+
+/* 보기 패널의 숫자 설정 — 분야마다 다른 값이라 사용자가 돌릴 수 있어야 한다 */
+.vlbl{font-size:12.5px;color:var(--dim);margin-bottom:6px}
+.vnums{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+.vnums label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--dim2)}
+.vnums input{width:50px;padding:3px 6px;border-radius:6px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--fg);font-size:12px;text-align:center}
+.vnums input:focus{outline:none;border-color:#5aa9ff}

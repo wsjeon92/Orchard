@@ -5,7 +5,8 @@ import { el, elblEls, nodeEls, screenToWorld, stage, world } from "./dom";
 import {
   addEdge, addHyper, addNode, deepAncestors, deepChildren, degree, descendantsOf,
   dropEdge, dropNode, edgeAddMember, edgeDelMember, focusSet, foldKids, hiddenSet,
-  isSubDescendant, promote, removeFromGroup, subAncestors, subChildren, tidyGroup,
+  isRipe, isSubDescendant, promote, promoteName, ripeCut, ripeEdges,
+  removeFromGroup, subAncestors, subChildren, tidyGroup,
   tidySubs, ungroup, tidyOverlaps, nudgeFree,
 } from "./graph";
 import {
@@ -27,7 +28,7 @@ import {
   setFocus, setSelect, toggleFold,
 } from "./render";
 import {
-  S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView, seed,
+  RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView, seed,
   setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion, normalize,
 } from "./state";
 import { bindViewer, isViewer, narrowScreen, setViewer } from "./viewer";
@@ -130,6 +131,28 @@ el("multiUngroup").onclick = () => {
 };
 el("multiClear").onclick = () => { UI.marked.clear(); render(); };
 
+/* 익은 교차 기준 — 지금 값이 그래프에서 몇 개를 켜는지 바로 보여준다.
+   숫자만 바꾸게 두면 무슨 뜻인지 모른 채 돌리게 된다. */
+function syncRipeNow() {
+  const n = ripeEdges().length;
+  const cut = ripeCut();
+  el("ripeNow").textContent = n
+    ? `지금 이 그래프: 문헌 ${cut}편 이상이 경계, ${n}개를 권하는 중`
+    : `지금 이 그래프: 권할 교차가 없습니다 (문헌 ${cut}편 이상, 메모 없음, 아직 안 올림)`;
+}
+function bindRipeNum(id: string, set: (v: number) => void) {
+  const inp = el<HTMLInputElement>(id);
+  inp.addEventListener("input", () => {
+    const v = Math.max(1, Math.round(+inp.value || 1));
+    set(v);
+    saveView();
+    syncRipeNow();
+    render();                       // 빈 곳 표시가 켜져 있으면 강조도 따라가야 한다
+  });
+}
+bindRipeNum("ripeFloor", (v) => { VIEW.ripeFloor = v; });
+bindRipeNum("ripeMax", (v) => { VIEW.ripeMax = v; });
+
 /* 보기 설정 */
 function syncViewPop() {
   el<HTMLInputElement>("lz").value = String(Math.round(VIEW.labelZoom * 100));
@@ -141,6 +164,9 @@ function syncViewPop() {
   // 잠그지 않는다. 시스템이 '동작 줄이기'면 왜 기본이 꺼짐인지만 알려주고 선택은 맡긴다.
   el("animHint").style.display = reduceMotion ? "" : "none";
   el<HTMLInputElement>("gapsOn").checked = VIEW.gaps;
+  el<HTMLInputElement>("ripeFloor").value = String(VIEW.ripeFloor ?? RIPE_FLOOR);
+  el<HTMLInputElement>("ripeMax").value = String(VIEW.ripeMax ?? RIPE_MAX);
+  syncRipeNow();
   syncAnimClass();
   drawGapBar();
   el<HTMLInputElement>("viewerOn").checked = isViewer();
@@ -335,7 +361,7 @@ const api = {
   nodeEls, elblEls, stage, world, screenToWorld,
   nodeOf, edgeOf, strip, slots, slotSave, save,
   render, paint, applyView, fit, select, setFocus, toggleFold, foldAll, lightRedraw,
-  addNode, addEdge, addHyper, promote, dropNode, dropEdge,
+  addNode, addEdge, addHyper, promote, promoteName, isRipe, ripeCut, ripeEdges, RIPE_FLOOR, RIPE_MAX, dropNode, dropEdge,
   edgeAddMember, edgeDelMember, groupWith, removeFromGroup, ungroup, tidyGroup, tidySubs,
   addSubKeywords, addGroupMembers, nudgeFree, tidyOverlaps,
   subChildren, subAncestors, deepChildren, deepAncestors, isSubDescendant,

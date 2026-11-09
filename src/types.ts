@@ -141,6 +141,10 @@ export interface ViewSettings {
   gaps: boolean;
   /** 한 이유만 보기. null 이면 전부 */
   gapWhy: GapWhy | null;
+  /** 익은 교차 — 문헌이 몇 편부터 '쌓였다'인가. 분야마다 다르다 */
+  ripeFloor: number;
+  /** 익은 교차 — 한 번에 권하는 최대 개수. 사람 쪽 값이라 그래프 크기와 무관 */
+  ripeMax: number;
 }
 
 export type Selection =
