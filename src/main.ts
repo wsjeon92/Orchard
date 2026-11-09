@@ -18,6 +18,7 @@ import {
   drawCross, setCross, setCrossCloseOther, syncCrossN,
 } from "./cross";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
+import { tidyOrbit } from "./orbit";
 import { bindMinimap, drawMini } from "./minimap";
 import {
   bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown, openPhone,
@@ -291,6 +292,14 @@ el("btnTidy").onclick = () => {
   render();                     // x/y 가 바뀌었으니 애니메이션으로 미끄러진다
   flashTidy(`${moved}개를 옮겼습니다`);
 };
+/* 궤도 정리 — 계층을 반지름으로 읽히게 늘어놓는다. 좌표만 바꾸므로 Ctrl+Z 로 되돌아간다.
+   손으로 잡아 둔 배치를 덮어쓰기 때문에 자동으로 돌리지 않고 버튼으로만 둔다. */
+el("btnOrbit").onclick = () => {
+  tidyOrbit();
+  save();
+  render();
+  fit();
+};
 /** 버튼 옆에 결과를 잠깐 보여준다 — 아무 일도 안 일어난 것처럼 보이면 눌렀는지 알 수 없다 */
 let tidyTimer: ReturnType<typeof setTimeout> | null = null;
 function flashTidy(msg: string) {
@@ -324,6 +333,10 @@ hopsEl.value = String(VIEW.hops);
 el("hopsN").textContent = String(VIEW.hops);
 if (!load()) seed();
 syncDataKey();                   // 시작 직후 첫 save 가 파일을 덮지 않게
+/* 실행 취소의 기준점도 여기서 잡는다. 예전에는 첫 render 의 save 가 snapshot 을
+   불러 주면서 얻어걸렸는데, save 가 화면만 바뀐 경우를 건너뛰게 되면서 그 길이
+   끊겼다. 기준점이 없으면 로드 뒤 첫 변경이 Ctrl+Z 로 안 돌아간다. */
+resetHistoryBase();
 drawTopics();
 syncCrossN();
 syncTitleInput();
@@ -370,7 +383,7 @@ function reset() {                       // 테스트가 깨끗한 상태에서 
   UI.sel = null; UI.focusId = null; UI.query = ""; UI.marked.clear(); UI.hidden.clear();
   setGraph({ nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1, topics: [] });
   drawTopics();
-  resetHistoryBase(); clearStacks();
+  clearStacks(); resetHistoryBase();
 }
 const api = {
   // S 와 VIEW 는 모듈에서 통째로 교체되므로 게터로 내보낸다
@@ -388,14 +401,14 @@ const api = {
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
-  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER,
+  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit,
   crossCands, crossDismiss, crossRestoreAll, crossSkipped, crossLabel, crossWorksText,
   crossOpen, setCross, drawCross, crossScanOf, crossScannable, crossDraw, crossDrawn,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass,
   isViewer, setViewer, narrowScreen,
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,
   encodeGraph, decodeGraph, shareUrl,
-  stacks, resetHistory: () => { resetHistoryBase(); clearStacks(); },
+  stacks, resetHistory: () => { clearStacks(); resetHistoryBase(); },
   slotLoad: (name: string) => loadSlot(name),
 };
 window.Orchard = api;

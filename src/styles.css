@@ -409,6 +409,9 @@ html.viewer #btnLink{display:none}
 
 /* 이유마다 색을 달리 둔다 — 무엇을 해야 하는지가 이유마다 다르다.
    의도를 적을 곳, 문헌을 채울 곳, 더 이을 곳은 서로 다른 작업이다. */
+/* 궤도 — 태양계 탑뷰. 배경이지 내용이 아니므로 아주 흐리게 */
+.orb{fill:none;stroke:#7c8bb0;stroke-width:1.2;stroke-dasharray:4 10;opacity:1;
+  pointer-events:none;vector-effect:non-scaling-stroke}
 .node.gap{box-shadow:0 0 0 2px var(--gapc),0 0 14px -2px var(--gapc)}
 .elbl.gap{box-shadow:0 0 0 2px var(--gapc)}
 .grp.gap{border-style:solid;border-color:var(--gapc);

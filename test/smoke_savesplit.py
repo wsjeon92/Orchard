@@ -72,6 +72,32 @@ def main():
         if r['savedView']['k'] != 0.8 or r['savedView']['x'] != 123:
             bad.append("화면 위치가 로컬에 안 남았다 — 새로고침하면 자리가 튄다: %r" % r['savedView'])
 
+        # 3.5 로드 뒤 '첫' 변경도 실행 취소가 돼야 한다
+        #     save 가 화면만 바뀐 경우를 건너뛰게 되면서, 부팅 때 snapshot 이
+        #     한 번도 안 불려 기준점이 null 로 남았다. 그러면 첫 변경이 기준점
+        #     초기화로 소모되고 Ctrl+Z 가 먹지 않는다. 실제로 그랬다.
+        pg3 = b.new_page(); pg3.goto(url()); pg3.wait_for_timeout(500)
+        pg3.evaluate("""() => {
+          Orchard.reset();
+          window.__n = Orchard.addNode('가', 10, 20);
+          Orchard.save();
+        }""")
+        # 스냅샷은 글자 입력을 한 덩어리로 묶으므로, 같은 틱의 두 변경은 하나가 된다.
+        # 사용자가 실제로 겪는 간격을 둔다
+        pg3.wait_for_timeout(900)
+        first = pg3.evaluate("""() => {
+          const n = window.__n;
+          const before = [n.x, n.y];
+          n.x = 500; n.y = 600; Orchard.save(); Orchard.render();
+          return { id: n.id, before, moved: [n.x, n.y], undo: Orchard.stacks().undo };
+        }""")
+        pg3.keyboard.press("Control+z"); pg3.wait_for_timeout(400)
+        back = pg3.evaluate("(id) => { const n = Orchard.nodeOf(id); return [n.x, n.y]; }", first['id'])
+        print(f"  첫 변경 되돌리기: {first['moved']} → {back} (원래 {first['before']})")
+        if back != first['before']:
+            bad.append("로드 뒤 첫 변경이 Ctrl+Z 로 안 돌아간다 — 히스토리 기준점이 없다")
+        pg3.close()
+
         # 4. 시작 직후 — 렌더만 했을 때 데이터 변경으로 치지 않는다
         pg2 = b.new_page()
         pg2.add_init_script(

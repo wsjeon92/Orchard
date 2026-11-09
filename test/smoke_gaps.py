@@ -77,9 +77,9 @@ def main():
         if not r['dimmed']: bad.append("나머지가 흐려지지 않았다")
         for why in ASK + ('edgeNoWork', 'orphan', 'leaf'):
             if not r['counts'][why]: bad.append(f"{why} 가 0개 — 이 그래프에는 있어야 한다")
-        # 이름 없는 교차: 이 그래프에는 승격된 것 셋뿐이라 0이어야 한다
-        if r['counts']['edgeBlank']:
-            bad.append(f"승격해서 이름이 빈 교차를 빈 곳으로 잡았다: {r['counts']['edgeBlank']}개")
+        # 승격해서 이름이 빈 교차는 잡히면 안 된다 — 아래 blank 검사가 그걸 본다.
+        # 절대 개수는 사용자가 이름 없는 교차를 만들면 달라지므로 보지 않는다
+        print(f"  이름 없는 교차 {r['counts']['edgeBlank']}개 (승격분 제외)")
         if sorted(r['counts']) != sorted(ASK + FILL):
             bad.append("gapCounts 가 여섯 범주를 다 안 센다: %r" % sorted(r['counts']))
 
@@ -128,13 +128,16 @@ def main():
           const p1 = Orchard.addNode('빈교차A', 9000, 9000);
           const p2 = Orchard.addNode('빈교차B', 9200, 9000);
           const e = Orchard.addHyper([p1.id, p2.id]);
-          const made = Orchard.findGaps().filter(g => g.why === 'edgeBlank').length;
+          /* 절대 개수가 아니라 이 엣지가 잡히는지로 본다 — 그래프에 이미 이름 없는
+             교차가 있을 수 있다 */
+          const hit = () => Orchard.findGaps().some(g => g.why === 'edgeBlank' && g.id === e.id);
+          const made = hit() ? 1 : 0;
           e.label = '이름';
-          const named = Orchard.findGaps().filter(g => g.why === 'edgeBlank').length;
+          const named = hit() ? 1 : 0;
           e.label = ''; e.promoted = ['x'];
-          const promoted = Orchard.findGaps().filter(g => g.why === 'edgeBlank').length;
+          const promoted = hit() ? 1 : 0;
           e.promoted = []; e.note = '왜 이었는지';
-          const noted = Orchard.findGaps().filter(g => g.why === 'edgeBlank').length;
+          const noted = hit() ? 1 : 0;
           Orchard.S.edges.splice(Orchard.S.edges.indexOf(e), 1);
           for (const p of [p2, p1]) Orchard.S.nodes.splice(Orchard.S.nodes.indexOf(p), 1);
           return { made, named, promoted, noted };

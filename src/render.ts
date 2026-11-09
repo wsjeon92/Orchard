@@ -1,5 +1,6 @@
 import { kickAnim } from "./anim";
 import { gapSet } from "./gaps";
+import { orbitRings } from "./orbit";
 import { elblEls, nodeEls, stage, world } from "./dom";
 import { bindNode } from "./interact";
 import {
@@ -167,7 +168,8 @@ export const animAllowed = () => VIEW.anim;
 
 export function drawEdges(fset: Set<string> | null, q: string) {
   const gap = lastGap;
-  let out = "";
+  /* 궤도 원을 맨 뒤에 깐다 — 선보다 먼저 써야 아래로 간다 */
+  let out = orbitRings();
   const eseen = new Set<string>();
   const hid = UI.hidden;
   const noMatch = (n: GNode) => !!q && !matchNode(n, q);

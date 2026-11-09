@@ -19,14 +19,24 @@ function graphJSON(): string {
   return JSON.stringify({ nodes: o.nodes, edges: o.edges, seq: o.seq });
 }
 
+/** 노드·엣지 개수. 구조가 바뀌었는지를 싸게 보는 눈금 */
+const counts = () => S.nodes.length + "/" + S.edges.length;
+let lastCounts = "";
+
 export function snapshot() {
   if (restoring) return;
   const cur = graphJSON();
-  if (lastSnap === null) { lastSnap = cur; lastSnapAt = Date.now(); return; }
+  const cnt = counts();
+  if (lastSnap === null) { lastSnap = cur; lastCounts = cnt; lastSnapAt = Date.now(); return; }
   if (cur === lastSnap) return;
   const now = Date.now();
-  // 글자를 치는 동안은 한 덩어리로 묶는다 — 한 글자에 하나씩 쌓이면 못 쓴다
-  if (!(now - lastSnapAt < COALESCE_MS && undoStack.length)) {
+  /* 글자를 치는 동안은 한 덩어리로 묶는다 — 한 글자에 하나씩 쌓이면 못 쓴다.
+     다만 묶는 것은 글자뿐이다. 노드나 엣지가 늘거나 줄었으면 별개의 동작이므로
+     시간이 얼마나 가까웠든 따로 쌓는다. 안 그러면 0.7초 안에 두 번 묶기를 하면
+     한 번만 되돌아간다. */
+  const structural = cnt !== lastCounts;
+  lastCounts = cnt;
+  if (structural || !(now - lastSnapAt < COALESCE_MS && undoStack.length)) {
     undoStack.push(lastSnap);
     if (undoStack.length > UNDO_MAX) undoStack.shift();
   }
