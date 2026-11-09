@@ -31,7 +31,7 @@ import {
 } from "./geom";
 import {
   applyView, fit, foldAll, lightRedraw, paint, render,
-  setFocus, setSelect, toggleFold,
+  setFocus, fitFocus, setSelect, toggleFold,
 } from "./render";
 import {
   RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView,
@@ -90,6 +90,7 @@ titleEl.addEventListener("keydown", (e) => {
 });
 
 el("btnFit").onclick = () => { UI.focusId = null; render(); fit(); };
+el("crumbFit").onclick = () => fitFocus();
 el("crumbOut").onclick = () => { UI.focusId = null; render(); fit(); };
 el("btnUndo").onclick = undo;
 el("btnRedo").onclick = redo;
@@ -130,7 +131,7 @@ hopsEl.addEventListener("input", () => {
   VIEW.hops = +hopsEl.value;
   el("hopsN").textContent = String(VIEW.hops);
   saveView();
-  if (UI.focusId) { const id = UI.focusId; UI.focusId = null; setFocus(id); }
+  if (UI.focusId) render();        // 화면은 그대로 둔다 — 맞추고 싶으면 '맞춰 보기'
 });
 
 /* 여러 개 묶기 */
@@ -412,7 +413,7 @@ const api = {
   UI, reset, onAfterSave,
   nodeEls, elblEls, stage, world, screenToWorld,
   nodeOf, edgeOf, strip, slots, slotSave, save,
-  render, paint, applyView, fit, select, setFocus, toggleFold, foldAll, lightRedraw,
+  render, paint, applyView, fit, select, setFocus, fitFocus, toggleFold, foldAll, lightRedraw,
   addNode, addEdge, addHyper, promote, promoteName, isRipe, ripeCut, ripeEdges, RIPE_FLOOR, RIPE_MAX, dropNode, dropEdge,
   edgeAddMember, edgeDelMember, groupWith, removeFromGroup, ungroup, tidyGroup, tidySubs, memberIds, addMember,
   addSubKeywords, addGroupMembers, nudgeFree, tidyOverlaps,

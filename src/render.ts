@@ -176,7 +176,7 @@ export function drawEdges(fset: Set<string> | null, q: string) {
     if (!gap) return "";
     const why = gap.why.get(id);
     return why ? " gap gap-" + why : gap.ids.has(id) ? "" : " dim";
-  });
+  }, fset);
   /* 한 번만 잰다 — 엣지마다 다시 재면 72 노드에 84 번 돌린다 */
   const ix = orbitIndex();
   const eseen = new Set<string>();
@@ -355,13 +355,19 @@ export function fit(list?: GNode[]) {
   save();
 }
 
+/** 하이라이트 켜고 끄기. **화면은 움직이지 않는다** — 보던 자리에서 밝아지는 것이
+    이 기능이다. 예전에는 집합에 맞춰 줌이 튀어서, 어디를 보고 있었는지 잃었다.
+    맞춰 보고 싶으면 빵가루의 '맞춰 보기'를 누른다. */
 export function setFocus(id: string) {
   UI.focusId = UI.focusId === id ? null : id;
   render();
-  if (UI.focusId) {
-    const set = focusSet(UI.focusId, VIEW.hops);
-    fit(S.nodes.filter((n) => set.has(n.id)));
-  } else fit();
+}
+
+/** 하이라이트된 것들에 화면을 맞춘다 — 빵가루의 '맞춰 보기' */
+export function fitFocus() {
+  if (!UI.focusId) { fit(); return; }
+  const set = focusSet(UI.focusId, VIEW.hops);
+  fit(S.nodes.filter((n) => set.has(n.id)));
 }
 
 export function toggleFold(id: string) {

@@ -419,6 +419,8 @@ html.viewer #btnLink{display:none}
   pointer-events:none;vector-effect:non-scaling-stroke}
 /* 엣지를 먼저 보이게 고른 모드 — 궤도가 뒤로 물러난다. 점선은 그릴 때 붙인다 */
 .emph-edge .orb{stroke:#6f86b8;stroke-width:1;opacity:.5}
+/* 하이라이트 밖 — 두 모드 뒤에 둬서 둘 다 이긴다 */
+.orb.dim{opacity:.1}
 .emph-edge .orbl{fill:#6f7f9e}
 /* 잡는 띠. 보이는 선은 가늘어야 하고 손가락은 굵어야 해서 둘로 나눈다.
    두께를 화면 기준으로 고정해야 축소해도 집을 수 있다 */

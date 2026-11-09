@@ -557,13 +557,17 @@ export function orbitIndex(): OrbIndex {
 /** 보이는 궤도. 선보다 먼저 써서 맨 뒤에 깐다.
     mark 는 궤도 이름에 붙일 여분 class — 빈 곳 표시가 궤도 노드에도 닿게 한다.
     궤도 노드는 더 이상 상자로 안 그려져서, 이름이 유일한 자리다. */
-export function orbitRings(mark?: (id: string) => string): string {
+export function orbitRings(mark?: (id: string) => string,
+                           fset?: Set<string> | null): string {
   let out = "";
   for (const [key, R] of orbitIndex().rings) {
     const c = R.c, r = R.r.toFixed(1);
     const X = c.x.toFixed(1), Y = c.y.toFixed(1);
     /* 선 두께는 화면 기준으로 고정한다 — 월드가 축소되면 1px 선이 0.3px 가 돼서 사라진다 */
-    out += `<circle class="orb" cx="${X}" cy="${Y}" r="${r}"${orbDash()} `
+    /* 하이라이트 중이면 식구가 하나도 안 걸린 고리는 뒤로 물린다. 전에는 궤도가
+       집중을 아예 안 봐서 노드만 흐려지고 고리는 밝게 남아 그림이 어긋났다 */
+    const off = fset ? !R.ids.some((i) => fset.has(i)) : false;
+    out += `<circle class="orb${off ? " dim" : ""}" cx="${X}" cy="${Y}" r="${r}"${orbDash()} `
       + `vector-effect="non-scaling-stroke"/>`;
     if (!R.label) continue;
     /* 이름은 위성 둘 사이 빈 자리에 쓴다. 한 바퀴를 고르게 썼으니 첫 둘의 가운데가
@@ -574,7 +578,7 @@ export function orbitRings(mark?: (id: string) => string): string {
     }).sort((x, y) => x - y);
     const a = as.length > 1 ? (as[0] + as[1]) / 2 : as[0] + Math.PI / 2;
     /* 이름이 곧 그 궤도의 손잡이다 — 눌러서 고르고 패널에서 고친다 */
-    out += `<text class="orbl${mark ? mark(R.group) : ""}" data-id="${R.group}" `
+    out += `<text class="orbl${mark ? mark(R.group) : ""}${off ? " dim" : ""}" data-id="${R.group}" `
       + `data-orb="${key}" x="${(c.x + Math.cos(a) * R.r).toFixed(1)}" `
       + `y="${(c.y + Math.sin(a) * R.r).toFixed(1)}">${esc(R.label)}</text>`;
   }

@@ -187,7 +187,7 @@ def main() -> None:
 
         # 11) 예전 저장본(이 필드가 없는)을 읽어도 기본값이 살아남는다
         old = pg.evaluate("""() => {
-          localStorage.setItem('kwgraph.view', JSON.stringify({ hops: 4, anim: false }));
+          localStorage.setItem('kwgraph.view', JSON.stringify({ hops: 2, anim: false }));
           Orchard.VIEW.ripeFloor = 99; Orchard.VIEW.ripeMax = 99;   // 더럽혀 두고
           return null;
         }""")
@@ -195,7 +195,7 @@ def main() -> None:
         pg.wait_for_function("() => !!window.Orchard")
         back = pg.evaluate("() => ({ f: Orchard.VIEW.ripeFloor, m: Orchard.VIEW.ripeMax, hops: Orchard.VIEW.hops })")
         assert back["f"] == 3 and back["m"] == 10, f"예전 저장본에서 기본값이 안 살아남았다: {back}"
-        assert back["hops"] == 4, back     # 저장돼 있던 다른 값은 그대로
+        assert back["hops"] == 2, back     # 저장돼 있던 다른 값은 그대로
 
         br.close()
     print("smoke_ripe 통과 — 익은 교차는 권유하고, 후보 없는 이름도 올라간다")

@@ -82,15 +82,33 @@ export function neighbors(id: string): Set<string> {
 export const degree = (id: string) => neighbors(id).size;
 
 /** 집중 모드 — 지정한 홉 수만큼 퍼져나간다 (옵시디언 로컬 그래프의 깊이 슬라이더와 같은 방식) */
+/** 하이라이트 집합 — 이 노드와 그 식구 전부, 그리고 그들이 든 교차의 상대.
+ *
+ *  **비대칭이다.** 아래로는 끝까지, 교차로는 hops 홉(기본 1)만 간다. 전에는
+ *  neighbors() 로 균등 BFS 를 돌렸는데 세 가지가 어긋났다.
+ *
+ *    - 허브에서 3홉이면 그래프가 거의 전부 들어왔다 ('단백질'은 교차만 10개)
+ *    - sub 를 양방향으로 봐서, 자식을 고르면 부모로 올라가 형제·삼촌까지 밝아졌다
+ *    - 합성의 부품(parts)과 궤도 노드까지 섞였다
+ *
+ *  "이 노드의 것"은 아래로 내려가는 것과 한 걸음 옆인 것이고, 그 둘은 거리가
+ *  다르다. 그래서 거리를 하나로 묶으면 안 된다.
+ *
+ *  **neighbors() 를 쓰지 않는다.** degree() 가 그 함수를 쓰고, degree 는 노드
+ *  크기(render)와 궤도 자리 배분(orbit)과 빈 곳 탐지를 정한다 — 여기를 손대면
+ *  엉뚱한 데가 조용히 바뀐다. */
 export function focusSet(id: string, hops = VIEW.hops): Set<string> {
-  const set = new Set([id]);
-  let frontier = [id];
-  for (let d = 0; d < hops; d++) {
-    const next: string[] = [];
-    for (const cur of frontier) {
-      for (const nb of neighbors(cur)) if (!set.has(nb)) { set.add(nb); next.push(nb); }
+  const set = new Set<string>([id]);
+  for (const d of descendantsOf(id)) set.add(d);   // sub+deep, 아래로만, 궤도를 통과
+  let frontier = new Set(set);
+  for (let d = 0; d < Math.max(0, hops); d++) {
+    const next = new Set<string>();
+    for (const e of S.edges) {
+      const ms = e.kind === "assoc" ? e.members ?? [] : [];
+      if (!ms.some((m) => frontier.has(m))) continue;
+      for (const m of ms) if (!set.has(m)) { set.add(m); next.add(m); }
     }
-    if (!next.length) break;
+    if (!next.size) break;
     frontier = next;
   }
   return set;

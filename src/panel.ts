@@ -267,7 +267,8 @@ function nodePanel(n: GNode, kindEl: HTMLElement, titleEl: HTMLElement,
   });
 
   const r2 = row(acts, "");
-  addAct(r2, UI.focusId === n.id ? "집중 해제" : "이 아이디어만 보기", "", () => setFocus(n.id));
+  /* 숨기는 게 아니라 흐리게 하는 것이라 '~만 보기'는 사실과 달랐다 */
+  addAct(r2, UI.focusId === n.id ? "하이라이트 해제" : "연결 하이라이트", "", () => setFocus(n.id));
   if (foldKids(n.id).length) {
     addAct(r2, n.collapsed ? `펼치기 (${descendantsOf(n.id).size})` : "하위 접기", "",
       () => toggleFold(n.id));

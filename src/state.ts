@@ -32,7 +32,7 @@ export const RIPE_FLOOR = 3;
 export const RIPE_MAX = 10;
 
 export let VIEW: ViewSettings = {
-  labelZoom: 0.45, sizeByDeg: true, minimap: true, hops: 3, anim: true,
+  labelZoom: 0.45, sizeByDeg: true, minimap: true, hops: 1, anim: true,
   gaps: false, gapWhy: null,
   ripeFloor: RIPE_FLOOR, ripeMax: RIPE_MAX,
   crossMin: CROSS_MIN, crossMax: CROSS_MAX, crossMode: "score",
@@ -295,6 +295,11 @@ export function loadView() {
   } catch { /* 기본값을 쓴다 */ }
   // 저장된 설정이 없는 첫 방문에만 OS 선호를 따른다. 한 번 고르면 그 선택이 남는다.
   if (!loaded) VIEW.anim = !reduceMotion;
+  /* hops 의 뜻이 바뀌었다 — 예전엔 모든 연결을 섞은 균등 BFS 의 홉 수(1~6, 기본 3)
+     였고 지금은 교차로만 몇 홉인가(1~2)다. 교차로 3홉이면 허브에서 그래프가 거의
+     전부 들어오므로 그 값은 새 뜻에서 쓸 수 없다. 2 를 넘는 값은 옛 뜻으로만
+     존재했으니 한 번 되돌린다 — 새 뜻으로 2 를 고른 사람의 선택은 남는다. */
+  if (VIEW.hops > 2) VIEW.hops = 1;
 }
 
 /* ---------------- 이름 붙인 저장본 ---------------- */

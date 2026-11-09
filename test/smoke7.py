@@ -66,18 +66,18 @@ with sync_playwright() as p:
     pg.mouse.click(box["x"], box["y"]); pg.wait_for_timeout(200)
     rec(("미니맵 클릭으로 이동", {"전": before_v, "후": pg.evaluate("[Math.round(Orchard.S.view.x),Math.round(Orchard.S.view.y)]")}))
 
-    # 3) 집중 깊이 슬라이더
+    # 3) 교차 홉 슬라이더 — 하위는 늘 끝까지라 슬라이더와 무관하다
     pg.evaluate("() => { const c=Orchard.S.nodes.find(n=>n.kind==='compound'); Orchard.UI.sel = {type:'node',id:c.id}; Orchard.setFocus(c.id); }")
     pg.wait_for_timeout(250)
-    rec(("홉별 집중 범위", pg.evaluate("""() => {
+    rec(("교차 홉별 하이라이트 범위", pg.evaluate("""() => {
         const c=Orchard.S.nodes.find(n=>n.kind==='compound');
-        return [1,2,3,6].map(h=>Orchard.focusSet(c.id,h).size);
+        return [0,1,2].map(h=>Orchard.focusSet(c.id,h).size);
     }""")))
     pg.locator("#hops").fill("1"); pg.locator("#hops").dispatch_event("input"); pg.wait_for_timeout(250)
     rec(("슬라이더 1홉", {"표시": pg.locator("#hopsN").inner_text(),
          "흐려진노드": pg.evaluate("document.querySelectorAll('.node.dim').length")}))
-    pg.locator("#hops").fill("6"); pg.locator("#hops").dispatch_event("input"); pg.wait_for_timeout(250)
-    rec(("슬라이더 6홉", {"흐려진노드": pg.evaluate("document.querySelectorAll('.node.dim').length")}))
+    pg.locator("#hops").fill("2"); pg.locator("#hops").dispatch_event("input"); pg.wait_for_timeout(250)
+    rec(("슬라이더 2홉", {"흐려진노드": pg.evaluate("document.querySelectorAll('.node.dim').length")}))
     pg.evaluate("Orchard.UI.focusId =null; Orchard.render(); Orchard.fit();"); pg.wait_for_timeout(200)
 
     # 4) 검색
