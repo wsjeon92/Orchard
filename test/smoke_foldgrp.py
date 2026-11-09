@@ -33,7 +33,7 @@ with sync_playwright() as pw:
       Orchard.groupWith(a.id, c.id);                            // 그룹 생성
       const grp = Orchard.S.nodes.find(n => n.kind === 'group');
       grp.label = '단백질 물성';
-      if (!grp.members.includes(d.id)) grp.members.push(d.id);  // 결합도 멤버로
+      Orchard.addMember(grp.id, d.id);                          // 결합도 식구로
       Orchard.addEdge(root.id, grp.id, 'sub');
       const far = at('가상현실', 1000, 700);
       Orchard.render();

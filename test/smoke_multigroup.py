@@ -24,7 +24,7 @@ def mark(pg, labels):
 
 def groups(pg):
     return pg.evaluate("""() => Orchard.S.nodes.filter(n => n.kind === 'group')
-        .map(g => ({ label: g.label, members: g.members.map(m => Orchard.nodeOf(m)?.label) }))""")
+        .map(g => ({ label: g.label, members: Orchard.memberIds(g).map(m => Orchard.nodeOf(m)?.label) }))""")
 
 
 def btn(pg, id_):
@@ -91,8 +91,8 @@ with sync_playwright() as pw:
       const at = (l, x, y) => { const n = Orchard.addNode(l, 0, 0); n.x = x; n.y = y; return n; };
       const a = at('가', 150, 150), c = at('나', 400, 150);
       const d = at('다', 150, 500), e = at('라', 400, 500);
-      Orchard.addNode('', 0, 0, 'group', { members: [a.id, c.id] });
-      Orchard.addNode('', 0, 0, 'group', { members: [d.id, e.id] });
+      { const g1 = Orchard.addNode('', 0, 0, 'group'); Orchard.addMember(g1.id, a.id); Orchard.addMember(g1.id, c.id); }
+      { const g2 = Orchard.addNode('', 0, 0, 'group'); Orchard.addMember(g2.id, d.id); Orchard.addMember(g2.id, e.id); }
       Orchard.render();
       Orchard.UI.marked.clear();
       Orchard.S.nodes.filter(n => n.kind === 'group').forEach(g => Orchard.UI.marked.add(g.id));

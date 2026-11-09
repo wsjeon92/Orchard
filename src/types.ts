@@ -46,7 +46,9 @@ export interface GNode {
   /** compound 의 구성 요소 노드 id */
   parts: string[];
   /** group 의 멤버 노드 id */
-  members: string[];
+  /** @deprecated 옛 저장본 전용. 불러올 때 sub 엣지로 옮기고 지운다 —
+   *  담는 길은 sub 엣지 하나다 (궤도 노드가 자기 고리에 이름을 준다). */
+  members?: string[];
   /** 하위를 접어 두었는가 */
   collapsed?: boolean;
 

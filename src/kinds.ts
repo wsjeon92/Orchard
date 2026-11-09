@@ -3,7 +3,7 @@ import type { KindSpec, NodeKind } from "./types";
 export const KIND: Record<NodeKind, KindSpec> = {
   atom:       { axis: "b", name: "키워드",      col: "#5aa9ff", shape: "pill" },
   compound:   { axis: "b", name: "합성 키워드", col: "#b47cff", shape: "card", big: true },
-  group:      { axis: "b", name: "그룹",        col: "#93a1b5", shape: "group" },
+  group:      { axis: "b", name: "궤도",        col: "#93a1b5", shape: "group" },
   // 질문은 마젠타 — 파랑은 키워드(atom)와 하위 키워드 엣지가 이미 쓰고 있다
   question:   { axis: "d", name: "질문",        col: "#e86ec0", shape: "card" },
   hypothesis: { axis: "d", name: "가설",        col: "#3ecf8e", shape: "card" },

@@ -25,7 +25,7 @@ with sync_playwright() as p:
         Orchard.render(); Orchard.fit();
     }""")
     pg.wait_for_timeout(300)
-    rec(("드래그로 만든 그룹", pg.evaluate("Orchard.S.nodes.find(n=>n.kind==='group').members.length")))
+    rec(("드래그로 만든 그룹", pg.evaluate("Orchard.memberIds(Orchard.S.nodes.find(n=>n.kind==='group')).length")))
 
     pg.evaluate("() => Orchard.select('node', Orchard.S.nodes.find(n=>n.kind==='group').id)")
     pg.wait_for_timeout(250)
@@ -43,7 +43,7 @@ with sync_playwright() as p:
     rec(("검색으로 추가", pg.evaluate("""() => {
         const g=Orchard.S.nodes.find(n=>n.kind==='group');
         const v=Orchard.S.nodes.find(n=>n.label==='VAE');
-        return {멤버:g.members.map(m=>(Orchard.S.nodes.find(x=>x.id===m)||{}).label),
+        return {멤버:Orchard.memberIds(g).map(m=>(Orchard.S.nodes.find(x=>x.id===m)||{}).label),
                 박스안에들어옴: v.x>=g.x && v.x<=g.x+g._w && v.y>=g.y && v.y<=g.y+g._h};
     }""")))
 
@@ -59,7 +59,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(250)
     rec(("빼기", pg.evaluate("""() => {
         const g=Orchard.S.nodes.find(n=>n.kind==='group');
-        return {멤버수:g.members.length, VAE생존:!!Orchard.S.nodes.find(n=>n.label==='VAE')};
+        return {멤버수:Orchard.memberIds(g).length, VAE생존:!!Orchard.S.nodes.find(n=>n.label==='VAE')};
     }""")))
     pg.screenshot(path=shot("shot-grpadd.png"))
     rec(("콘솔 에러", errs))

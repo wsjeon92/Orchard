@@ -7,7 +7,7 @@ import {
   dropEdge, dropNode, edgeAddMember, edgeDelMember, focusSet, foldKids, hiddenSet,
   isRipe, isSubDescendant, promote, promoteName, ripeCut, ripeEdges,
   removeFromGroup, subAncestors, subChildren, tidyGroup,
-  tidySubs, ungroup, tidyOverlaps, nudgeFree,
+  tidySubs, ungroup, tidyOverlaps, nudgeFree, memberIds, addMember,
 } from "./graph";
 import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
@@ -394,7 +394,7 @@ const api = {
   nodeOf, edgeOf, strip, slots, slotSave, save,
   render, paint, applyView, fit, select, setFocus, toggleFold, foldAll, lightRedraw,
   addNode, addEdge, addHyper, promote, promoteName, isRipe, ripeCut, ripeEdges, RIPE_FLOOR, RIPE_MAX, dropNode, dropEdge,
-  edgeAddMember, edgeDelMember, groupWith, removeFromGroup, ungroup, tidyGroup, tidySubs,
+  edgeAddMember, edgeDelMember, groupWith, removeFromGroup, ungroup, tidyGroup, tidySubs, memberIds, addMember,
   addSubKeywords, addGroupMembers, nudgeFree, tidyOverlaps,
   subChildren, subAncestors, deepChildren, deepAncestors, isSubDescendant,
   focusSet, degree, hiddenSet, foldKids, descendantsOf,

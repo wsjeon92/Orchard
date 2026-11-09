@@ -4,7 +4,7 @@ import {
   addEdge, addHyper, addNode, canGroup, deepAncestors, deepChildren, descendantsOf,
   dropEdge, dropNode, edgeAddMember, edgeDelMember, foldKids, groupOf, isSubDescendant,
   isRipe, parkBeside, parseWorkLine, promote, promoteName, removeFromGroup, ripeCut, subChildren,
-  subParentEdge, tidyGroup, tidySubs, ungroup,
+  subParentEdge, tidyGroup, tidySubs, ungroup, addMember, memberIds,
 } from "./graph";
 import { DEPTH_ORDER, KIND, SEARCH } from "./kinds";
 import { ask, openBulk } from "./modals";
@@ -121,7 +121,7 @@ function nodePanel(n: GNode, kindEl: HTMLElement, titleEl: HTMLElement,
   if (K.axis === "d") addAct(r2, "키워드로 올리기", "", () => void liftToKeyword(n));
   if (isGroup(n)) {
     addAct(r2, "멤버 정렬", "", () => { tidyGroup(n); render(); });
-    addAct(r2, "그룹 해체", "", () => { ungroup(n.id); render(); });
+    addAct(r2, "궤도 해체", "", () => { ungroup(n.id); render(); });
   } else {
     addAct(r2, "삭제", "", () => { dropNode(n.id); render(); });
   }
@@ -194,9 +194,9 @@ function renderLinks(body: HTMLElement, n: GNode) {
 }
 
 function groupMembers(body: HTMLElement, n: GNode) {
-  sect(body, `멤버 ${(n.members ?? []).length}개`);
+  sect(body, `식구 ${memberIds(n).length}개`);
   const w = div(body, "chips");
-  (n.members ?? []).forEach((mid) => {
+  memberIds(n).forEach((mid) => {
     const m = nodeOf(mid);
     if (!m) return;
     const c = btn(w, "chip g", m.label || "(제목 없음)", () => select("node", mid));
@@ -207,8 +207,8 @@ function groupMembers(body: HTMLElement, n: GNode) {
     c.appendChild(document.createTextNode(" "));
     c.appendChild(x);
   });
-  if (!(n.members ?? []).length) {
-    div(body, "empty").textContent = "멤버가 없습니다. 노드를 이 그룹 위로 끌어다 놓으세요.";
+  if (!memberIds(n).length) {
+    div(body, "empty").textContent = "식구가 없습니다. 노드를 이 궤도 위로 끌어다 놓으세요.";
   }
 
   // 새 키워드를 바로 만들어 멤버로 — 쉼표로 여러 개
@@ -226,10 +226,10 @@ function groupMembers(body: HTMLElement, n: GNode) {
 
   // 이미 캔버스에 있는 노드를 골라 넣는 길
   const pool = S.nodes.filter((x) => canGroup(x) && x.id !== n.id
-    && !(n.members ?? []).includes(x.id) && !isGroup(x)).sort(byLabel);
-  keywordPicker(body, "키워드를 찾아 이 그룹에 넣기", pool,
+    && !memberIds(n).includes(x.id) && !isGroup(x)).sort(byLabel);
+  keywordPicker(body, "키워드를 찾아 이 궤도에 넣기", pool,
     (id) => groupWith(id, n.id),
-    (x) => { const g = groupOf(x.id); return g ? `${cut(g.label || "그룹", 12)}에서 이동` : ""; });
+    (x) => { const g = groupOf(x.id); return g ? `${cut(g.label || "궤도", 12)}에서 이동` : ""; });
 }
 
 /** "확산 모델, 플로우 매칭" → 새 키워드 노드를 만들어 그룹 멤버로 넣는다 */
@@ -239,12 +239,12 @@ export function addGroupMembers(g: GNode, text: string): boolean {
   const made: GNode[] = [];
   names.forEach((nm) => {
     const n = addNode(nm, g.x + (g._w ?? 200) + 40, g.y + 30, "atom");
-    g.members.push(n.id);
+    addMember(g.id, n.id);
     made.push(n);
   });
   render();                                   // 폭을 재야 옆자리를 잡을 수 있다
   // 아직 자리를 안 잡은 형제는 기준에서 빼고 하나씩 오른쪽으로 붙인다
-  const placed = g.members.filter((id) => !made.some((m) => m.id === id));
+  const placed = memberIds(g).filter((id) => !made.some((m) => m.id === id));
   made.forEach((n) => { parkBeside(n, placed.concat(n.id)); placed.push(n.id); });
   select("node", g.id);
   return true;
@@ -259,13 +259,15 @@ export function groupWith(aId: string, targetId: string) {
 
   let g = isGroup(t) ? t : groupOf(targetId);
   if (g) {
-    if (!g.members.includes(aId)) g.members.push(aId);
-    parkBeside(a, g.members);
+    addMember(g.id, aId);
+    parkBeside(a, memberIds(g));
     select("node", g.id);
     return;
   }
-  g = addNode("", 0, 0, "group", { members: [targetId, aId] });
-  parkBeside(a, g.members);
+  g = addNode("", 0, 0, "group");
+  addMember(g.id, targetId);
+  addMember(g.id, aId);
+  parkBeside(a, memberIds(g));
   select("node", g.id);
   setTimeout(() => el("sideTitle")?.focus(), 30);
 }
@@ -280,10 +282,10 @@ export function groupMarked(ids: string[]): GNode | null {
   const groups = picked.filter((n) => isGroup(n));
   const plain = picked.filter((n) => !isGroup(n));
   let g: GNode | null = groups[0] ?? null;
-  const members: string[] = g ? [...(g.members ?? [])] : [];
+  const members: string[] = g ? [...memberIds(g)] : [];
 
   for (const other of groups.slice(1)) {          // 그룹끼리 고르면 합친다
-    for (const m of other.members ?? []) if (!members.includes(m)) members.push(m);
+    for (const m of memberIds(other)) if (!members.includes(m)) members.push(m);
     ungroup(other.id);
   }
   for (const n of plain) {
@@ -293,8 +295,8 @@ export function groupMarked(ids: string[]): GNode | null {
   }
   if (members.length < 2) return null;
 
-  if (g && nodeOf(g.id)) g.members = members;
-  else g = addNode("", 0, 0, "group", { members });
+  if (!g || !nodeOf(g.id)) g = addNode("", 0, 0, "group");
+  for (const m of members) addMember(g.id, m);
   render();                                       // 폭을 재야 멤버 자리를 잡을 수 있다
   tidyGroup(g);
   select("node", g.id);

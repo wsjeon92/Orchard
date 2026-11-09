@@ -35,7 +35,7 @@ with sync_playwright() as p:
     rec(("한 개 추가", pg.evaluate("""() => {
         const g=Orchard.S.nodes.find(n=>n.kind==='group');
         const v=Orchard.S.nodes.find(n=>n.label==='VAE');
-        return {멤버:g.members.map(m=>(Orchard.S.nodes.find(x=>x.id===m)||{}).label),
+        return {멤버:Orchard.memberIds(g).map(m=>(Orchard.S.nodes.find(x=>x.id===m)||{}).label),
                 노드종류:v.kind,
                 박스안:v.x>=g.x && v.x+v._w<=g.x+g._w && v.y>=g.y && v.y+v._h<=g.y+g._h};
     }""")))
@@ -47,7 +47,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(350)
     rec(("쉼표로 여러 개", pg.evaluate("""() => {
         const g=Orchard.S.nodes.find(n=>n.kind==='group');
-        const ms=g.members.map(m=>Orchard.S.nodes.find(x=>x.id===m));
+        const ms=Orchard.memberIds(g).map(m=>Orchard.S.nodes.find(x=>x.id===m));
         const xs=ms.map(m=>Math.round(m.x));
         const overlap = ms.some((a,i)=>ms.some((c,j)=>i!==j &&
             a.x < c.x+c._w && a.x+a._w > c.x && a.y < c.y+c._h && a.y+a._h > c.y));

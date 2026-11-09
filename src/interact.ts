@@ -2,7 +2,7 @@ import { elblEls, nodeEls, screenToWorld, stage } from "./dom";
 import { isPinned, labelOffset, pinnedPos, px, py, snapToEdge } from "./geom";
 import {
   addEdge, addNode, canGroup, dropEdge, dropNode, edgeAddMember,
-  hitTarget, nudgeFree,
+  hitTarget, memberIds, nudgeFree,
 } from "./graph";
 import { groupWith } from "./panel";
 import { Drop, applyView, paint, render, select, setBindLabel, setDragLine } from "./render";
@@ -54,7 +54,7 @@ export function bindNode(el: HTMLElement, id: string) {
       /* 같이 움직일 것들. 그룹 상자를 끌면 멤버가 따라오고,
          여러 개를 골라둔 상태에서 그중 하나를 끌면 고른 것 전부가 따라온다.
          고른 노드가 그룹이면 그 멤버까지 — 상자만 가고 알맹이가 남으면 안 된다. */
-      let together: string[] | null = isGroup(n) ? (n.members ?? []).slice() : null;
+      let together: string[] | null = isGroup(n) ? memberIds(n) : null;
       /* 궤도는 누를 때 한 번만 잰다. 움직일 때마다 다시 재면 내가 옮긴 결과가
          다음 계산의 입력이 되어 중심이 손끝을 따라 흘러간다. */
       const ix = orbitIndex();
@@ -73,7 +73,7 @@ export function bindNode(el: HTMLElement, id: string) {
           if (mid === id) continue;
           set.add(mid);
           const m = nodeOf(mid);
-          if (m && isGroup(m)) (m.members ?? []).forEach((x) => set.add(x));
+          if (m && isGroup(m)) memberIds(m).forEach((x) => set.add(x));
         }
         set.delete(id);
         together = [...set];

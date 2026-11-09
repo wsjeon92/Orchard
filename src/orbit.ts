@@ -65,9 +65,12 @@ function kin(): Kin {
     parent.set(c, p);
     (kids.get(p) ?? kids.set(p, []).get(p)!).push(c);
   };
-  for (const g of S.nodes) {
-    if (!isGroup(g)) continue;
-    for (const m of g.members ?? []) add(g.id, m);
+  /* 궤도 노드가 상위인 sub 를 먼저 본다. 담는 길이 sub 하나로 합쳐졌으니 순서가
+     곧 우선순위다 — '이중항체'는 항체의 하위이면서 '대체 결합 포맷'의 식구인데,
+     더 좁게 담는 쪽(궤도 노드)이 이겨야 그 고리에 이름이 남는다. */
+  for (const e of S.edges) {
+    if (e.kind !== "sub" || !e.a || !e.b) continue;
+    if (isGroup(nodeOf(e.a)!)) add(e.a, e.b);
   }
   for (const e of S.edges) if (e.kind === "sub" && e.a && e.b) add(e.a, e.b);
   for (const e of S.edges) if (e.kind === "deep" && e.a && e.b) add(e.a, e.b);
@@ -257,8 +260,7 @@ export function plan(): Orb {
 
      가장 바깥은 L0, 고아의 자리다. 고아는 **메인 궤도에 있으면서 엣지 연결이
      없는 노드**다. 위성은 해당하지 않는다 — 부모가 있으니 메인 궤도가 아니다.
-     식구를 거느렸는지는 묻지 않는다. 멤버는 members 배열이지 엣지가 아니라서,
-     한 번도 교차하지 않은 묶음은 식구가 있어도 고아다.
+     식구를 거느렸는지는 묻지 않는다.
      연결이 하나라도 생기면 다음 턴에 저절로 안쪽(L1 이상)으로 떨어진다 — 따로
      옮기는 코드가 없다. 자리가 곧 상태다.
      L1 부터는 합성 깊이 그대로다: L1 = 순수 개념, L2 = 합성 개념, ... */
@@ -384,6 +386,8 @@ export interface LiveRing {
   r: number;
   ids: string[];
   label: string;
+  /** 이 고리에 이름을 준 궤도 노드. 없으면 "" */
+  group: string;
 }
 export interface OrbIndex {
   /** 고리 키 -> 지금 그려져 있는 고리 */
@@ -401,7 +405,7 @@ export function orbitIndex(): OrbIndex {
   const of = new Map<string, string>();
   const sat = new Map<string, string[]>();
 
-  const add = (key: string, c: { x: number; y: number }, ns: GNode[], label: string) => {
+  const add = (key: string, c: { x: number; y: number }, ns: GNode[], label: string, group = "") => {
     const vis = ns.filter((n) => !UI.hidden.has(n.id));
     if (!vis.length) return;
     const ds = vis.map((n) => Math.hypot(cx(n) - c.x, cy(n) - c.y));
@@ -411,7 +415,7 @@ export function orbitIndex(): OrbIndex {
       const sd = Math.sqrt(ds.reduce((a, b) => a + (b - m) ** 2, 0) / ds.length);
       if (sd / m > ROUND) return;                    // 흩어져 있으면 궤도가 아니다
     }
-    rings.set(key, { c, r: m, ids: vis.map((n) => n.id), label });
+    rings.set(key, { c, r: m, ids: vis.map((n) => n.id), label, group });
     for (const n of vis) of.set(n.id, key);
   };
 
@@ -430,7 +434,7 @@ export function orbitIndex(): OrbIndex {
     const c = { x: cx(p), y: cy(p) };
     const all: string[] = [];
     for (const g of s.rings) {
-      add("s:" + pid + ":" + g.key, c, g.ns, g.label);
+      add("s:" + pid + ":" + g.key, c, g.ns, g.label, g.group);
       for (const n of g.ns) {
         all.push(n.id);
         /* 식구의 식구까지. 행성을 끌면 달의 달도 따라와야 한다 */
@@ -501,5 +505,9 @@ export function syncOrbitHits(root: ParentNode) {
     말해 주는 것이 없으니 선이 남아야 한다. 관계가 소리 없이 사라지면 안 된다. */
 export function orbitSays(ix: OrbIndex, parent: string, child: string): boolean {
   const key = ix.of.get(child);
-  return !!key && key.startsWith("s:" + parent + ":");
+  if (!key) return false;
+  if (key.startsWith("s:" + parent + ":")) return true;    // 부모를 도는 고리에 앉아 있다
+  /* 부모가 그 고리의 **이름**인 경우. '항체'는 '단백질'을 돌지만 그 고리의 이름이
+     '단백질 타입'이라, 단백질 타입 > 항체 역시 궤도가 이미 말하고 있다 */
+  return ix.rings.get(key)?.group === parent;
 }

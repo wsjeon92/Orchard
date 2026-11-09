@@ -14,7 +14,7 @@
    뒤의 셋은 "채워라"(재료를 보충할 자리)다. 이 도구의 목적이 교차로 새 개념을
    만드는 것이니 묻는 쪽이 먼저 온다. 다만 순서는 우선순위지 선후가 아니다 —
    근거가 없는 교차는 익지 못하므로 채우는 일이 결국 묻는 일을 먹여 살린다. */
-import { ripeEdges } from "./graph";
+import { memberIds, ripeEdges } from "./graph";
 import { S, VIEW, isGroup } from "./state";
 
 export type GapWhy =
@@ -71,7 +71,7 @@ function attached() {
   const out = new Set<string>();
   for (const e of S.edges) for (const m of membersOf(e)) out.add(m);
   for (const n of S.nodes) {
-    for (const m of n.members ?? []) out.add(m);
+    for (const m of memberIds(n)) out.add(m);
     for (const p of n.parts ?? []) out.add(p);
   }
   return out;
@@ -83,7 +83,7 @@ function attached() {
 function contextOf(id: string) {
   const out = new Set<string>();
   for (const n of S.nodes) {
-    const ms = n.members ?? [], ps = n.parts ?? [];
+    const ms = memberIds(n), ps = n.parts ?? [];
     if (ms.includes(id)) for (const m of ms) { if (m !== id) out.add(m); }
     if (ps.includes(id)) for (const p of ps) { if (p !== id) out.add(p); }
     if (n.id === id) for (const p of ps) out.add(p);
@@ -100,8 +100,8 @@ export function findGaps(): Gap[] {
   for (const n of S.nodes) {
     if (isGroup(n)) {
       /* 묶음은 멤버가 둘 이상일 때만 교차 대상이다 — 하나짜리 묶음은 교차가 아니다 */
-      if (deg(n.id) === 0 && (n.members ?? []).length >= 2) {
-        out.push({ id: n.id, kind: "node", why: "groupLoose", score: (n.members ?? []).length });
+      if (deg(n.id) === 0 && memberIds(n).length >= 2) {
+        out.push({ id: n.id, kind: "node", why: "groupLoose", score: memberIds(n).length });
       }
       continue;
     }

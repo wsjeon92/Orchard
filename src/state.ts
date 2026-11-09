@@ -173,8 +173,23 @@ export function normalize() {
   S.nodes.forEach((n) => {
     n.works ??= [];
     n.parts ??= [];
-    n.members ??= [];
   });
+  /* 옛 저장본의 members[] 를 sub 엣지로 옮긴다. 담는 길이 둘이면 둘이 어긋난다 —
+     'code repository' 는 members 로 문헌을 쥐고 있는데 sub 로는 데이터베이스
+     아래였다. 궤도 노드는 이제 자기 고리에 이름을 줄 뿐이고, 식구는 sub 로 매달린다. */
+  for (const n of S.nodes) {
+    const ms = n.members;
+    if (!ms || !ms.length) { delete n.members; continue; }
+    for (const m of ms) {
+      if (!S.nodes.some((x) => x.id === m)) continue;
+      if (S.edges.some((e) => e.kind === "sub" && e.a === n.id && e.b === m)) continue;
+      S.edges.push({
+        id: "e" + S.seq++, kind: "sub", a: n.id, b: m,
+        label: "", note: "", works: [], cands: [], promoted: [],
+      });
+    }
+    delete n.members;
+  }
   S.edges.forEach((e) => {
     e.works ??= [];
     e.cands ??= [];

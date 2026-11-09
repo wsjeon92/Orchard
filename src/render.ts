@@ -7,7 +7,7 @@ import {
   ctr, edgeLabelText, isPinned, labelOffset, layoutGroups, matchNode,
   migratePin, pinnedPos, px, py, unit,
 } from "./geom";
-import { degree, descendantsOf, focusSet, foldKids, hiddenSet, canGroup, groupOf,
+import { degree, descendantsOf, focusSet, foldKids, hiddenSet, canGroup, groupOf, memberIds,
 } from "./graph";
 import { relaxLabels } from "./labels";
 import { drawMini } from "./minimap";
@@ -67,8 +67,8 @@ export function render() {
 
     if (isGroup(n)) {
       el.className = "grp" + common;
-      el.querySelector<HTMLElement>(".gt")!.textContent = n.label || "그룹";
-      el.querySelector<HTMLElement>(".gn")!.textContent = String((n.members ?? []).length);
+      el.querySelector<HTMLElement>(".gt")!.textContent = n.label || "궤도";
+      el.querySelector<HTMLElement>(".gn")!.textContent = String(memberIds(n).length);
     } else {
       const kids = foldKids(n.id).length;
       el.className = "node " + K.shape + (K.big ? " big" : "") + common
@@ -374,7 +374,7 @@ export function lightRedraw() {
     for (const n of S.nodes) {
       const el = nodeEls.get(n.id);
       if (!el) continue;
-      if (isGroup(n)) el.querySelector<HTMLElement>(".gt")!.textContent = n.label || "그룹";
+      if (isGroup(n)) el.querySelector<HTMLElement>(".gt")!.textContent = n.label || "궤도";
       else el.querySelector<HTMLElement>(".lbl")!.textContent = n.label;
     }
     for (const [id, el] of elblEls) {

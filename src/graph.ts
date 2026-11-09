@@ -48,8 +48,13 @@ export function isSubDescendant(nodeId: string, targetId: string): boolean {
   return false;
 }
 
+/** 궤도 식구. 예전 members[] 를 대신한다 — 담는 길이 sub 엣지 하나로 합쳐졌다.
+    궤도 노드는 자기 고리에 이름을 주고, 식구는 sub 로 매달린다. */
+export const memberIds = (g: GNode | undefined): string[] =>
+  g ? S.edges.filter((e) => e.kind === "sub" && e.a === g.id).map((e) => e.b!) : [];
+
 export const groupOf = (id: string) =>
-  S.nodes.find((n) => isGroup(n) && (n.members ?? []).includes(id));
+  S.nodes.find((n) => isGroup(n) && memberIds(n).includes(id));
 
 /** 어떤 종류든 이 노드에 닿는 모든 이웃 */
 export function neighbors(id: string): Set<string> {
@@ -66,7 +71,6 @@ export function neighbors(id: string): Set<string> {
   const n = nodeOf(id);
   if (n) {
     (n.parts ?? []).forEach((x) => out.add(x));
-    (n.members ?? []).forEach((x) => out.add(x));
   }
   const g = groupOf(id);
   if (g) out.add(g.id);
@@ -103,7 +107,7 @@ export function descendantsOf(id: string): Set<string> {
   const kidsOf = (x: string): string[] => {
     const ids = foldKids(x).map((c) => c.id);
     const n = nodeOf(x);
-    if (n && isGroup(n)) ids.push(...(n.members ?? []));
+    if (n && isGroup(n)) ids.push(...memberIds(n));
     return ids;
   };
   const stack = kidsOf(id);
@@ -127,7 +131,7 @@ function closeEmptyGroups(hid: Set<string>) {
     let added = false;
     for (const g of S.nodes) {
       if (!isGroup(g) || hid.has(g.id)) continue;
-      const ms = g.members ?? [];
+      const ms = memberIds(g);
       if (ms.length && ms.every((m) => hid.has(m))) { hid.add(g.id); added = true; }
     }
     if (!added) break;
@@ -221,7 +225,7 @@ export function addNode(
 ): GNode {
   const p = placeFree(x, y);
   const n: GNode = {
-    id: uid("n"), label, kind, note: "", works: [], parts: [], members: [],
+    id: uid("n"), label, kind, note: "", works: [], parts: [],
     ...extra,
     x: p.x, y: p.y,
   };
@@ -260,6 +264,11 @@ export function addEdge(a: string, b: string, kind: GEdge["kind"] = "assoc"): GE
   return e;
 }
 
+/** 궤도 식구로 넣는다 — sub 엣지 하나. 담는 길이 그것 하나뿐이다 */
+export function addMember(gid: string, nid: string) {
+  if (nodeOf(gid) && nodeOf(nid)) addEdge(gid, nid, "sub");
+}
+
 export function edgeAddMember(eid: string, nid: string) {
   const e = edgeOf(eid);
   if (!e || e.kind !== "assoc" || !nodeOf(nid)) return;
@@ -288,9 +297,9 @@ export function dropNode(id: string) {
     e.kind === "assoc" ? (e.members ?? []).length >= 2 : e.a !== id && e.b !== id);
   S.nodes.forEach((x) => {
     if (x.parts) x.parts = x.parts.filter((p) => p !== id);
-    if (x.members) x.members = x.members.filter((p) => p !== id);
+    if (x.members) x.members = x.members.filter((p) => p !== id);   // 옛 저장본 잔재
   });
-  S.nodes = S.nodes.filter((x) => !(isGroup(x) && (x.members ?? []).length < 2));
+  S.nodes = S.nodes.filter((x) => !(isGroup(x) && memberIds(x).length < 2));
   UI.marked.delete(id);
   if (UI.sel?.id === id) setSel(null);
   if (UI.focusId === id) setFocusId(null);
@@ -419,8 +428,8 @@ export function parkBeside(moving: GNode, members: string[]) {
 export function removeFromGroup(gid: string, nid: string) {
   const g = nodeOf(gid);
   if (!g) return;
-  g.members = (g.members ?? []).filter((m) => m !== nid);
-  if (g.members.length < 2) {   // 멤버 1명 이하면 그룹을 유지할 이유가 없다
+  S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.a === gid && e.b === nid));
+  if (memberIds(g).length < 2) {   // 식구 1명 이하면 궤도를 유지할 이유가 없다
     S.nodes = S.nodes.filter((x) => x.id !== gid);
     S.edges = S.edges.filter((e) => e.a !== gid && e.b !== gid
       && !(e.members ?? []).includes(gid));
@@ -439,7 +448,7 @@ export function ungroup(gid: string) {
 
 /** 멤버를 한 줄로 정렬 (4개마다 줄바꿈) */
 export function tidyGroup(g: GNode) {
-  const ms = (g.members ?? []).map(nodeOf).filter(Boolean) as GNode[];
+  const ms = memberIds(g).map(nodeOf).filter(Boolean) as GNode[];
   if (!ms.length) return;
   const x0 = Math.min(...ms.map((m) => m.x)), y0 = Math.min(...ms.map((m) => m.y));
   let x = x0, y = y0, rowH = 0;
@@ -460,7 +469,7 @@ export function hitTarget(dragId: string, wx: number, wy: number): string | null
   for (const n of S.nodes as GNode[]) {
     if (n.id === dragId || !canGroup(n)) continue;
     if (own && n.id === own.id) continue;            // 이미 속한 그룹은 대상이 아님
-    if (isGroup(n) && (n.members ?? []).includes(dragId)) continue;
+    if (isGroup(n) && memberIds(n).includes(dragId)) continue;
     const w = n._w ?? 140, h = n._h ?? 38;
     if (wx >= px(n) && wx <= px(n) + w && wy >= py(n) && wy <= py(n) + h) {
       // 노드가 그룹보다 우선 — 더 구체적인 대상

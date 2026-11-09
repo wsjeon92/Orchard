@@ -78,8 +78,8 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(250)
     pg.press(inp, "Enter")
     pg.wait_for_timeout(500)
-    mem = pg.evaluate("""() => Orchard.S.nodes.find(n => n.kind === 'group')
-        .members.map(m => Orchard.nodeOf(m)?.label)""")
+    mem = pg.evaluate("""() => Orchard.memberIds(Orchard.S.nodes.find(n => n.kind === 'group'))
+        .map(m => Orchard.nodeOf(m)?.label)""")
     print("\nEnter 로 추가 후 멤버:", mem)
     assert "나노바디" in mem, f"Enter 로 안 골라진다: {mem}"
 
@@ -90,8 +90,8 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(250)
     pg.click("#sideBody .plist .prow")
     pg.wait_for_timeout(500)
-    mem = pg.evaluate("""() => Orchard.S.nodes.find(n => n.kind === 'group')
-        .members.map(m => Orchard.nodeOf(m)?.label)""")
+    mem = pg.evaluate("""() => Orchard.memberIds(Orchard.S.nodes.find(n => n.kind === 'group'))
+        .map(m => Orchard.nodeOf(m)?.label)""")
     print("눌러서 추가 후 멤버:", mem)
     assert "로봇" in mem, f"눌러도 안 골라진다: {mem}"
 

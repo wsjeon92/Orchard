@@ -4,7 +4,7 @@ import {
   adopt, S, UI, VIEW, cut, esc, isGroup, kindOf, nodeOf, safeName, save, saveView,
   slotDelete, slots, slotSave, strip,
 } from "./state";
-import { deepChildren, deepParentEdge, parseWorkLine, subChildren, subParentEdge } from "./graph";
+import { deepChildren, deepParentEdge, memberIds, parseWorkLine, subChildren, subParentEdge } from "./graph";
 import { elblEls, nodeEls } from "./dom";
 import { fit, render } from "./render";
 import { resetHistoryBase } from "./history";
@@ -50,10 +50,10 @@ export function toMarkdown(): string {
 
   const groups = S.nodes.filter(isGroup);
   if (groups.length) {
-    out += "## 그룹\n\n";
+    out += "## 궤도\n\n";
     groups.forEach((g) => {
       out += `### ${g.label || "(이름 없음)"}\n`;
-      out += `${(g.members ?? []).map((m) => nodeOf(m)?.label).filter(Boolean).join(", ")}\n`;
+      out += `${memberIds(g).map((m) => nodeOf(m)?.label).filter(Boolean).join(", ")}\n`;
       if (g.note) out += `${g.note}\n`;
       if ((g.works ?? []).length) out += `\n${wl(g)}\n`;
       out += "\n";
