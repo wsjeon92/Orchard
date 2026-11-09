@@ -323,7 +323,11 @@ export function dropNode(id: string) {
     if (x.parts) x.parts = x.parts.filter((p) => p !== id);
     if (x.members) x.members = x.members.filter((p) => p !== id);   // 옛 저장본 잔재
   });
-  S.nodes = S.nodes.filter((x) => !(isGroup(x) && memberIds(x).length < 2));
+  /* 빈 궤도를 치우는 일은 pruneEmptyRings 에 맡긴다. 여기서 직접 노드만 걸러
+     냈더니 그 노드로 가는 sub 엣지가 살아남아, 없는 노드를 가리키는 엣지가 다섯
+     개 쌓였다. 그 엣지들이 궤도를 엉뚱하게 그렸다. 식구 하나짜리 고리도 멀쩡하다 —
+     비었을 때만 치운다. */
+  pruneEmptyRings();
   UI.marked.delete(id);
   if (UI.sel?.id === id) setSel(null);
   if (UI.focusId === id) setFocusId(null);

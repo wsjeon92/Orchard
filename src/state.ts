@@ -199,6 +199,14 @@ export function normalize() {
     }
   });
   S.edges = S.edges.filter((e) => e.kind !== "assoc" || (e.members ?? []).length >= 2);
+  /* 없는 노드를 가리키는 엣지를 버린다. 어느 경로로 생겼든 — 노드를 지우면서
+     엣지를 안 치운 길이 하나라도 있으면 이런 것이 남고, 그러면 궤도가 있지도 않은
+     식구를 세면서 엉뚱한 모양이 된다. 한 군데서 막는 쪽이 길마다 막는 것보다 낫다 */
+  {
+    const live = new Set(S.nodes.map((n) => n.id));
+    S.edges = S.edges.filter((e) => (!e.a || live.has(e.a)) && (!e.b || live.has(e.b))
+      && (e.members ?? []).every((m) => live.has(m)));
+  }
   /* 식구 없는 궤도 노드를 치운다. 고리가 아니라 부스러기다 — 남겨 두면 행성에서
      아무 데도 아닌 곳으로 점선이 뻗는다 */
   const dead = new Set(S.nodes.filter((n) => isGroup(n)

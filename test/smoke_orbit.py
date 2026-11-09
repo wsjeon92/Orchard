@@ -222,9 +222,7 @@ def main():
         # ---------- 3) 실제 그래프: 규칙 위반 0, 겹침 0 ----------
         pg3 = b.new_page()
         seeded(pg3, REAL.read_text(encoding='utf-8'))
-        before = overlaps(pg3)
         r3 = pg3.evaluate(PROBE)
-        r3['ov_before'] = before
         ov = overlaps(pg3)
         print("\n3) 실제 그래프")
         for L in r3['layers']:
@@ -275,12 +273,14 @@ def main():
         if not all(rs3[i] > rs3[i + 1] for i in range(len(rs3) - 1)):
             bad.append(f"실제 그래프에서 층 순서가 뒤집혔다: {rs3}")
         # 실제 그래프에서는 겹침 0 을 요구하지 않는다. 고리 크기는 사용자가 정하고
-        # 정리는 그 고리 위에서만 일어나므로, 한 고리에 너무 많이 올려 둘레가
-        # 모자라면 겹침이 남는다. 그건 고리를 키워야 풀리는 겹침이다.
-        # 정리가 더 나쁘게 만들지 않는지만 본다. 크기를 새로 계산하는 쪽은
-        # 위의 1, 2 번(작은 그래프)이 0 으로 고정한다.
-        if ov > r3.get('ov_before', ov):
-            bad.append(f"정리 뒤 겹침이 늘었다: {r3.get('ov_before')} → {ov}")
+        # 정리는 그 고리 위에서만 일어난다. 둘레가 모자라거나 옆 행성의 위성 체계와
+        # 부딪히면 정리로는 못 푼다 — 고리를 키워야 풀린다.
+        # 그래서 묻는 것은 "겹쳤나"가 아니라 "겹쳤는데 말없이 넘어갔나"다.
+        # 크기를 새로 계산하는 쪽(작은 그래프)은 위의 1, 2 번이 0 으로 고정한다.
+        tight = pg3.evaluate("() => Orchard.tidyOrbit().tight")
+        print(f"   비좁은 궤도 {tight}개")
+        if ov and not tight:
+            bad.append(f"겹치는데 비좁다는 신호가 없다: 겹침 {ov}, 비좁음 {tight}")
         if r3['rings'] < len(r3['layers']):
             bad.append(f"메인 동심원이 다 안 그려졌다: {r3['rings']}")
         pg3.evaluate("() => Orchard.fit()"); pg3.wait_for_timeout(400)

@@ -199,8 +199,28 @@ function orbitPanel(v: OrbitView, kindEl: HTMLElement, titleEl: HTMLElement,
     mk.placeholder = "새 키워드, 쉼표로 여러 개";
     addRow.appendChild(mk);
     const go = btn(addRow, "abtn pri", "추가", () => {
-      const host = gnode ?? nodeOf(v.planet);
-      if (host && addSubKeywords(host, mk.value)) mk.value = "";
+      const names = splitNames(mk.value);
+      if (!names.length) return;
+      const planet = nodeOf(v.planet);
+      const made: string[] = [];
+      for (const nm of names) {
+        const c = addNode(nm, planet?.x ?? 0, planet?.y ?? 0, "atom");
+        c._rx = v.c.x; c._ry = v.c.y;             // 중심에서 피어나게
+        addEdge(gnode ? gnode.id : v.planet, c.id, "sub");
+        made.push(c.id);
+      }
+      mk.value = "";
+      /* 이 창이 보고 있는 **그 고리**에 놓는다. 전에는 기본 고리로 보내서,
+         S3 창에서 넣은 노드가 엉뚱한 반지름에 앉고 고리가 깨져 보였다.
+
+         두 번 놓는다. 한 번은 폭을 모르는 채로(기본값 140), 그리기로 폭을 잰 뒤
+         한 번 더. 그리기 전에 안 놓으면 새 노드가 잠깐 중심에 겹쳐 있어서 고리가
+         '동그랗지 않다'고 판정되고, 그 순간 궤도 창이 통째로 닫힌다 —
+         입력칸이 손끝에서 사라진다. */
+      for (const id of made) placeOnSubOrbit(v.planet, id, v.key);
+      render();                                   // 폭을 잰다
+      for (const id of made) placeOnSubOrbit(v.planet, id, v.key);
+      kickAnim();                                 // paint 만 한다 — 창은 그대로
     });
     mk.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") { ev.preventDefault(); go.click(); }
@@ -208,9 +228,7 @@ function orbitPanel(v: OrbitView, kindEl: HTMLElement, titleEl: HTMLElement,
     const pool = S.nodes.filter((x) => kindOf(x).axis === "b" && !isGroup(x)
       && x.id !== v.planet && !subParentEdge(x.id) && !isSubDescendant(x.id, v.planet)).sort(byLabel);
     keywordPicker(body, "이 궤도에 키워드 넣기", pool, (id) => {
-      const from = gnode ? gnode.id : v.planet;
-      addEdge(from, id, "sub");
-      placeOnSubOrbit(v.planet, id, v.key);
+      linkInto(id, v.planet, v.key);
       kickAnim();
       render();
     });
@@ -481,21 +499,8 @@ const ringPick = new Map<string, string>();
 
 function attachSub(parent: GNode, childId: string) {
   const pick = ringPick.get(parent.id);
-  if (pick === "new") {
-    const g = addNode("", 0, 0, "group");
-    addEdge(parent.id, g.id, "sub");
-    addMember(g.id, childId);
-    const key = "s:" + parent.id + ":" + g.id + "#0";
-    placeOnSubOrbit(parent.id, childId, key);
-    /* 궤도 노드는 고리에 앉지 않아서 좌표가 배치에 안 쓰이지만, 전체보기가
-       좌표를 보므로 고리 반대편에 둔다 — 원점에 남겨 두면 화면이 늘어난다 */
-    const c = nodeOf(childId);
-    if (c) { g.x = 2 * parent.x - c.x; g.y = 2 * parent.y - c.y; g._rx = g.x; g._ry = g.y; }
-    ringPick.set(parent.id, key);
-  } else {
-    addEdge(parent.id, childId, "sub");
-    placeOnSubOrbit(parent.id, childId, pick);
-  }
+  const key = linkInto(childId, parent.id, pick ?? "s:" + parent.id + ":#1");
+  ringPick.set(parent.id, key);
   kickAnim();
 }
 
@@ -537,24 +542,33 @@ function ringTabs(body: HTMLElement, planet: GNode, pickKey: string,
 /** 2단계로 가는 중인 자식 -> 고른 행성 */
 const parentPick = new Map<string, string>();
 
-/** 이 노드를 저 행성의 저 고리에 넣는다. 붙이는 길을 여기 하나로 모은다 */
-function attachTo(child: GNode, planet: GNode, ringKey: string) {
-  S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === child.id));  // 상위는 하나다
-  pruneEmptyRings();                 // 떠난 자리에 빈 고리가 남지 않게
+/** 이 노드를 저 행성의 저 고리에 넣는다. 붙이는 길을 여기 하나로 모은다.
+
+    sub 엣지가 **어디서** 나가는지가 핵심이다. 이름 있는 고리면 그 고리의 궤도
+    노드에서, 이름 없는 고리면 행성에서 나간다. 행성에서만 내보내면 구조상으로는
+    '직접' 고리 소속인데 자리는 다른 고리 위에 놓여, 궤도 정리 한 번에 되돌아간다. */
+function linkInto(childId: string, planetId: string, ringKey: string): string {
   let key = ringKey;
   if (ringKey === "new") {
     /* 이름은 비워 둔다 — 고리가 자리를 이름으로 받아 S2 가 된다.
        이름이 꼭 필요하면 궤도 창에서 쓰면 된다 */
+    const planet = nodeOf(planetId);
     const g = addNode("", 0, 0, "group");
-    addEdge(planet.id, g.id, "sub");
-    addMember(g.id, child.id);
-    g.x = planet.x; g.y = planet.y; g._rx = g.x; g._ry = g.y;
-    key = "s:" + planet.id + ":" + g.id + "#0";
+    addEdge(planetId, g.id, "sub");
+    addMember(g.id, childId);
+    if (planet) { g.x = planet.x; g.y = planet.y; g._rx = g.x; g._ry = g.y; }
+    key = "s:" + planetId + ":" + g.id + "#0";
   } else {
-    const R = orbitView(ringKey);
-    addEdge(R?.group || planet.id, child.id, "sub");
+    addEdge(orbitView(ringKey)?.group || planetId, childId, "sub");
   }
-  placeOnSubOrbit(planet.id, child.id, key);
+  placeOnSubOrbit(planetId, childId, key);
+  return key;
+}
+
+function attachTo(child: GNode, planet: GNode, ringKey: string) {
+  S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === child.id));  // 상위는 하나다
+  pruneEmptyRings();                 // 떠난 자리에 빈 고리가 남지 않게
+  linkInto(child.id, planet.id, ringKey);
   kickAnim();
   parentPick.delete(child.id);
   render();

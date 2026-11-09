@@ -374,8 +374,11 @@ function mainRadius(o: Orb, live: OrbIndex, lay: OrbLayer): number {
     너무 많이 올려 둘레가 모자라면 그건 고리를 키워야 풀리는 겹침이라 남겨 둔다.
 
     아직 고리가 없는 그래프(자유 배치)에서는 계획한 크기를 처음 한 번 쓴다.
-    돌려주는 값은 자리가 실제로 바뀐 노드 수다. */
-export function tidyOrbit(): number {
+
+    돌려주는 값: moved 는 자리가 실제로 바뀐 노드 수, tight 는 **식구에 비해 작은
+    고리**의 수다. 크기를 못 건드리니 비좁은 고리는 정리로 풀 수가 없다 — 겹친 채
+    두고 말없이 넘어가는 대신 몇 개가 비좁은지 알려 준다. 사람이 키우면 풀린다. */
+export function tidyOrbit(): { moved: number; tight: number } {
   const o = plan();
   const live = orbitIndex();
   const before = new Map(S.nodes.map((n) => [n.id, n.x + "," + n.y]));
@@ -401,7 +404,31 @@ export function tidyOrbit(): number {
   }
   let moved = 0;
   for (const n of S.nodes) if (before.get(n.id) !== n.x + "," + n.y) moved++;
-  return moved;
+  return { moved, tight: tightRings() };
+}
+
+/** 식구가 둘레보다 많이 필요한 고리의 수. 위성 체계를 가진 식구는 그만큼 넓게 센다 */
+function tightRings(): number {
+  const o = plan();
+  const live = orbitIndex();
+  let n = 0;
+  for (const lay of o.layers) {
+    const R = live.rings.get("m:" + lay.depth);
+    if (!R) continue;
+    const need = lay.ns.reduce((s2, x) =>
+      s2 + arcNeed(o.sys.get(x.id), liveReach(o, live, x.id)), 0);
+    if (need > 2 * Math.PI * R.r) n++;
+  }
+  for (const [pid, sys] of o.sys) {
+    for (const g of sys.rings) {
+      const R = live.rings.get("s:" + pid + ":" + g.key);
+      if (!R) continue;
+      const need = g.ns.reduce((s2, x) =>
+        s2 + arcNeed(o.sys.get(x.id), liveReach(o, live, x.id)), 0);
+      if (need > 2 * Math.PI * R.r) n++;
+    }
+  }
+  return n;
 }
 
 /* ---------------- 궤도 읽기·그리기 ----------------

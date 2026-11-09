@@ -299,11 +299,15 @@ el("shareCopy").onclick = () => {
    좌표만 바꾸므로 Ctrl+Z 로 되돌아간다. 손으로 잡아 둔 배치를 덮어쓰기 때문에
    자동으로 돌리지 않고 버튼으로만 둔다. */
 el("btnOrbit").onclick = () => {
-  const moved = tidyOrbit() + tidyOverlaps();   // 궤도 밖에 남은 것도 같이 푼다
-  if (!moved) { flashTidy("정리할 것이 없습니다"); return; }
+  const r = tidyOrbit();
+  const moved = r.moved + tidyOverlaps();       // 궤도 밖에 남은 것도 같이 푼다
+  /* 비좁은 고리는 정리로 못 푼다 — 크기는 사용자가 정하는 것이라 여기서 못 키운다.
+     말없이 겹친 채 두면 "정리했는데 왜 겹치지"가 된다 */
+  const tight = r.tight ? ` · 비좁은 궤도 ${r.tight}개` : "";
+  if (!moved) { flashTidy("정리할 것이 없습니다" + tight); return; }
   save();                       // 실행 취소 스냅샷도 여기에 걸린다
   render();                     // x/y 가 바뀌었으니 애니메이션으로 미끄러진다
-  flashTidy(`${moved}개를 옮겼습니다`);
+  flashTidy(`${moved}개를 옮겼습니다${tight}`);
 };
 /** 버튼 옆에 결과를 잠깐 보여준다 — 아무 일도 안 일어난 것처럼 보이면 눌렀는지 알 수 없다 */
 let tidyTimer: ReturnType<typeof setTimeout> | null = null;
