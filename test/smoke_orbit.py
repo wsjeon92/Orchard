@@ -175,13 +175,13 @@ def main():
                 # 그룹 노드와 멤버가 같은 고리에 있어야 한다
                 if max(ring['real']) - min(ring['real']) > 2:
                     bad.append(f"'{ring['label']}' 고리의 식구가 한 원에 없다: {ring['real']}")
-                if '그룹하나' in ring['ns'] and set(ring['ns']) != {'그룹하나', 'M1', 'M2', 'M3'}:
+                if ring['label'] == '그룹하나' and set(ring['ns']) != {'M1', 'M2', 'M3'}:
                     bad.append(f"그룹하나 고리 식구가 틀렸다: {ring['ns']}")
         for want in ('그룹하나', '그룹둘'):
             if want not in r2['labels']:
                 bad.append(f"궤도 이름에 '{want}' 가 없다")
-        if any(w > 320 or h > 90 for w, h in r2['boxes']):
-            bad.append(f"그룹이 아직 큰 상자다: {r2['boxes']}")
+        if r2['boxes']:
+            bad.append(f"궤도 노드가 아직 상자로 그려진다: {r2['boxes']}")
 
         # ---------- 2b) 위성도 자기 중심이 된다 — 그룹이 아니면서 식구를 가지면 ----------
         pg2b = b.new_page()
@@ -207,7 +207,7 @@ def main():
             ring = own[0]['rings'][0]
             if ring['label'] != '손자묶음':
                 bad.append(f"M1 의 궤도 이름이 틀렸다: {ring['label']}")
-            if set(ring['ns']) != {'손자묶음', 'X1', 'X2'}:
+            if set(ring['ns']) != {'X1', 'X2'}:   # 궤도 노드는 이름일 뿐, 자리를 안 차지한다
                 bad.append(f"M1 궤도 식구가 틀렸다: {ring['ns']}")
             if max(ring['real']) - min(ring['real']) > 2:
                 bad.append(f"M1 궤도가 한 원이 아니다: {ring['real']}")
@@ -231,7 +231,9 @@ def main():
         print(f"   그려진 궤도 {r3['rings']}개, 이름 {r3['labels']}, 겹침 {ov}")
         placed = {lb for L in r3['layers'] for lb in L['labels']}
         for s in r3['sys']:
-            for x in s['rings']: placed |= set(x['ns'])
+            for x in s['rings']:
+                placed |= set(x['ns'])
+                if x['label']: placed.add(x['label'])   # 궤도 노드는 고리 이름으로 놓인다
         missing = [n for n in r3['pos'] if n not in placed]
         if missing:
             bad.append(f"어느 궤도에도 안 들어간 노드: {missing}")

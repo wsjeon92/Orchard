@@ -62,9 +62,9 @@ def main():
             counts: Orchard.gapCounts(gs),
             order: Orchard.GAP_ORDER,
             bright: document.querySelectorAll('.node.gap').length,
-            grpBright: document.querySelectorAll('.grp.gap').length,
+            grpBright: document.querySelectorAll('.orbl.gap').length,
             dimmed: document.querySelectorAll('.node.dim').length,
-            ringed: document.querySelectorAll('.node.gap, .elbl.gap, .grp.gap').length,
+            ringed: document.querySelectorAll('.node.gap, .elbl.gap, .orbl.gap').length,
           };
         }""")
         share = r['gaps'] * 100 // r['total']
@@ -73,7 +73,7 @@ def main():
         if share > 60: bad.append(f"너무 많이 켜진다 ({share}%) — 신호가 안 된다")
         if share < 10: bad.append(f"너무 적게 켜진다 ({share}%)")
         if not r['bright']: bad.append("노드 강조 테두리가 안 붙었다")
-        if not r['grpBright']: bad.append("묶음 강조가 안 붙었다 — .grp.gap 규칙이 없다")
+        if not r['grpBright']: bad.append("궤도 강조가 안 붙었다 — .orbl.gap 규칙이 없다")
         if not r['dimmed']: bad.append("나머지가 흐려지지 않았다")
         for why in ASK + ('edgeNoWork', 'orphan', 'leaf'):
             if not r['counts'][why]: bad.append(f"{why} 가 0개 — 이 그래프에는 있어야 한다")
@@ -161,18 +161,18 @@ def main():
         # 묶음 범주도 하나만 보기가 된다
         r3 = pg.evaluate("""() => {
           Orchard.VIEW.gapWhy = 'groupLoose'; Orchard.render();
-          return { grp: document.querySelectorAll('.grp.gap').length,
+          return { grp: document.querySelectorAll('.orbl.gap').length,
                    node: document.querySelectorAll('.node.gap').length };
         }""")
         if r3['grp'] != r['counts']['groupLoose']:
-            bad.append("묶음만 보기 개수가 안 맞는다: %d != %d" % (r3['grp'], r['counts']['groupLoose']))
+            bad.append("궤도만 보기 개수가 안 맞는다: %d != %d" % (r3['grp'], r['counts']['groupLoose']))
         if r3['node']: bad.append("묶음만 보기인데 키워드 노드도 켜져 있다")
 
         # --- 끄면 아무 것도 흐려지지 않는다
         off = pg.evaluate("""() => {
           Orchard.VIEW.gaps = false; Orchard.VIEW.gapWhy = null; Orchard.render();
           return { dim: document.querySelectorAll('.node.dim').length,
-                   gap: document.querySelectorAll('.node.gap, .grp.gap').length };
+                   gap: document.querySelectorAll('.node.gap, .orbl.gap').length };
         }""")
         if off['dim'] or off['gap']: bad.append("껐는데 흔적이 남었다: %r" % off)
         pg.close()

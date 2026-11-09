@@ -217,6 +217,14 @@ export function bindCanvas() {
       if (touches.size === 2) { startPinch(); return; }
       if (touches.size > 2) return;
     }
+    /* 궤도 이름을 누르면 그 궤도를 고른다 — 이름이 그 노드의 손잡이다 */
+    const ol = (ev.target as Element).closest?.(".orbl") as SVGTextElement | null;
+    if (ol?.dataset.id && nodeOf(ol.dataset.id)) {
+      drag = null;
+      select("node", ol.dataset.id);
+      ev.preventDefault();
+      return;
+    }
     /* 궤도 띠를 집었으면 화면 밀기가 아니라 궤도 크기 바꾸기다.
        크기는 궤도를 잡았을 때만 바뀐다 — 노드를 끌어서는 안 바뀐다. */
     const oh = (ev.target as Element).closest?.(".orbhit") as SVGCircleElement | null;

@@ -421,8 +421,11 @@ html.viewer #btnLink{display:none}
 .orbhit{fill:none;stroke:transparent;pointer-events:stroke;cursor:ew-resize}
 .orbhit:hover{stroke:color-mix(in srgb,#b9c6e0 22%,transparent)}
 /* 궤도 이름 — 그룹 고리에만 붙는다. 그룹 이름이 그 궤도의 이름이다 */
-.orbl{fill:#8e9cbb;font-size:13px;pointer-events:none;text-anchor:middle;
+.orbl{fill:#8e9cbb;font-size:13px;pointer-events:auto;cursor:pointer;text-anchor:middle;
   dominant-baseline:middle;paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
+.orbl:hover{fill:var(--text)}
+.orbl.gap{fill:var(--gapc);stroke-width:5px}
+.orbl.dim{opacity:.12;pointer-events:none}
 .node.gap{box-shadow:0 0 0 2px var(--gapc),0 0 14px -2px var(--gapc)}
 .elbl.gap{box-shadow:0 0 0 2px var(--gapc)}
 .grp.gap{border-style:solid;border-color:var(--gapc);

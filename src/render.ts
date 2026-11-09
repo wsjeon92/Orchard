@@ -48,7 +48,9 @@ export function render() {
       nodeEls.set(n.id, el);
       bindNode(el, n.id);
     }
-    if (hid.has(n.id)) { el.style.display = "none"; continue; }
+    /* 궤도 노드는 그리지 않는다 — 고리에 쓰인 이름이 그 노드다. 둘 다 그리면
+       같은 말이 두 번 보인다. 이름은 SVG 글자라 거기 손잡이를 달았다. */
+    if (hid.has(n.id) || isGroup(n)) { el.style.display = "none"; continue; }
     el.style.display = "";
     el.style.setProperty("--c", K.col);
     // 연결 수로 크기 — 너비 축에만, 과하지 않게 상한을 둔다
@@ -170,7 +172,11 @@ export const animAllowed = () => VIEW.anim;
 export function drawEdges(fset: Set<string> | null, q: string) {
   const gap = lastGap;
   /* 궤도 원을 맨 뒤에 깐다 — 선보다 먼저 써야 아래로 간다 */
-  let out = orbitRings();
+  let out = orbitRings((id) => {
+    if (!gap) return "";
+    const why = gap.why.get(id);
+    return why ? " gap gap-" + why : gap.ids.has(id) ? "" : " dim";
+  });
   /* 한 번만 잰다 — 엣지마다 다시 재면 72 노드에 84 번 돌린다 */
   const ix = orbitIndex();
   const eseen = new Set<string>();

@@ -22,7 +22,7 @@
    deep 을 넣는 이유는 규칙 1 이다 — 질문·가설도 매달린 키워드의 위성이라야
    궤도 밖에 남는 노드가 없다. */
 import { degree } from "./graph";
-import { S, UI, isGroup, nodeOf } from "./state";
+import { S, UI, esc, isGroup, nodeOf } from "./state";
 import type { GNode } from "./types";
 
 /** 노드 하나가 고리에서 차지하는 호 길이. 실제 폭은 render 가 잰다 */
@@ -129,7 +129,10 @@ function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSy
   const key = new Map<string, string>();         // 노드 -> 고리 키
   const rings = new Map<string, OrbRing>();
   const ord: string[] = [];
-  const put = (id: string, kk: string, group: string) => {
+  /** seat=false 면 고리를 열기만 하고 자리는 차지하지 않는다 — 궤도 노드가 그렇다.
+      궤도 노드는 담는 것이 아니라 **이름**이라서, 고리 위에 한 칸을 차지하면
+      이름이 두 번 보인다: 고리에 쓰인 글자로 한 번, 그 자리의 표지로 또 한 번. */
+  const put = (id: string, kk: string, group: string, seat = true) => {
     key.set(id, kk);
     let r = rings.get(kk);
     if (!r) {
@@ -142,7 +145,7 @@ function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSy
       ord.push(kk);
     }
     const n = nodeOf(id);
-    if (n) r.ns.push(n);
+    if (n && seat) r.ns.push(n);
   };
 
   const q: string[] = [planet.id];
@@ -151,7 +154,7 @@ function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSy
     for (const cid of k.kids.get(pid) ?? []) {
       const c = nodeOf(cid);
       if (!c) continue;
-      if (isGroup(c)) put(cid, cid + "#0", cid);                 // 그룹은 자기 층을 연다
+      if (isGroup(c)) put(cid, cid + "#0", cid, false);          // 궤도 노드는 층을 열 뿐 앉지 않는다
       else if (pid === planet.id) put(cid, "#1", "");
       else {
         const p = nodeOf(pid)!;
@@ -321,6 +324,13 @@ function moons(o: Orb, id: string, px: number, py: number, out: number) {
       place(m, x, y);
       moons(o, m.id, x, y, a);
     });
+    /* 궤도 노드는 안 그리지만 좌표는 성하게 둔다 — 미니맵·전체보기가 좌표를 본다.
+       이름이 쓰이는 자리, 즉 식구 둘 사이 빈 곳에 둔다 */
+    const gn = g.group ? nodeOf(g.group) : null;
+    if (gn && g.ns.length) {
+      const half = g.ns.length > 1 ? Math.PI / g.ns.length : Math.PI / 2;
+      place(gn, px + Math.cos(out + half) * g.r, py + Math.sin(out + half) * g.r);
+    }
   }
 }
 
@@ -417,6 +427,9 @@ export function orbitIndex(): OrbIndex {
     }
     rings.set(key, { c, r: m, ids: vis.map((n) => n.id), label, group });
     for (const n of vis) of.set(n.id, key);
+    /* 궤도 노드는 고리에 앉지 않지만 그 고리에 속한다. 안 넣으면 부모와의 상하 선이
+       다시 그려진다 — 궤도가 말하고 있는데 말 못 한다고 판정한다 */
+    if (group) of.set(group, key);
   };
 
   /* 메인 동심원 — 중심은 가장 바깥 층이 말하는 자리. 그 층이 가장 식구가 많고
@@ -446,8 +459,10 @@ export function orbitIndex(): OrbIndex {
   return { rings, of, sat };
 }
 
-/** 보이는 궤도. 선보다 먼저 써서 맨 뒤에 깐다 */
-export function orbitRings(): string {
+/** 보이는 궤도. 선보다 먼저 써서 맨 뒤에 깐다.
+    mark 는 궤도 이름에 붙일 여분 class — 빈 곳 표시가 궤도 노드에도 닿게 한다.
+    궤도 노드는 더 이상 상자로 안 그려져서, 이름이 유일한 자리다. */
+export function orbitRings(mark?: (id: string) => string): string {
   let out = "";
   for (const [, R] of orbitIndex().rings) {
     const c = R.c, r = R.r.toFixed(1);
@@ -462,8 +477,9 @@ export function orbitRings(): string {
       return Math.atan2(cy(n) - c.y, cx(n) - c.x);
     }).sort((x, y) => x - y);
     const a = as.length > 1 ? (as[0] + as[1]) / 2 : as[0] + Math.PI / 2;
-    out += `<text class="orbl" x="${(c.x + Math.cos(a) * R.r).toFixed(1)}" `
-      + `y="${(c.y + Math.sin(a) * R.r).toFixed(1)}">${R.label}</text>`;
+    /* 이름이 곧 그 궤도의 손잡이다 — 눌러서 고르고 패널에서 고친다 */
+    out += `<text class="orbl${mark ? mark(R.group) : ""}" data-id="${R.group}" x="${(c.x + Math.cos(a) * R.r).toFixed(1)}" `
+      + `y="${(c.y + Math.sin(a) * R.r).toFixed(1)}">${esc(R.label)}</text>`;
   }
   return out;
 }

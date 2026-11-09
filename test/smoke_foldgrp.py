@@ -9,10 +9,19 @@ from conftest_paths import url, shot, launch
 
 
 def visible(pg):
-    return set(pg.evaluate("""() => Orchard.S.nodes.filter(n => {
-        const el = Orchard.nodeEls.get(n.id);
-        return el && el.style.display !== 'none';
-      }).map(n => n.label)"""))
+    """화면에 보이는 것. 궤도 노드는 상자가 아니라 **고리에 쓰인 이름**으로 보인다 —
+    접기가 그 이름까지 같이 감추는지가 이 테스트의 요점이다."""
+    return set(pg.evaluate("""() => {
+        const out = Orchard.S.nodes.filter(n => {
+          const el = Orchard.nodeEls.get(n.id);
+          return el && el.style.display !== 'none';
+        }).map(n => n.label);
+        for (const t of document.querySelectorAll('.orbl')) {
+          const n = Orchard.nodeOf(t.dataset.id);
+          if (n) out.push(n.label);
+        }
+        return out;
+      }"""))
 
 
 with sync_playwright() as pw:
