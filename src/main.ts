@@ -12,6 +12,10 @@ import {
 import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
 } from "./history";
+import {
+  bindCross, crossCands, crossDismiss, crossLabel, crossOpen, crossRestoreAll,
+  crossSkipped, crossWorksText, drawCross, setCross, setCrossCloseOther, syncCrossN,
+} from "./cross";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
 import { bindMinimap, drawMini } from "./minimap";
 import {
@@ -32,7 +36,9 @@ import {
   setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion, normalize,
 } from "./state";
 import { bindViewer, isViewer, narrowScreen, setViewer } from "./viewer";
-import { addTopic, bindTopics, drawTopics, setTopics, syncAnimClass, topicsOpen } from "./topics";
+import {
+  addTopic, bindTopics, drawTopics, setTopics, setTopicsCloseOther, syncAnimClass, topicsOpen,
+} from "./topics";
 import {
   bindFileLink, checkNow as checkFile, flushNow as flushFile, isLinked,
   link as linkFile, needsPermission, regrant as regrantFile, restore as restoreLink,
@@ -298,6 +304,11 @@ el("viewerOn").onchange = (e) => {
   setViewer(on === narrowScreen() ? null : on, () => { syncViewPop(); render(); });
 };
 bindTopics();
+bindCross();
+/* 같은 자리를 쓰므로 서로를 닫는다. 양쪽에 주입해서 어느 쪽을 눌러도 같게 동작한다 */
+setCrossCloseOther(() => setTopics(false));
+setTopicsCloseOther(() => setCross(false));
+onAfterSave(syncCrossN);                  // 그래프가 바뀌면 상단바 숫자도 따라온다
 bindModals(syncViewPop);
 bindCanvas();
 bindMinimap(applyView);
@@ -308,6 +319,7 @@ hopsEl.value = String(VIEW.hops);
 el("hopsN").textContent = String(VIEW.hops);
 if (!load()) seed();
 drawTopics();
+syncCrossN();
 syncTitleInput();
 render();
 if (!S.view.x && !S.view.y) fit();
@@ -370,6 +382,8 @@ const api = {
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
   findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER,
+  crossCands, crossDismiss, crossRestoreAll, crossSkipped, crossLabel, crossWorksText,
+  crossOpen, setCross, drawCross,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass,
   isViewer, setViewer, narrowScreen,
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,

@@ -118,6 +118,10 @@ export interface GraphState {
   seq: number;
   /** 연구 주제 메모. 그래프와 같은 파일에 담겨 내보내기·가져오기를 따라간다 */
   topics: Topic[];
+  /** 치운 교차 후보. "노드id|노드id"(사전순) 꼴.
+      그래프에 담아 두는 이유: 치운 판단은 그래프에 대한 판단이라 내보내기를
+      따라가야 한다. 보기 설정에 두면 다른 기기에서 같은 것을 또 치워야 한다 */
+  crossSkip?: string[];
 }
 
 /** 그래프를 보다가 떠오른 연구 주제. 그래프 요소를 가리키지 않는다 —
@@ -145,6 +149,10 @@ export interface ViewSettings {
   ripeFloor: number;
   /** 익은 교차 — 한 번에 권하는 최대 개수. 사람 쪽 값이라 그래프 크기와 무관 */
   ripeMax: number;
+  /** 교차 후보 — 경유가 몇 개부터 신호인가. 분야마다 다르다 */
+  crossMin: number;
+  /** 교차 후보 — 한 번에 권하는 최대 개수. 사람 쪽 값 */
+  crossMax: number;
 }
 
 export type Selection =
