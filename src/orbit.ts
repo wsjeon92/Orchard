@@ -22,7 +22,7 @@
    deep 을 넣는 이유는 규칙 1 이다 — 질문·가설도 매달린 키워드의 위성이라야
    궤도 밖에 남는 노드가 없다. */
 import { degree } from "./graph";
-import { S, UI, esc, isGroup, nodeOf } from "./state";
+import { S, UI, VIEW, esc, isGroup, nodeOf } from "./state";
 import type { GNode } from "./types";
 
 /** 노드 하나가 고리에서 차지하는 호 길이. 실제 폭은 render 가 잰다 */
@@ -562,10 +562,9 @@ export function orbitRings(mark?: (id: string) => string): string {
   for (const [key, R] of orbitIndex().rings) {
     const c = R.c, r = R.r.toFixed(1);
     const X = c.x.toFixed(1), Y = c.y.toFixed(1);
-    /* 선 두께는 화면 기준으로 고정한다 — 월드가 축소되면 1px 선이 0.3px 가 돼서 사라진다.
-       점선 간격은 vector-effect 가 안 고쳐 주므로 배율로 나눠 직접 넣는다 */
-    out += `<circle class="orb" cx="${X}" cy="${Y}" r="${r}" `
-      + `stroke-dasharray="${dashArray()}" vector-effect="non-scaling-stroke"/>`;
+    /* 선 두께는 화면 기준으로 고정한다 — 월드가 축소되면 1px 선이 0.3px 가 돼서 사라진다 */
+    out += `<circle class="orb" cx="${X}" cy="${Y}" r="${r}"${orbDash()} `
+      + `vector-effect="non-scaling-stroke"/>`;
     if (!R.label) continue;
     /* 이름은 위성 둘 사이 빈 자리에 쓴다. 한 바퀴를 고르게 썼으니 첫 둘의 가운데가
        언제나 비어 있다 — 노드 위에 글자가 얹히지 않는다 */
@@ -598,12 +597,13 @@ export function orbitHits(): string {
   return out;
 }
 
-/** 궤도 점선. 엣지는 실선이라 궤도가 실선이면 둘이 섞여 보인다 — 선 하나로
-    "이건 구조, 저건 연결"이 갈리게 한다. 간격도 화면 기준으로 고정한다:
-    dasharray 는 월드 단위라 20% 로 축소하면 10px 이 2px 이 되어 실선처럼 보인다. */
-const dashArray = () => {
+/** 궤도를 뒤로 물린 모드에서만 점선이다. 간격도 화면 기준으로 고정해야 한다 —
+    dasharray 는 월드 단위라 20% 로 축소하면 11px 이 2px 이 되어 실선처럼 보이고,
+    vector-effect 는 **두께만** 화면에 고정하고 간격은 안 고친다. */
+const orbDash = () => {
+  if (VIEW.emph !== "edge") return "";
   const k = Math.max(0.05, S.view.k);
-  return `${(11 / k).toFixed(1)} ${(8 / k).toFixed(1)}`;
+  return ` stroke-dasharray="${(11 / k).toFixed(1)} ${(8 / k).toFixed(1)}"`;
 };
 
 /** 집는 띠의 두께. 화면에서 늘 같은 굵기가 되도록 배율로 나눈 월드 단위다.
@@ -618,8 +618,9 @@ const hitWidth = () => (16 / Math.max(0.05, S.view.k)).toFixed(1);
 export function syncOrbitHits(root: ParentNode) {
   const w = hitWidth();
   root.querySelectorAll(".orbhit").forEach((c) => c.setAttribute("stroke-width", w));
-  const d = dashArray();
-  root.querySelectorAll(".orb").forEach((c) => c.setAttribute("stroke-dasharray", d));
+  const d = orbDash().slice(' stroke-dasharray="'.length, -1);
+  root.querySelectorAll(".orb").forEach((c) =>
+    d ? c.setAttribute("stroke-dasharray", d) : c.removeAttribute("stroke-dasharray"));
 }
 
 /** 이 상하 관계를 궤도가 이미 말하고 있는가.

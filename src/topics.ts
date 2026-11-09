@@ -35,6 +35,16 @@ export function syncAnimClass() {
   document.documentElement.classList.toggle("noanim", !VIEW.anim);
 }
 
+/** 어느 쪽을 먼저 보이게 할지. 궤도 쪽 생김새는 CSS 가 들고, 엣지 쪽은 그릴 때
+    정해진다 — 궤도는 클래스 하나로 갈리지만 엣지는 선마다 값이 달라서다. */
+export function syncEmphClass() {
+  document.documentElement.classList.toggle("emph-edge", VIEW.emph === "edge");
+  /* 버튼 표시도 여기서 맞춘다. 팝오버를 열 때만 맞추면 열기 전에는 둘 다 안 눌린
+     것처럼 보인다 — 안 보이는 동안에도 표시가 사실과 같아야 한다 */
+  document.querySelectorAll<HTMLElement>("#emphSw [data-emph]").forEach((b) =>
+    b.classList.toggle("on", b.dataset.emph === (VIEW.emph ?? "orb")));
+}
+
 function commit() {
   save();                                  // 디바운스·스냅샷은 save() 안에 있다
   el("topicsN").textContent = String(S.topics.length);

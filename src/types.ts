@@ -158,6 +158,10 @@ export interface ViewSettings {
   crossMax: number;
   /** 교차 후보 모드 — 권함(점수) / 훑기(한 키워드 전부) / 무작위 */
   crossMode: CrossMode;
+  /** 둘 중 어느 쪽을 먼저 보이게 할까. 고른 쪽이 실선으로 진하게, 나머지는 점선으로
+   *  연하게. 궤도는 구조, 엣지는 연결 — 어느 쪽을 읽고 있느냐에 따라 보고 싶은 것이
+   *  달라진다. 둘 다 진하던 때는 교차 선이 허브로 모이며 고리를 덮었다 */
+  emph: "orb" | "edge";
 }
 
 export type Selection =

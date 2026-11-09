@@ -183,6 +183,8 @@ export function drawEdges(fset: Set<string> | null, q: string) {
   const hid = UI.hidden;
   const noMatch = (n: GNode) => !!q && !matchNode(n, q);
 
+  /* 보기 → 먼저 보일 것. 엣지를 고르면 교차가 실선으로 올라오고 궤도가 물러난다 */
+  const eStrong = VIEW.emph === "edge";
   for (const e of S.edges) {
     const isSel = UI.sel?.type === "edge" && UI.sel.id === e.id;
 
@@ -228,12 +230,19 @@ export function drawEdges(fset: Set<string> | null, q: string) {
     };
     const col = isSel ? "#e7eaf0" : (e.promoted ?? []).length ? "#5c4580" : "#49525f";
     pts.forEach((p) => {
+      /* 뒤로 물린 쪽은 점선으로 연하게 — 고른 쪽과 섞이지 않는다. 고른 엣지는
+         어느 모드에서든 실선으로 올라온다. dasharray 가 월드 단위인 건 궤도와
+         같지만, 선 두께도 월드 단위라(non-scaling-stroke 를 안 쓴다) 배율이
+         바뀌면 간격과 두께가 같이 커져 따로 맞출 일이 없다 */
       out += `<line x1="${p.x}" y1="${p.y}" x2="${hub.x}" y2="${hub.y}" stroke="${col}" `
-        + `stroke-width="${isSel ? 2.4 : 1.8}"${op}/>`;
+        + `stroke-width="${isSel ? 2.4 : eStrong ? 1.8 : 1.5}" `
+        + `stroke-opacity="${isSel || eStrong ? 1 : 0.45}"`
+        + `${isSel || eStrong ? "" : ' stroke-dasharray="5 4"'}${op}/>`;
       out += `<line class="hit" data-eid="${e.id}" x1="${p.x}" y1="${p.y}" x2="${hub.x}" y2="${hub.y}"/>`;
     });
     if (ms.length > 2 && !dim) {                   // 허브 점 — 셋 이상일 때만 보이게
-      out += `<circle cx="${hub.x}" cy="${hub.y}" r="${isSel ? 4.5 : 3.5}" fill="${col}"/>`;
+      out += `<circle cx="${hub.x}" cy="${hub.y}" r="${isSel ? 4.5 : eStrong ? 3.5 : 3}" `
+        + `fill="${col}" fill-opacity="${isSel || eStrong ? 1 : 0.5}"/>`;
     }
 
     eseen.add(e.id);

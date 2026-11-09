@@ -40,7 +40,7 @@ import {
 } from "./state";
 import { bindViewer, isViewer, narrowScreen, setViewer } from "./viewer";
 import {
-  addTopic, bindTopics, drawTopics, setTopics, setTopicsCloseOther, syncAnimClass, topicsOpen,
+  addTopic, bindTopics, drawTopics, setTopics, setTopicsCloseOther, syncAnimClass, syncEmphClass, topicsOpen,
 } from "./topics";
 import {
   bindFileLink, checkNow as checkFile, flushNow as flushFile, isLinked,
@@ -188,6 +188,7 @@ function syncViewPop() {
   el<HTMLInputElement>("ripeMax").value = String(VIEW.ripeMax ?? RIPE_MAX);
   syncRipeNow();
   syncAnimClass();
+  syncEmphClass();
   drawGapBar();
   el<HTMLInputElement>("viewerOn").checked = isViewer();
   const foldable = S.nodes.filter((n) => foldKids(n.id).length);
@@ -234,6 +235,15 @@ el("miniOn").onchange = (e) => {
   VIEW.minimap = (e.target as HTMLInputElement).checked;
   saveView();
   drawMini();
+};
+/* 먼저 보일 것 — 궤도냐 엣지냐. 둘 중 하나는 늘 골라져 있다(토글이 아니라 선택) */
+el("emphSw").onclick = (ev) => {
+  const b = (ev.target as HTMLElement).closest?.("[data-emph]") as HTMLElement | null;
+  if (!b) return;
+  VIEW.emph = b.dataset.emph === "edge" ? "edge" : "orb";
+  saveView();
+  syncEmphClass();
+  render();
 };
 el("animOn").onchange = (e) => {
   VIEW.anim = (e.target as HTMLInputElement).checked;
@@ -340,6 +350,7 @@ bindMinimap(applyView);
 loadView();
 hopsEl.value = String(VIEW.hops);
 el("hopsN").textContent = String(VIEW.hops);
+syncEmphClass();                 // 궤도/엣지 무게는 첫 그림부터 맞아야 한다
 if (!load()) seed();
 syncDataKey();                   // 시작 직후 첫 save 가 파일을 덮지 않게
 /* 실행 취소의 기준점도 여기서 잡는다. 예전에는 첫 render 의 save 가 snapshot 을
@@ -413,7 +424,7 @@ const api = {
   findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
   crossCands, crossDismiss, crossRestoreAll, crossSkipped, crossLabel, crossWorksText,
   crossOpen, setCross, drawCross, crossScanOf, crossScannable, crossDraw, crossDrawn,
-  addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass,
+  addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass, syncEmphClass,
   isViewer, setViewer, narrowScreen,
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,
   encodeGraph, decodeGraph, shareUrl,
