@@ -21,8 +21,9 @@ from conftest_paths import url, launch
 def fresh(pg, works, label="가나", cands=None, note=""):
     """가·나 두 노드를 잇는 교차를 만들고 이름과 문헌을 심는다.
 
-    경계는 상위 25% 라는 상대값이고 바닥이 3편이다. 교차가 이것 하나뿐인
-    그래프에서는 경계가 바닥값 3편이 된다."""
+    경계는 비율이 아니라 주목 예산이다 — 바닥값(기본 3편) 이상을 문헌 수로
+    줄 세우고 최대 개수(기본 10개)까지만 권한다. 교차가 이것 하나뿐인
+    그래프에서는 바닥값 3편이 그대로 경계가 된다."""
     return pg.evaluate("""([works, label, cands, note]) => {
       Orchard.reset();
       const a = Orchard.addNode('가', 100, 100);

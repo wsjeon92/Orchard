@@ -411,6 +411,12 @@ html.viewer #btnLink{display:none}
    의도를 적을 곳, 문헌을 채울 곳, 더 이을 곳은 서로 다른 작업이다. */
 .node.gap{box-shadow:0 0 0 2px var(--gapc),0 0 14px -2px var(--gapc)}
 .elbl.gap{box-shadow:0 0 0 2px var(--gapc)}
+.grp.gap{border-style:solid;border-color:var(--gapc);
+  background:color-mix(in srgb,var(--gapc) 9%,transparent)}
+/* 앞 셋은 "교차해 봐라", 뒤 셋은 "채워라" — 색도 두 묶음으로 갈라 둔다 */
+.gap-edgeRipe{--gapc:#a678d8}
+.gap-nodeParked{--gapc:#d9a23c}
+.gap-groupLoose{--gapc:#3fa9a0}
 .gap-orphan{--gapc:#e0683c}
 .gap-leaf{--gapc:#6f9a4a}
 .gap-edgeNoWork{--gapc:#4e9bd8}
