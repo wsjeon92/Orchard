@@ -411,7 +411,10 @@ html.viewer #btnLink{display:none}
 /* 이유마다 색을 달리 둔다 — 무엇을 해야 하는지가 이유마다 다르다.
    의도를 적을 곳, 문헌을 채울 곳, 더 이을 곳은 서로 다른 작업이다. */
 /* 궤도 — 태양계 탑뷰. 배경이지 내용이 아니므로 아주 흐리게 */
-.orb{fill:none;stroke:#7c8bb0;stroke-width:1.2;stroke-dasharray:4 10;opacity:1;
+/* 궤도. 점선으로 두면 안 된다 — dasharray 는 월드 단위라 축소하면 4px 이 0.8px 이
+   되어 사라지는데, vector-effect 는 선 두께만 화면에 고정하고 간격은 안 고친다.
+   실선이면 어느 배율에서도 보인다 */
+.orb{fill:none;stroke:#8e9cb8;stroke-width:1.1;opacity:.68;
   pointer-events:none;vector-effect:non-scaling-stroke}
 /* 궤도 이름 — 그룹 고리에만 붙는다. 그룹 이름이 그 궤도의 이름이다 */
 .orbl{fill:#8e9cbb;font-size:13px;pointer-events:none;text-anchor:middle;

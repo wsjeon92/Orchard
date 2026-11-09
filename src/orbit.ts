@@ -32,8 +32,6 @@ const MARGIN = 120;
 /** 첫 위성 고리 반지름. 부모 상자(약 140×38)보다 넉넉히 */
 const MOON_R = 240;
 const MOON_GAP = 180;
-/** 위성 부채꼴이 벌어질 수 있는 최대 각 */
-const MAX_SPAN = Math.PI * 1.15;
 
 export interface OrbRing {
   /** "앵커#깊이". 앵커는 가장 가까운 그룹 조상, 없으면 빈 문자열 */
@@ -43,7 +41,6 @@ export interface OrbRing {
   label: string;
   ns: GNode[];
   r: number;
-  span: number;
 }
 export interface OrbSys { planet: GNode; rings: OrbRing[]; reach: number }
 export interface OrbLayer { depth: number; ns: GNode[]; r: number }
@@ -117,7 +114,7 @@ function system(k: Kin, planet: GNode): OrbSys {
         key: kk,
         group,
         label: group ? nodeOf(group)?.label ?? "" : "",
-        ns: [], r: 0, span: 0,
+        ns: [], r: 0,
       });
       ord.push(kk);
     }
@@ -149,11 +146,13 @@ function system(k: Kin, planet: GNode): OrbSys {
   /* 안쪽부터: 깊이 얕은 것, 같으면 식구 적은 것. 큰 고리를 바깥에 두면 덜 부딪힌다 */
   const list = ord.map((kk) => rings.get(kk)!);
   list.sort((a, b) => (depthOf(a) - depthOf(b)) || (a.ns.length - b.ns.length));
+  /* 위성은 고리 한 바퀴에 고르게 편다. 부챗살로 바깥쪽에만 몰면 원의 나머지가
+     텅 비는데, 그 빈 호가 메인 고리를 가로질러 다른 노드 위를 지난다. 한 바퀴를
+     다 쓰면 고리가 실제로 채워져 있어서 태양계처럼 읽히고, 행성이 메인 고리에서
+     차지하는 자리도 오히려 줄어든다 — 부챗살의 현보다 지름이 짧다. */
   let r = 0;
   for (const g of list) {
-    const n = g.ns.length;
-    g.span = Math.min(MAX_SPAN, 0.5 + n * 0.3);
-    const need = (n * SLOT * 0.8) / g.span;
+    const need = (g.ns.length * SLOT * 0.8) / (2 * Math.PI);
     r = Math.max(r + MOON_GAP, MOON_R, need);
     g.r = r;
   }
@@ -166,9 +165,7 @@ const depthOf = (g: OrbRing) => (g.group ? 0 : Number(g.key.split("#")[1]) || 1)
 /** 이 행성이 메인 고리에서 차지해야 하는 호 길이 — 위성 체계가 이웃을 밀어낸다 */
 function arcNeed(s: OrbSys | undefined): number {
   if (!s || !s.rings.length) return SLOT;
-  let w = 0;
-  for (const g of s.rings) w = Math.max(w, 2 * g.r * Math.sin(g.span / 2));
-  return Math.max(SLOT, w + SLOT * 0.5);
+  return Math.max(SLOT, 2 * s.reach + SLOT * 0.5);
 }
 
 /* ---------------- 전체 계획 ---------------- */
@@ -257,17 +254,16 @@ function place(n: GNode, x: number, y: number) {
   n._rx = n.x; n._ry = n.y;
 }
 
-/** 위성을 부모 바깥쪽(= 태양에서 멀어지는 방향)으로 부채꼴로 펼친다 */
+/** 위성을 고리 한 바퀴에 고르게 편다. 첫 자리는 태양 반대쪽 — 바깥을 보게 */
 function moons(o: Orb, id: string, px: number, py: number, out: number) {
   const s = o.sys.get(id);
   if (!s) return;
   for (const g of s.rings) {
     const n = g.ns.length;
     g.ns.forEach((m, i) => {
-      const a = out + (n === 1 ? 0 : -g.span / 2 + (g.span * i) / (n - 1));
-      const x = px + Math.cos(a) * g.r, y = py + Math.sin(a) * g.r;
-      place(m, x, y);
-      /* 위성이 또 식구를 가지면 그건 같은 행성의 더 바깥 고리로 이미 들어가 있다.
+      const a = out + (2 * Math.PI * i) / n;
+      place(m, px + Math.cos(a) * g.r, py + Math.sin(a) * g.r);
+      /* 위성이 또 식구를 가지면 그건 같은 행성의 더 바깥 고리에 이미 들어가 있다.
          여기서 다시 펼치면 두 번 놓인다 */
     });
   }
@@ -317,10 +313,10 @@ function ring(c: { x: number; y: number }, ns: GNode[], label = ""): string {
   let out = `<circle class="orb" cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" `
     + `r="${m.toFixed(1)}" vector-effect="non-scaling-stroke"/>`;
   if (label) {
-    /* 이름은 위성들이 없는 반대쪽에 쓴다. 평균 방향을 재서 그 반대편 */
-    let ax = 0, ay = 0;
-    for (const n of vis) { ax += cx(n) - c.x; ay += cy(n) - c.y; }
-    const a = Math.atan2(ay, ax) + Math.PI;
+    /* 이름은 위성 둘 사이 빈 자리에 쓴다. 한 바퀴를 고르게 썼으니 첫 둘의 가운데가
+       언제나 비어 있다 — 노드 위에 글자가 얹히지 않는다 */
+    const as = vis.map((n) => Math.atan2(cy(n) - c.y, cx(n) - c.x)).sort((x, y) => x - y);
+    const a = as.length > 1 ? (as[0] + as[1]) / 2 : as[0] + Math.PI / 2;
     out += `<text class="orbl" x="${(c.x + Math.cos(a) * m).toFixed(1)}" `
       + `y="${(c.y + Math.sin(a) * m).toFixed(1)}">${label}</text>`;
   }
