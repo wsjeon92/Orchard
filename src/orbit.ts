@@ -42,6 +42,8 @@ export interface OrbRing {
   label: string;
   ns: GNode[];
   r: number;
+  /** 각 식구가 이 고리에서 차지해야 하는 호 길이. 자기 체계가 큰 식구는 더 받는다 */
+  arcs: number[];
 }
 export interface OrbSys { planet: GNode; rings: OrbRing[]; reach: number }
 export interface OrbLayer { depth: number; name: string; ns: GNode[]; r: number }
@@ -102,8 +104,25 @@ function compDepth(): Map<string, number> {
 
 /* ---------------- 위성 체계 ---------------- */
 
+/** 누가 자기 중심이 되는가.
+
+    그룹은 고리에 **이름**을 준다 — 멤버는 그룹을 돌지 않고 그룹을 품은 노드를 돈다.
+    그룹이 아닌 노드가 식구를 가지면 **자기가 중심**이 된다. 위성이라도 그렇다:
+    '항체'는 '단백질 타입' 고리 위의 위성이지만, '대체 결합 포맷'을 품으면 자기
+    둘레에 그 이름의 고리를 연다. 뿌리는 품을 부모가 없으니 그룹이어도 중심이다. */
+function openers(k: Kin): Set<string> {
+  const out = new Set<string>();
+  for (const [pid, ks] of k.kids) {
+    if (!ks.length) continue;
+    const n = nodeOf(pid);
+    if (!n) continue;
+    if (!k.parent.has(pid) || !isGroup(n)) out.add(pid);
+  }
+  return out;
+}
+
 /** 행성 하나의 서브 궤도. 고리 키는 "가장 가까운 그룹 조상 # 그 아래 깊이" */
-function system(k: Kin, planet: GNode): OrbSys {
+function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSys>): OrbSys {
   const key = new Map<string, string>();         // 노드 -> 고리 키
   const rings = new Map<string, OrbRing>();
   const ord: string[] = [];
@@ -115,7 +134,7 @@ function system(k: Kin, planet: GNode): OrbSys {
         key: kk,
         group,
         label: group ? nodeOf(group)?.label ?? "" : "",
-        ns: [], r: 0,
+        ns: [], r: 0, arcs: [],
       });
       ord.push(kk);
     }
@@ -140,7 +159,8 @@ function system(k: Kin, planet: GNode): OrbSys {
           put(cid, anchor + "#" + (Number(d) + 1), anchor ? anchor : "");
         }
       }
-      q.push(cid);
+      /* 자기가 중심인 자식의 식구는 거기서 놓는다. 여기까지 끌고 오면 두 번 놓인다 */
+      if (!open.has(cid)) q.push(cid);
     }
   }
 
@@ -151,13 +171,23 @@ function system(k: Kin, planet: GNode): OrbSys {
      텅 비는데, 그 빈 호가 메인 고리를 가로질러 다른 노드 위를 지난다. 한 바퀴를
      다 쓰면 고리가 실제로 채워져 있어서 태양계처럼 읽히고, 행성이 메인 고리에서
      차지하는 자리도 오히려 줄어든다 — 부챗살의 현보다 지름이 짧다. */
-  let r = 0;
+  let r = 0, prev = 0;
   for (const g of list) {
-    const need = (g.ns.length * SLOT * 0.8) / (2 * Math.PI);
-    r = Math.max(r + MOON_GAP, MOON_R, need);
+    /* 자기 체계를 가진 식구는 호를 더 받는다. 안 주면 그 식구의 달들이 옆 식구를 덮는다 */
+    g.arcs = g.ns.map((n) => {
+      const sub = sys.get(n.id);
+      return sub ? Math.max(SLOT * 0.8, 2 * sub.reach + SLOT * 0.5) : SLOT * 0.8;
+    });
+    const need = g.arcs.reduce((a, b) => a + b, 0) / (2 * Math.PI);
+    /* 두 고리 사이는 양쪽의 달이 다 들어갈 만큼 벌린다. 안쪽 고리 식구의 달은
+       바깥으로 뻗고, 바깥 고리 식구의 달은 **안쪽으로도** 뻗는다 — 한쪽만 보고
+       벌렸더니 '항체'의 달(이중항체)이 안쪽 고리의 '단백질 물성'과 22px 겹쳤다. */
+    const cur = Math.max(0, ...g.ns.map((n) => sys.get(n.id)?.reach ?? 0));
+    r = Math.max(r + MOON_GAP + prev + cur, MOON_R, need);
     g.r = r;
+    prev = cur;
   }
-  return { planet, rings: list, reach: r };
+  return { planet, rings: list, reach: r + prev };
 }
 
 /** 고리 키의 깊이 부분. 그룹 고리는 자기 앵커 기준 0 이라 가장 안쪽으로 온다 */
@@ -205,13 +235,22 @@ function order(ns: GNode[]): GNode[] {
 export function plan(): Orb {
   const k = kin();
   const cd = compDepth();
-  /* 위성 체계는 **부모 없는 노드에만** 만든다. 그룹이나 중간 노드에도 만들면
-     같은 멤버가 두 번 놓인다 — 부모의 고리에 한 번, 자기 체계에 또 한 번. */
+  /* 위성 체계. 안쪽부터 쌓는다 — 식구의 체계 크기를 알아야 그 식구에게 호를
+     얼마나 줄지 정할 수 있기 때문이다. 그래서 자식을 먼저 만들고 자기를 만든다. */
   const sys = new Map<string, OrbSys>();
-  for (const [pid, ks] of k.kids) {
-    if (k.parent.has(pid) || !ks.length) continue;
-    const p = nodeOf(pid);
-    if (p) sys.set(pid, system(k, p));
+  const open = openers(k);
+  /* 깊은 것부터 만든다. 자식의 체계 크기를 알아야 그 자식에게 호를 얼마나 줄지
+     정할 수 있다. 자식만 보고 재귀하면 모자란다 — '항체'는 '단백질'의 자식이
+     아니라 그룹을 건너뛴 손자라서, 단백질을 만들 때 아직 없는 채로 지나갔다. */
+  const depthOf = (id: string) => {
+    let d = 0, p = k.parent.get(id);
+    const seen = new Set<string>([id]);
+    while (p && !seen.has(p)) { seen.add(p); d++; p = k.parent.get(p); }
+    return d;
+  };
+  for (const id of [...open].sort((a, b) => depthOf(b) - depthOf(a))) {
+    const p = nodeOf(id);
+    if (p) sys.set(id, system(k, p, open, sys));
   }
 
   /* 메인 동심원 — 부모 없는 노드만. 있는 깊이만 쓰고 빈 층은 건너뛴다.
@@ -265,17 +304,20 @@ function place(n: GNode, x: number, y: number) {
   n._rx = n.x; n._ry = n.y;
 }
 
-/** 위성을 고리 한 바퀴에 고르게 편다. 첫 자리는 태양 반대쪽 — 바깥을 보게 */
+/** 위성을 고리 한 바퀴에 편다. 첫 자리는 태양 반대쪽 — 바깥을 보게.
+    자기 체계를 가진 식구가 있으면 거기서 다시 편다 */
 function moons(o: Orb, id: string, px: number, py: number, out: number) {
   const s = o.sys.get(id);
   if (!s) return;
   for (const g of s.rings) {
-    const n = g.ns.length;
+    const tot = g.arcs.reduce((a, b) => a + b, 0) || 1;
+    let acc = 0;
     g.ns.forEach((m, i) => {
-      const a = out + (2 * Math.PI * i) / n;
-      place(m, px + Math.cos(a) * g.r, py + Math.sin(a) * g.r);
-      /* 위성이 또 식구를 가지면 그건 같은 행성의 더 바깥 고리에 이미 들어가 있다.
-         여기서 다시 펼치면 두 번 놓인다 */
+      const a = out + (2 * Math.PI * (acc + g.arcs[i] / 2)) / tot;
+      acc += g.arcs[i];
+      const x = px + Math.cos(a) * g.r, y = py + Math.sin(a) * g.r;
+      place(m, x, y);
+      moons(o, m.id, x, y, a);
     });
   }
 }
@@ -389,7 +431,11 @@ export function orbitIndex(): OrbIndex {
     const all: string[] = [];
     for (const g of s.rings) {
       add("s:" + pid + ":" + g.key, c, g.ns, g.label);
-      for (const n of g.ns) all.push(n.id);
+      for (const n of g.ns) {
+        all.push(n.id);
+        /* 식구의 식구까지. 행성을 끌면 달의 달도 따라와야 한다 */
+        for (const d of sat.get(n.id) ?? []) all.push(d);
+      }
     }
     sat.set(pid, all);
   }

@@ -183,6 +183,40 @@ def main():
         if any(w > 320 or h > 90 for w, h in r2['boxes']):
             bad.append(f"그룹이 아직 큰 상자다: {r2['boxes']}")
 
+        # ---------- 2b) 위성도 자기 중심이 된다 — 그룹이 아니면서 식구를 가지면 ----------
+        pg2b = b.new_page()
+        seeded(pg2b, g(
+            [nd('P', '행성'),
+             nd('g1', '묶음', kind='group', members=['m1', 'm2']),
+             nd('m1', 'M1'), nd('m2', 'M2'),
+             nd('g2', '손자묶음', kind='group', members=['x1', 'x2']),
+             nd('x1', 'X1'), nd('x2', 'X2'),
+             nd('o1', 'O1'), nd('o2', 'O2'), nd('o3', 'O3')],
+            [{'id': 's1', 'kind': 'sub', 'a': 'P', 'b': 'g1'},
+             {'id': 's2', 'kind': 'sub', 'a': 'm1', 'b': 'g2'}]))
+        r2b = pg2b.evaluate(PROBE)
+        ov2b = overlaps(pg2b)
+        print("\n2b) 위성의 궤도")
+        for s_ in r2b['sys']:
+            for ring in s_['rings']:
+                print(f"   {s_['planet']} ← r={ring['r']} '{ring['label']}' {ring['ns']}")
+        own = [s_ for s_ in r2b['sys'] if s_['planet'] == 'M1']
+        if not own:
+            bad.append("식구를 가진 위성(M1)이 자기 궤도를 못 가졌다")
+        else:
+            ring = own[0]['rings'][0]
+            if ring['label'] != '손자묶음':
+                bad.append(f"M1 의 궤도 이름이 틀렸다: {ring['label']}")
+            if set(ring['ns']) != {'손자묶음', 'X1', 'X2'}:
+                bad.append(f"M1 궤도 식구가 틀렸다: {ring['ns']}")
+            if max(ring['real']) - min(ring['real']) > 2:
+                bad.append(f"M1 궤도가 한 원이 아니다: {ring['real']}")
+        # 그룹은 자기 중심이 되지 않는다 — 이름만 준다
+        if any(s_['planet'] in ('묶음', '손자묶음') for s_ in r2b['sys']):
+            bad.append("그룹이 자기 위성 체계를 가졌다 — 멤버가 두 번 놓인다")
+        if ov2b:
+            bad.append(f"중첩 궤도에서 {ov2b}쌍이 겹친다")
+
         # ---------- 3) 실제 그래프: 규칙 위반 0, 겹침 0 ----------
         pg3 = b.new_page()
         seeded(pg3, REAL.read_text(encoding='utf-8'))
