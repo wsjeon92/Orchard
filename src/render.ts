@@ -1,6 +1,6 @@
 import { kickAnim } from "./anim";
 import { gapSet } from "./gaps";
-import { orbitHits, orbitRings, syncOrbitHits } from "./orbit";
+import { orbitHits, orbitIndex, orbitRings, orbitSays, syncOrbitHits } from "./orbit";
 import { elblEls, nodeEls, stage, world } from "./dom";
 import { bindNode } from "./interact";
 import {
@@ -171,6 +171,8 @@ export function drawEdges(fset: Set<string> | null, q: string) {
   const gap = lastGap;
   /* 궤도 원을 맨 뒤에 깐다 — 선보다 먼저 써야 아래로 간다 */
   let out = orbitRings();
+  /* 한 번만 잰다 — 엣지마다 다시 재면 72 노드에 84 번 돌린다 */
+  const ix = orbitIndex();
   const eseen = new Set<string>();
   const hid = UI.hidden;
   const noMatch = (n: GNode) => !!q && !matchNode(n, q);
@@ -188,6 +190,8 @@ export function drawEdges(fset: Set<string> | null, q: string) {
         out += `<line x1="${ac.x}" y1="${ac.y}" x2="${bc.x}" y2="${bc.y}" stroke="#4a3568" `
           + `stroke-width="1.5" stroke-dasharray="3 4"${dim ? ' opacity="0.1"' : ""}/>`;
       } else {
+        /* 궤도가 이미 "아래"라고 말하고 있으면 선을 안 그린다 */
+        if (orbitSays(ix, A.id, B.id)) continue;
         // deep 과 sub 는 둘 다 아래로 내려가는 계층. 색으로 구분한다.
         const x1 = px(A) + (A._w ?? 140) / 2, y1 = py(A) + (A._h ?? 38);
         const x2 = px(B) + (B._w ?? 140) / 2, y2 = py(B);

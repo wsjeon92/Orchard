@@ -493,3 +493,13 @@ export function syncOrbitHits(root: ParentNode) {
   const w = hitWidth();
   root.querySelectorAll(".orbhit").forEach((c) => c.setAttribute("stroke-width", w));
 }
+
+/** 이 상하 관계를 궤도가 이미 말하고 있는가.
+
+    자식이 부모의 서브 궤도 위에 앉아 있으면 선을 또 그릴 필요가 없다 — 반지름이
+    이미 "아래"라고 말한다. 반대로 궤도가 깨졌거나(흩어 놓았거나) 자유 배치면
+    말해 주는 것이 없으니 선이 남아야 한다. 관계가 소리 없이 사라지면 안 된다. */
+export function orbitSays(ix: OrbIndex, parent: string, child: string): boolean {
+  const key = ix.of.get(child);
+  return !!key && key.startsWith("s:" + parent + ":");
+}
