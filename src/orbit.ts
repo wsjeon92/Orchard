@@ -21,6 +21,7 @@
    부모는 그룹 > sub > deep 순으로 먼저 잡은 쪽이 이긴다. 달은 행성 하나를 돈다.
    deep 을 넣는 이유는 규칙 1 이다 — 질문·가설도 매달린 키워드의 위성이라야
    궤도 밖에 남는 노드가 없다. */
+import { degree } from "./graph";
 import { S, UI, isGroup, nodeOf } from "./state";
 import type { GNode } from "./types";
 
@@ -43,7 +44,7 @@ export interface OrbRing {
   r: number;
 }
 export interface OrbSys { planet: GNode; rings: OrbRing[]; reach: number }
-export interface OrbLayer { depth: number; ns: GNode[]; r: number }
+export interface OrbLayer { depth: number; name: string; ns: GNode[]; r: number }
 export interface Orb {
   /** 바깥에서 안으로. layers[0] 이 최외곽 */
   layers: OrbLayer[];
@@ -213,15 +214,25 @@ export function plan(): Orb {
     if (p) sys.set(pid, system(k, p));
   }
 
-  /* 메인 동심원 — 부모 없는 노드만. 있는 깊이만 쓰고 빈 층은 건너뛴다 */
+  /* 메인 동심원 — 부모 없는 노드만. 있는 깊이만 쓰고 빈 층은 건너뛴다.
+
+     가장 바깥은 L0, 고아의 자리다. 고아는 **메인 궤도에 있으면서 엣지 연결이
+     없는 노드**다. 위성은 해당하지 않는다 — 부모가 있으니 메인 궤도가 아니다.
+     식구를 거느렸는지는 묻지 않는다. 멤버는 members 배열이지 엣지가 아니라서,
+     한 번도 교차하지 않은 묶음은 식구가 있어도 고아다.
+     연결이 하나라도 생기면 다음 턴에 저절로 안쪽(L1 이상)으로 떨어진다 — 따로
+     옮기는 코드가 없다. 자리가 곧 상태다.
+     L1 부터는 합성 깊이 그대로다: L1 = 순수 개념, L2 = 합성 개념, ... */
   const by = new Map<number, GNode[]>();
   for (const n of S.nodes) {
     if (k.parent.has(n.id)) continue;
-    const d = cd.get(n.id) ?? 0;
+    const d = degree(n.id) ? (cd.get(n.id) ?? 0) : -1;
     (by.get(d) ?? by.set(d, []).get(d)!).push(n);
   }
-  const depths = [...by.keys()].sort((a, b) => a - b);          // 0 = 최외곽
-  const layers: OrbLayer[] = depths.map((d) => ({ depth: d, ns: order(by.get(d)!), r: 0 }));
+  const depths = [...by.keys()].sort((a, b) => a - b);          // 작을수록 바깥
+  const layers: OrbLayer[] = depths.map((d) => ({
+    depth: d, name: "L" + (d + 1), ns: order(by.get(d)!), r: 0,
+  }));
   if (!layers.length) return { layers, sys };
 
   /* 바깥 고리는 자기 혼잡으로 정하고, 안쪽은 같은 간격으로 나눠 넣는다.
@@ -367,7 +378,7 @@ export function orbitIndex(): OrbIndex {
   const outer = (o.layers[0]?.ns ?? []).filter((n) => !UI.hidden.has(n.id));
   if (outer.length > 2) {
     const c = fitSun(outer);
-    for (const lay of o.layers) add("m:" + lay.depth, c, lay.ns, "");
+    for (const lay of o.layers) add("m:" + lay.depth, c, lay.ns, lay.name);
   }
 
   /* 위성 궤도 — 행성마다, 고리마다. 그룹 고리는 그룹 이름을 달고 나온다 */

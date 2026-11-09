@@ -65,7 +65,7 @@ PROBE = r"""() => {
     sun,
     concentric: concentric.map(c => Math.round(c.r)).sort((a, b) => b - a),
     layers: P.layers.map(l => ({
-      depth: l.depth, r: Math.round(l.r),
+      depth: l.depth, name: l.name, r: Math.round(l.r),
       labels: l.ns.map(n => n.label),
       // 실제 좌표에서 다시 잰 반지름 — 계획과 맞는지 보려고
       real: l.ns.map(n => Math.round(hyp(C(n), sun))),
@@ -205,6 +205,32 @@ def main():
             for x in s['rings']:
                 if max(x['real']) - min(x['real']) > 2:
                     bad.append(f"{s['planet']} 의 r={x['r']} 고리가 한 원이 아니다")
+        # L0 = 고아 자리, 가장 바깥. L1 부터 합성 깊이
+        names = [L.get('name') for L in r3['layers']]
+        if names[0] != 'L0' and r3['layers'][0]['depth'] == -1:
+            bad.append(f"가장 바깥 층 이름이 L0 가 아니다: {names}")
+        lone = pg3.evaluate("""() => {
+          const P = Orchard.orbitPlan();
+          const L0 = P.layers.find(l => l.name === 'L0');
+          const bad = [];
+          for (const n of (L0 ? L0.ns : [])) if (Orchard.degree(n.id)) bad.push(n.label);
+          // 연결이 있는데 L0 에 남아 있는가 / 연결 0 인데 안쪽에 있는가
+          const miss = [];
+          for (const l of P.layers) {
+            if (l.name === 'L0') continue;
+            for (const n of l.ns) if (!Orchard.degree(n.id)) miss.push(n.label);
+          }
+          return {wrong: bad, miss, n: L0 ? L0.ns.length : 0,
+                  r0: L0 ? L0.r : null, r1: P.layers.find(l => l.name === 'L1')?.r};
+        }""")
+        print(f"   L0 고아 {lone['n']}개  r={lone['r0'] and round(lone['r0'])} "
+              f"(L1 r={lone['r1'] and round(lone['r1'])})")
+        if lone['wrong']:
+            bad.append(f"연결이 있는데 L0 에 있다: {lone['wrong']}")
+        if lone['miss']:
+            bad.append(f"연결이 없는데 안쪽 궤도에 있다: {lone['miss']}")
+        if lone['r0'] and lone['r1'] and lone['r0'] <= lone['r1']:
+            bad.append(f"L0 이 L1 보다 안쪽이다: {lone['r0']} vs {lone['r1']}")
         rs3 = [L['r'] for L in r3['layers']]
         if not all(rs3[i] > rs3[i + 1] for i in range(len(rs3) - 1)):
             bad.append(f"실제 그래프에서 층 순서가 뒤집혔다: {rs3}")
@@ -293,7 +319,8 @@ def main():
             if (s.x < 200 || s.x > 1200 || s.y < 140 || s.y > 760) continue;
             tried++;
             const e = document.elementFromPoint(s.x, s.y);
-            const hit = e && (e.getAttribute('class') || '').includes('orbhit');
+            // 다른 고리의 띠가 같은 자리를 지날 수 있으니 키까지 확인한다
+            const hit = e && e.dataset && e.dataset.orb === 'm:0';
             if (hit) { ok++; if (!found) found = {sx: s.x, sy: s.y, a}; }
           }
           return {r: R.r, n: R.ids.length, ok, tried, found};
