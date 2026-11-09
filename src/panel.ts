@@ -279,6 +279,8 @@ function nodePanel(n: GNode, kindEl: HTMLElement, titleEl: HTMLElement,
       if (p) btn(w, "chip", p.label || "(제목 없음)", () => select("node", pid));
     });
   }
+  /* 이 노드가 어디에 들어가나 → 이 노드 아래에 무엇이 있나 순서로 읽힌다 */
+  if (K.axis === "b" && !isGroup(n)) renderParent(body, n);
   // 하위 키워드 — 상위어 → 하위어.
   // 그룹은 제외한다: 그룹에선 멤버가 그 역할을 하므로 두 섹션이 겹쳐 보인다.
   if (K.axis === "b" && !isGroup(n)) renderSubs(body, n);
@@ -499,28 +501,112 @@ function attachSub(parent: GNode, childId: string) {
 /** 궤도 탭. 고른 궤도의 식구만 아래에 보인다 — 궤도가 여럿이면 한 목록에 섞여
     나와서 어느 고리의 식구인지 알 수가 없었다. 반지름은 적지 않는다: 궤도 창에
     있고, 여기서는 어느 고리인지만 고르면 된다 */
-function ringTabs(body: HTMLElement, n: GNode): RingChoice | null {
-  const rs = subRings(n.id);
-  if (!rs.length) { ringPick.delete(n.id); return null; }
-  if (!ringPick.has(n.id) || (ringPick.get(n.id) !== "new"
-    && !rs.some((r) => r.key === ringPick.get(n.id)))) {
-    ringPick.set(n.id, rs[0].key);
+function ringTabs(body: HTMLElement, planet: GNode, pickKey: string,
+                  onPick?: (key: string) => void, label = "넣을 궤도"): RingChoice | null {
+  const rs = subRings(planet.id);
+  if (!rs.length && !onPick) { ringPick.delete(pickKey); return null; }
+  if (!ringPick.has(pickKey) || (ringPick.get(pickKey) !== "new"
+    && !rs.some((r) => r.key === ringPick.get(pickKey)))) {
+    ringPick.set(pickKey, rs.length ? rs[0].key : "new");
   }
   const row = div(body, "addrow");
   const lab = document.createElement("span");
   lab.style.cssText = "font-size:11px;color:var(--dim2);white-space:nowrap";
-  lab.textContent = "넣을 궤도";
+  lab.textContent = label;
   row.appendChild(lab);
   const w = div(row, "chips");
   const mk = (key: string, text: string) =>
-    btn(w, "chip" + (ringPick.get(n.id) === key ? " on" : ""), text, () => {
-      ringPick.set(n.id, key);
-      renderSide();
+    btn(w, "chip" + (!onPick && ringPick.get(pickKey) === key ? " on" : ""), text, () => {
+      ringPick.set(pickKey, key);
+      if (onPick) onPick(key); else renderSide();
     });
   for (const r of rs) mk(r.key, `${r.label} ${r.n}`);
   mk("new", "새 궤도");
-  const cur = ringPick.get(n.id);
+  const cur = ringPick.get(pickKey);
   return rs.find((r) => r.key === cur) ?? null;
+}
+
+/* ---------------- 이 노드가 들어갈 궤도 ----------------
+
+   방향이 하나뿐이었다. 부모를 고르고 자식을 찾는 길만 있어서, 어떤 노드를
+   보면서 "이걸 어디에 넣지"를 할 수가 없었다. 두 단계로 받는다 — 검색으로
+   행성을 고르고, 그 행성의 고리 중 하나를 누른다. 한 단계로 하면 "행성 × 고리"
+   조합을 전부 목록에 깔아야 해서 금방 못 쓰게 된다. */
+
+/** 2단계로 가는 중인 자식 -> 고른 행성 */
+const parentPick = new Map<string, string>();
+
+/** 이 노드를 저 행성의 저 고리에 넣는다. 붙이는 길을 여기 하나로 모은다 */
+function attachTo(child: GNode, planet: GNode, ringKey: string) {
+  S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === child.id));  // 상위는 하나다
+  let key = ringKey;
+  if (ringKey === "new") {
+    /* 이름은 비워 둔다 — 고리가 자리를 이름으로 받아 S2 가 된다.
+       이름이 꼭 필요하면 궤도 창에서 쓰면 된다 */
+    const g = addNode("", 0, 0, "group");
+    addEdge(planet.id, g.id, "sub");
+    addMember(g.id, child.id);
+    g.x = planet.x; g.y = planet.y; g._rx = g.x; g._ry = g.y;
+    key = "s:" + planet.id + ":" + g.id + "#0";
+  } else {
+    const R = orbitView(ringKey);
+    addEdge(R?.group || planet.id, child.id, "sub");
+  }
+  placeOnSubOrbit(planet.id, child.id, key);
+  kickAnim();
+  parentPick.delete(child.id);
+  render();
+}
+
+/** 상위가 궤도 노드면 그 행성을 찾아 준다 — 고리의 중심은 궤도 노드가 아니다 */
+function planetOf(p: GNode): GNode {
+  if (!isGroup(p)) return p;
+  const up = subParentEdge(p.id);
+  return (up && nodeOf(up.a)) || p;
+}
+
+function renderParent(body: HTMLElement, n: GNode) {
+  const up = subParentEdge(n.id);
+  const host = up ? nodeOf(up.a) : null;
+  const planet = host ? planetOf(host) : (nodeOf(parentPick.get(n.id) ?? "") ?? null);
+
+  sect(body, "들어갈 궤도");
+  if (planet) {
+    const r = div(body, "addrow");
+    const who = document.createElement("span");
+    who.style.cssText = "font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap";
+    who.textContent = planet.label || "(제목 없음)";
+    who.onclick = () => select("node", planet.id);
+    r.appendChild(who);
+    btn(r, "abtn sm", host ? "다른 노드로" : "다시", () => {
+      parentPick.delete(n.id);
+      if (host) S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === n.id));
+      if (host) { placeOnMainOrbit(n.id); kickAnim(); }
+      render();
+    });
+    if (host) {
+      btn(r, "abtn sm", "메인으로 나가기", () => {
+        S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === n.id));
+        placeOnMainOrbit(n.id);
+        kickAnim();
+        render();
+      });
+    }
+    ringTabs(body, planet, "to:" + n.id, (key) => attachTo(n, planet, key), "어느 고리에");
+    return;
+  }
+
+  /* 1단계 — 들어갈 행성을 찾는다. 궤도 노드는 후보가 아니다(고리가 아니라 행성을
+     고르는 것이다). 자기 하위도 아니다 — 자기 아래로 들어가면 고리가 생긴다 */
+  const pool = S.nodes.filter((x) => kindOf(x).axis === "b" && !isGroup(x)
+    && x.id !== n.id && !isSubDescendant(n.id, x.id)).sort(byLabel);
+  /* 방향에 주의. isSubDescendant(a, b) 는 "b 가 a 의 하위인가"다. 여기서는 내가
+     **부모**를 고르는 중이라 내 하위를 걸러야 한다 — 반대로 쓰면 내 하위가
+     그대로 후보로 나와서 자기 아래로 들어가 고리가 생긴다 */
+  keywordPicker(body, "들어갈 키워드 찾기", pool, (id) => {
+    parentPick.set(n.id, id);
+    renderSide();
+  });
 }
 
 /** 하위 키워드 등록 — 한 줄에 여러 개를 쉼표로 넣을 수 있다 */
@@ -553,7 +639,7 @@ function renderSubs(body: HTMLElement, n: GNode) {
     right.appendChild(tb);
   }
 
-  const tab = ringTabs(body, n);
+  const tab = ringTabs(body, n, n.id);
   const addRow = div(body, "addrow");
   const inp = document.createElement("input");
   inp.className = "inp";
