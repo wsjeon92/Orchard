@@ -207,6 +207,27 @@ export function normalize() {
     S.edges = S.edges.filter((e) => (!e.a || live.has(e.a)) && (!e.b || live.has(e.b))
       && (e.members ?? []).every((m) => live.has(m)));
   }
+  /* 상위는 하나다. 쓰는 쪽(addEdge)은 지키는데 불러오는 쪽이 안 지키면, 옛 저장본의
+     둘 가진 노드가 그대로 남는다 — members[] 를 sub 로 옮길 때 '이중항체'가 항체와
+     '대체 결합 포맷' 양쪽의 하위가 된 것이 그렇다. 궤도 노드 쪽을 남긴다:
+     고리가 담는 것이 더 좁은 말이라 그 이름이 살아야 고리에 이름이 남는다. */
+  {
+    const seen = new Set<string>();
+    const keep: typeof S.edges = [];
+    const subs = S.edges.filter((e) => e.kind === "sub");
+    for (const pass of [true, false]) {
+      for (const e of subs) {
+        if (!e.b || seen.has(e.b)) continue;
+        if (isGroup(S.nodes.find((n) => n.id === e.a)) !== pass) continue;
+        seen.add(e.b);
+        keep.push(e);
+      }
+    }
+    if (keep.length !== subs.length) {
+      const ok = new Set(keep.map((e) => e.id));
+      S.edges = S.edges.filter((e) => e.kind !== "sub" || ok.has(e.id));
+    }
+  }
   /* 식구 없는 궤도 노드를 치운다. 고리가 아니라 부스러기다 — 남겨 두면 행성에서
      아무 데도 아닌 곳으로 점선이 뻗는다 */
   const dead = new Set(S.nodes.filter((n) => isGroup(n)

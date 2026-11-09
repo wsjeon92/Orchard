@@ -2,32 +2,77 @@
   "manifest_version": "0.3",
   "name": "orchard",
   "display_name": "Orchard 그래프",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Orchard 아이디어 그래프를 읽고 고칩니다",
-  "long_description": "연구 아이디어를 키워드 그래프로 넓히고 깊이 파는 도구 Orchard 의 그래프 파일을 Claude 가 직접 읽고 고칩니다.\n\n키워드와 연결을 추가하고, 관련 연구를 붙이고, 빈 곳(관련 연구가 없는 키워드, 아무 데도 안 이어진 키워드, 이름 없는 그룹)을 찾아 줍니다.\n\n브라우저에서 Orchard 를 같은 파일에 연결해 두면 고친 내용이 1~2 초 안에 화면에 나타납니다.",
-  "author": { "name": "wsjeon92", "url": "https://github.com/wsjeon92" },
-  "repository": { "type": "git", "url": "https://github.com/wsjeon92/Orchard.git" },
+  "long_description": "연구 아이디어를 키워드 그래프로 넓히고 깊이 파는 도구 Orchard 의 그래프 파일을 Claude 가 직접 읽고 고칩니다.\n\n키워드와 교차를 더하고, 궤도(상위-하위)에 넣고 빼고, 교차를 합성 키워드로 올리고, 관련 연구를 붙입니다.\n\n구조만 손대고 자리는 잡지 않습니다 — 궤도 배치는 앱의 일이라 고친 뒤 `보기 → 궤도 정리`를 누르면 제자리로 갑니다.\n\n브라우저에서 Orchard 를 같은 파일에 연결해 두면 고친 내용이 1~2 초 안에 화면에 나타납니다.",
+  "author": {
+    "name": "wsjeon92",
+    "url": "https://github.com/wsjeon92"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wsjeon92/Orchard.git"
+  },
   "homepage": "https://wsjeon92.github.io/Orchard/",
   "license": "MIT",
-  "keywords": ["orchard", "graph", "research", "ideas"],
+  "keywords": [
+    "orchard",
+    "graph",
+    "research",
+    "ideas"
+  ],
   "server": {
     "type": "node",
     "entry_point": "server/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/server/index.js", "${user_config.graph_file}"]
+      "args": [
+        "${__dirname}/server/index.js",
+        "${user_config.graph_file}"
+      ]
     }
   },
   "tools": [
-    { "name": "get_graph",   "description": "그래프 전체를 읽는다" },
-    { "name": "find_gaps",   "description": "관련 연구 없는 키워드, 외톨이 키워드, 이름 없는 그룹·연결을 찾는다" },
-    { "name": "add_keyword", "description": "키워드를 추가한다" },
-    { "name": "connect",     "description": "키워드 둘 이상을 한 연결로 잇는다" },
-    { "name": "add_sub",     "description": "하위 키워드를 붙인다" },
-    { "name": "make_group",  "description": "키워드들을 느슨하게 묶는다" },
-    { "name": "rename",      "description": "키워드·연결·그룹의 이름을 바꾼다" },
-    { "name": "set_note",    "description": "메모를 쓴다" },
-    { "name": "add_works",   "description": "관련 연구(논문·도구)를 붙인다" }
+    {
+      "name": "get_graph",
+      "description": "그래프 전체를 읽는다 — 키워드, 궤도, 교차, 문헌"
+    },
+    {
+      "name": "find_loose",
+      "description": "확실하게 비어 있는 곳을 센다 (문헌 0, 연결 0, 이름 없는 교차·궤도)"
+    },
+    {
+      "name": "add_keyword",
+      "description": "키워드를 추가한다. 바로 궤도에 넣을 수도 있다"
+    },
+    {
+      "name": "connect",
+      "description": "키워드 둘 이상을 한 교차로 잇는다"
+    },
+    {
+      "name": "set_parent",
+      "description": "키워드를 궤도에 넣거나 뺀다"
+    },
+    {
+      "name": "make_orbit",
+      "description": "한 키워드 둘레에 이름 붙은 궤도를 만든다"
+    },
+    {
+      "name": "promote",
+      "description": "이름 붙은 교차를 합성 키워드로 올린다"
+    },
+    {
+      "name": "rename",
+      "description": "키워드·교차·궤도의 이름을 바꾼다"
+    },
+    {
+      "name": "set_note",
+      "description": "메모를 쓴다"
+    },
+    {
+      "name": "add_works",
+      "description": "관련 연구(논문·도구)를 붙인다"
+    }
   ],
   "user_config": {
     "graph_file": {
@@ -39,7 +84,12 @@
   },
   "compatibility": {
     "claude_desktop": ">=0.10.0",
-    "platforms": ["darwin", "win32"],
-    "runtimes": { "node": ">=18.0.0" }
+    "platforms": [
+      "darwin",
+      "win32"
+    ],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
   }
 }
