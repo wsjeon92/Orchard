@@ -288,40 +288,17 @@ export function tidyOrbit() {
   }
 }
 
-/* ---------------- 궤도 그리기 ----------------
+/* ---------------- 궤도 읽기·그리기 ----------------
 
-   태양계를 위에서 내려다본 모양. 궤도는 저장하지 않고 **지금 좌표에서 다시 잰다** —
-   저장해 두면 노드를 하나 끌었을 때 원만 제자리에 남아 거짓말이 된다. */
+   궤도는 저장하지 않고 **지금 좌표에서 다시 잰다** — 저장해 두면 노드를 하나
+   끌었을 때 원만 제자리에 남아 거짓말이 된다. 그래서 "보이는 궤도"와 "끌 수 있는
+   궤도"가 같은 함수에서 나온다. 눈에 원이 없으면 그 노드는 자유롭게 움직인다. */
 
 const cx = (n: GNode) => n.x + (n._w ?? 140) / 2;
 const cy = (n: GNode) => n.y + (n._h ?? 38) / 2;
 
-/** 거리들이 한 궤도라 할 만큼 고른가. 평균 대비 흩어짐이 이 비율 아래면 그린다 */
+/** 거리들이 한 궤도라 할 만큼 고른가. 평균 대비 흩어짐이 이 비율 아래면 궤도로 친다 */
 const ROUND = 0.3;
-
-function ring(c: { x: number; y: number }, ns: GNode[], label = ""): string {
-  const vis = ns.filter((n) => !UI.hidden.has(n.id));
-  if (!vis.length) return "";
-  const ds = vis.map((n) => Math.hypot(cx(n) - c.x, cy(n) - c.y));
-  const m = ds.reduce((a, b) => a + b, 0) / ds.length;
-  if (m < 60) return "";
-  if (vis.length > 1) {
-    const sd = Math.sqrt(ds.reduce((a, b) => a + (b - m) ** 2, 0) / ds.length);
-    if (sd / m > ROUND) return "";
-  }
-  /* 선 두께는 화면 기준으로 고정한다 — 월드가 축소되면 1px 선이 0.3px 가 돼서 사라진다 */
-  let out = `<circle class="orb" cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" `
-    + `r="${m.toFixed(1)}" vector-effect="non-scaling-stroke"/>`;
-  if (label) {
-    /* 이름은 위성 둘 사이 빈 자리에 쓴다. 한 바퀴를 고르게 썼으니 첫 둘의 가운데가
-       언제나 비어 있다 — 노드 위에 글자가 얹히지 않는다 */
-    const as = vis.map((n) => Math.atan2(cy(n) - c.y, cx(n) - c.x)).sort((x, y) => x - y);
-    const a = as.length > 1 ? (as[0] + as[1]) / 2 : as[0] + Math.PI / 2;
-    out += `<text class="orbl" x="${(c.x + Math.cos(a) * m).toFixed(1)}" `
-      + `y="${(c.y + Math.sin(a) * m).toFixed(1)}">${label}</text>`;
-  }
-  return out;
-}
 
 /** 가상의 태양이 어디인가. 세 점 이상이면 원을 맞춰 푼다(Kasa 선형 최소제곱).
 
@@ -349,25 +326,113 @@ function fitSun(ns: GNode[]): { x: number; y: number } {
   };
 }
 
-export function orbitRings(): string {
+export interface LiveRing {
+  c: { x: number; y: number };
+  r: number;
+  ids: string[];
+  label: string;
+}
+export interface OrbIndex {
+  /** 고리 키 -> 지금 그려져 있는 고리 */
+  rings: Map<string, LiveRing>;
+  /** 노드 id -> 그 노드가 앉아 있는 고리 키 */
+  of: Map<string, string>;
+  /** 행성 id -> 그 행성을 따라 움직여야 하는 위성 전부 */
+  sat: Map<string, string[]>;
+}
+
+/** 지금 좌표가 실제로 만들고 있는 고리들. 그리기와 끌기가 이 하나를 같이 본다 */
+export function orbitIndex(): OrbIndex {
   const o = plan();
-  let out = "";
+  const rings = new Map<string, LiveRing>();
+  const of = new Map<string, string>();
+  const sat = new Map<string, string[]>();
+
+  const add = (key: string, c: { x: number; y: number }, ns: GNode[], label: string) => {
+    const vis = ns.filter((n) => !UI.hidden.has(n.id));
+    if (!vis.length) return;
+    const ds = vis.map((n) => Math.hypot(cx(n) - c.x, cy(n) - c.y));
+    const m = ds.reduce((a, b) => a + b, 0) / ds.length;
+    if (m < 60) return;
+    if (vis.length > 1) {
+      const sd = Math.sqrt(ds.reduce((a, b) => a + (b - m) ** 2, 0) / ds.length);
+      if (sd / m > ROUND) return;                    // 흩어져 있으면 궤도가 아니다
+    }
+    rings.set(key, { c, r: m, ids: vis.map((n) => n.id), label });
+    for (const n of vis) of.set(n.id, key);
+  };
 
   /* 메인 동심원 — 중심은 가장 바깥 층이 말하는 자리. 그 층이 가장 식구가 많고
      고르게 퍼져 있어서 원을 가장 잘 알려준다. 안쪽 층은 같은 중심을 쓴다 */
   const outer = (o.layers[0]?.ns ?? []).filter((n) => !UI.hidden.has(n.id));
   if (outer.length > 2) {
     const c = fitSun(outer);
-    for (const lay of o.layers) out += ring(c, lay.ns);
+    for (const lay of o.layers) add("m:" + lay.depth, c, lay.ns, "");
   }
 
   /* 위성 궤도 — 행성마다, 고리마다. 그룹 고리는 그룹 이름을 달고 나온다 */
   for (const [pid, s] of o.sys) {
-    if (UI.hidden.has(pid)) continue;
     const p = nodeOf(pid);
-    if (!p) continue;
+    if (!p || UI.hidden.has(pid)) continue;
     const c = { x: cx(p), y: cy(p) };
-    for (const g of s.rings) out += ring(c, g.ns, g.label);
+    const all: string[] = [];
+    for (const g of s.rings) {
+      add("s:" + pid + ":" + g.key, c, g.ns, g.label);
+      for (const n of g.ns) all.push(n.id);
+    }
+    sat.set(pid, all);
+  }
+  return { rings, of, sat };
+}
+
+/** 보이는 궤도. 선보다 먼저 써서 맨 뒤에 깐다 */
+export function orbitRings(): string {
+  let out = "";
+  for (const [, R] of orbitIndex().rings) {
+    const c = R.c, r = R.r.toFixed(1);
+    const X = c.x.toFixed(1), Y = c.y.toFixed(1);
+    /* 선 두께는 화면 기준으로 고정한다 — 월드가 축소되면 1px 선이 0.3px 가 돼서 사라진다 */
+    out += `<circle class="orb" cx="${X}" cy="${Y}" r="${r}" vector-effect="non-scaling-stroke"/>`;
+    if (!R.label) continue;
+    /* 이름은 위성 둘 사이 빈 자리에 쓴다. 한 바퀴를 고르게 썼으니 첫 둘의 가운데가
+       언제나 비어 있다 — 노드 위에 글자가 얹히지 않는다 */
+    const as = R.ids.map((id) => {
+      const n = nodeOf(id)!;
+      return Math.atan2(cy(n) - c.y, cx(n) - c.x);
+    }).sort((x, y) => x - y);
+    const a = as.length > 1 ? (as[0] + as[1]) / 2 : as[0] + Math.PI / 2;
+    out += `<text class="orbl" x="${(c.x + Math.cos(a) * R.r).toFixed(1)}" `
+      + `y="${(c.y + Math.sin(a) * R.r).toFixed(1)}">${R.label}</text>`;
   }
   return out;
+}
+
+/** 잡는 띠. **맨 나중에** 써서 맨 위에 둔다.
+
+    보이는 선은 가늘어야 하고 손가락은 굵어야 해서 둘로 나눈다. 그런데 뒤에 깔면
+    엣지의 집는 선(stroke-width 18)이 위를 덮어 궤도를 영영 못 잡는다 — 교차 선이
+    허브로 모이느라 고리 근처가 가장 빽빽하기 때문이다. 궤도는 가느다란 곡선 하나뿐이라
+    다른 데서 잡을 길이 없고, 엣지는 선 어디서나 잡을 수 있으니 궤도를 위에 둔다. */
+export function orbitHits(): string {
+  const w = hitWidth();
+  let out = "";
+  for (const [key, R] of orbitIndex().rings) {
+    out += `<circle class="orbhit" data-orb="${key}" cx="${R.c.x.toFixed(1)}" `
+      + `cy="${R.c.y.toFixed(1)}" r="${R.r.toFixed(1)}" stroke-width="${w}"/>`;
+  }
+  return out;
+}
+
+/** 집는 띠의 두께. 화면에서 늘 같은 굵기가 되도록 배율로 나눈 월드 단위다.
+
+    vector-effect: non-scaling-stroke 로는 안 된다. 그건 **그리는** 두께만 화면에
+    고정하고, 크롬은 **집을 때**는 원래(월드) 두께로 판정한다. 20% 로 축소하면
+    14 월드단위가 화면에서 2.8px 이 되어, 고리 둘레의 3% 에서만 집혔다. */
+const hitWidth = () => (16 / Math.max(0.05, S.view.k)).toFixed(1);
+
+/** 배율이 바뀌면 띠 두께를 다시 맞춘다. 줌은 다시 그리지 않고 transform 만 바꾸므로
+    여기서 직접 손본다 — 안 하면 확대할수록 띠가 뚱뚱해진다 */
+export function syncOrbitHits(root: ParentNode) {
+  const w = hitWidth();
+  root.querySelectorAll(".orbhit").forEach((c) => c.setAttribute("stroke-width", w));
 }

@@ -79,7 +79,7 @@ PROBE = r"""() => {
       })),
     })),
     pos,
-    rings: (Orchard.orbitRings().match(/<circle/g) || []).length,
+    rings: (Orchard.orbitRings().match(/class="orb"/g) || []).length,
     labels: [...Orchard.orbitRings().matchAll(/class="orbl"[^>]*>([^<]*)</g)].map(m => m[1]),
     boxes: [...document.querySelectorAll('.grp')].map(e => [e.offsetWidth, e.offsetHeight]),
   };
@@ -223,6 +223,124 @@ def main():
             diff = [k for k in r3['pos'] if r4['pos'].get(k) != r3['pos'][k]]
             bad.append(f"같은 그래프인데 좌표가 달라진다: {diff[:5]}")
         print("\n4) 두 번 돌려 같은 좌표")
+
+        # ---------- 5) 끌기: 노드는 궤도 위에서만, 크기는 궤도를 잡았을 때만 ----------
+        pg5 = b.new_page(viewport={'width': 1400, 'height': 900})
+        seeded(pg5, REAL.read_text(encoding='utf-8'))
+        pg5.evaluate("() => { Orchard.tidyOrbit(); Orchard.render(); Orchard.fit(); }")
+        pg5.wait_for_timeout(350)
+        print("\n5) 끌기")
+
+        # 화면 안에 넉넉히 들어온 메인 궤도 노드를 하나 고른다
+        pick = pg5.evaluate("""() => {
+          const ix = Orchard.orbitIndex();
+          const R = ix.rings.get('m:0');
+          for (const id of R.ids) {
+            const e = Orchard.nodeEls.get(id);
+            const b = e.getBoundingClientRect();
+            if (b.left > 180 && b.right < 1220 && b.top > 120 && b.bottom < 780)
+              return {id, label: Orchard.nodeOf(id).label};
+          }
+          return null;
+        }""")
+        if not pick:
+            bad.append("화면 안에 있는 메인 궤도 노드를 못 찾았다")
+        else:
+            def state(nid):
+                return pg5.evaluate("""(id) => {
+                  const ix = Orchard.orbitIndex();
+                  const n = Orchard.nodeOf(id);
+                  const R = ix.rings.get(ix.of.get(id));
+                  const C = {x: n.x + (n._w||140)/2, y: n.y + (n._h||38)/2};
+                  return {r: +R.r.toFixed(1),
+                          d: +Math.hypot(C.x - R.c.x, C.y - R.c.y).toFixed(1),
+                          ang: +Math.atan2(C.y - R.c.y, C.x - R.c.x).toFixed(3)};
+                }""", nid)
+            box = pg5.evaluate("(id) => { const b = Orchard.nodeEls.get(id)"
+                               ".getBoundingClientRect(); return [b.left + b.width/2, b.top + b.height/2]; }",
+                               pick['id'])
+            before = state(pick['id'])
+            pg5.mouse.move(box[0], box[1]); pg5.mouse.down()
+            pg5.mouse.move(box[0] + 90, box[1] + 90, steps=10)
+            pg5.mouse.up(); pg5.wait_for_timeout(250)
+            after = state(pick['id'])
+            print(f"   노드 '{pick['label']}'  중심거리 {before['d']} → {after['d']}  "
+                  f"각도 {before['ang']} → {after['ang']}  궤도 {before['r']} → {after['r']}")
+            if abs(after['d'] - before['d']) > 2:
+                bad.append(f"노드를 끄니 궤도를 벗어났다: {before['d']} → {after['d']}")
+            if abs(after['ang'] - before['ang']) < 0.01:
+                bad.append("노드를 끌었는데 궤도 위에서 안 움직였다")
+            if abs(after['r'] - before['r']) > 3:
+                bad.append(f"노드를 끌었는데 궤도 크기가 바뀌었다: {before['r']} → {after['r']}")
+
+        # 궤도 띠에서 **실제로 집히는** 각도를 찾는다. 노드(HTML div)는 SVG 위에 있고
+        # 엣지 집는 선도 지나가므로, 계산상 띠 위라고 집히는 건 아니다.
+        grab = pg5.evaluate("""() => {
+          const ix = Orchard.orbitIndex();
+          const R = ix.rings.get('m:0');
+          // 월드 -> 화면은 SVG 가 쓰는 행렬로 바꾼다. k 와 view 로 손계산하면
+          // 상단바 높이 같은 오프셋이 빠져서 몇 px 어긋나고, 그러면 띠를 빗나간다
+          const svg = document.getElementById('svg');
+          const m = svg.getScreenCTM();
+          const toScreen = (x, y) => {
+            const p = svg.createSVGPoint(); p.x = x; p.y = y;
+            return p.matrixTransform(m);
+          };
+          let ok = 0, tried = 0, found = null;
+          for (let i = 0; i < 360; i++) {
+            const a = (i * Math.PI) / 180;
+            const s = toScreen(R.c.x + Math.cos(a) * R.r, R.c.y + Math.sin(a) * R.r);
+            if (s.x < 200 || s.x > 1200 || s.y < 140 || s.y > 760) continue;
+            tried++;
+            const e = document.elementFromPoint(s.x, s.y);
+            const hit = e && (e.getAttribute('class') || '').includes('orbhit');
+            if (hit) { ok++; if (!found) found = {sx: s.x, sy: s.y, a}; }
+          }
+          return {r: R.r, n: R.ids.length, ok, tried, found};
+        }""")
+        rate = (grab['ok'] * 100 // grab['tried']) if grab['tried'] else 0
+        print(f"   궤도 띠 집히는 각도 {grab['ok']}/{grab['tried']} ({rate}%)")
+        if not grab['found']:
+            bad.append("궤도 띠를 집을 수 있는 자리가 화면 안에 하나도 없다")
+        else:
+            if rate < 50:
+                bad.append(f"궤도 띠가 절반도 안 집힌다 ({rate}%) — 다른 것이 덮고 있다")
+            import math
+            f = grab['found']
+            pg5.mouse.move(f['sx'], f['sy']); pg5.mouse.down()
+            pg5.mouse.move(f['sx'] + math.cos(f['a']) * 150,
+                           f['sy'] + math.sin(f['a']) * 150, steps=10)
+            pg5.mouse.up(); pg5.wait_for_timeout(250)
+            after = pg5.evaluate("() => { const R = Orchard.orbitIndex().rings.get('m:0');"
+                                 " return R ? {r: R.r, n: R.ids.length} : null; }")
+            print(f"   궤도 반지름 {grab['r']:.0f} → "
+                  + (f"{after['r']:.0f}  (식구 {grab['n']} → {after['n']}개)" if after else "사라짐"))
+            if not after:
+                bad.append("궤도를 끌었더니 궤도가 깨졌다")
+            elif after['r'] <= grab['r'] + 100:
+                bad.append(f"궤도를 끌었는데 안 커졌다: {grab['r']:.0f} → {after['r']:.0f}")
+            elif after['n'] != grab['n']:
+                bad.append(f"궤도를 끄니 식구가 흩어졌다: {grab['n']} → {after['n']}")
+
+        # 행성을 끌면 위성이 따라온다 — 위성 궤도 크기가 그대로여야 한다
+        moon = pg5.evaluate("""() => {
+          const ix = Orchard.orbitIndex();
+          const p = Orchard.S.nodes.find(n => n.label === '단백질');
+          const key = [...ix.rings.keys()].find(k => k.startsWith('s:' + p.id + ':'));
+          const b = Orchard.nodeEls.get(p.id).getBoundingClientRect();
+          return {key, r: ix.rings.get(key).r, sx: b.left + b.width/2, sy: b.top + b.height/2};
+        }""")
+        pg5.mouse.move(moon['sx'], moon['sy']); pg5.mouse.down()
+        pg5.mouse.move(moon['sx'] - 70, moon['sy'] + 60, steps=10)
+        pg5.mouse.up(); pg5.wait_for_timeout(250)
+        after = pg5.evaluate("(key) => { const R = Orchard.orbitIndex().rings.get(key);"
+                             " return R ? {r: R.r} : null; }", moon['key'])
+        print(f"   행성 '단백질' 이동 후 위성 궤도 {moon['r']:.0f} → "
+              + (f"{after['r']:.0f}" if after else "깨짐"))
+        if not after:
+            bad.append("행성을 끌었더니 위성 궤도가 깨졌다 — 위성이 안 따라왔다")
+        elif abs(after['r'] - moon['r']) > 3:
+            bad.append(f"행성을 끄니 위성 궤도 크기가 바뀌었다: {moon['r']:.0f} → {after['r']:.0f}")
 
         b.close()
 

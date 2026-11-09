@@ -416,6 +416,10 @@ html.viewer #btnLink{display:none}
    실선이면 어느 배율에서도 보인다 */
 .orb{fill:none;stroke:#8e9cb8;stroke-width:1.1;opacity:.68;
   pointer-events:none;vector-effect:non-scaling-stroke}
+/* 잡는 띠. 보이는 선은 가늘어야 하고 손가락은 굵어야 해서 둘로 나눈다.
+   두께를 화면 기준으로 고정해야 축소해도 집을 수 있다 */
+.orbhit{fill:none;stroke:transparent;pointer-events:stroke;cursor:ew-resize}
+.orbhit:hover{stroke:color-mix(in srgb,#b9c6e0 22%,transparent)}
 /* 궤도 이름 — 그룹 고리에만 붙는다. 그룹 이름이 그 궤도의 이름이다 */
 .orbl{fill:#8e9cbb;font-size:13px;pointer-events:none;text-anchor:middle;
   dominant-baseline:middle;paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}

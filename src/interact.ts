@@ -2,10 +2,11 @@ import { elblEls, nodeEls, screenToWorld, stage } from "./dom";
 import { isPinned, labelOffset, pinnedPos, px, py, snapToEdge } from "./geom";
 import {
   addEdge, addNode, canGroup, dropEdge, dropNode, edgeAddMember,
-  groupOf, hitTarget, removeFromGroup, nudgeFree,
+  hitTarget, nudgeFree,
 } from "./graph";
 import { groupWith } from "./panel";
 import { Drop, applyView, paint, render, select, setBindLabel, setDragLine } from "./render";
+import { orbitIndex } from "./orbit";
 import { S, UI, VIEW, edgeOf, isGroup, nodeOf, save } from "./state";
 import { ask, closeAll } from "./modals";
 import { redo, undo } from "./history";
@@ -13,7 +14,11 @@ import { isViewer } from "./viewer";
 
 type Drag =
   | { type: "pan"; sx: number; sy: number; vx: number; vy: number; moved: boolean }
-  | { type: "node"; id: string; dx: number; dy: number; moved: boolean; group: string[] | null; alt: boolean }
+  | { type: "node"; id: string; dx: number; dy: number; moved: boolean; group: string[] | null; alt: boolean;
+      /** 이 궤도 위에서만 움직인다. 없으면 자유 */
+      orb: { c: { x: number; y: number }; r: number } | null }
+  | { type: "orb"; c: { x: number; y: number }; ids: string[]; ang: Map<string, number>;
+      sat: Map<string, string[]>; moved: boolean }
   | { type: "link"; from: string; cur: { x: number; y: number } }
   | { type: "elbl"; eid: string; ox: number; oy: number; moved: boolean }
   | { type: "band"; sx: number; sy: number; cx: number; cy: number; moved: boolean }
@@ -50,6 +55,18 @@ export function bindNode(el: HTMLElement, id: string) {
          여러 개를 골라둔 상태에서 그중 하나를 끌면 고른 것 전부가 따라온다.
          고른 노드가 그룹이면 그 멤버까지 — 상자만 가고 알맹이가 남으면 안 된다. */
       let together: string[] | null = isGroup(n) ? (n.members ?? []).slice() : null;
+      /* 궤도는 누를 때 한 번만 잰다. 움직일 때마다 다시 재면 내가 옮긴 결과가
+         다음 계산의 입력이 되어 중심이 손끝을 따라 흘러간다. */
+      const ix = orbitIndex();
+      const key = ix.of.get(id);
+      const R = key ? ix.rings.get(key) : undefined;
+      let orb = R ? { c: R.c, r: R.r } : null;
+      if (orb) {
+        /* 궤도 위에서는 행성만 식구를 데려간다. 행성이 움직이면 위성 궤도의
+           중심이 따라가야 하기 때문이다. 그룹 표지는 자기 고리를 혼자 미끄러진다 —
+           멤버가 같은 고리에 있으니 데려갈 이유가 없다. */
+        together = ix.sat.get(id)?.slice() ?? null;
+      }
       if (UI.marked.size >= 2 && UI.marked.has(id)) {
         const set = new Set<string>(together ?? []);
         for (const mid of UI.marked) {
@@ -60,10 +77,11 @@ export function bindNode(el: HTMLElement, id: string) {
         }
         set.delete(id);
         together = [...set];
+        orb = null;        // 여러 개를 한꺼번에 옮길 때는 궤도를 풀어 준다 — 자유 배치로 가는 길
       }
       drag = {
         type: "node", id, dx: w.x - n.x, dy: w.y - n.y, moved: false,
-        group: together, alt: ev.altKey,
+        group: together, alt: ev.altKey, orb,
       };
       el.classList.add("dragging");
       if (together) for (const mid of together) nodeEls.get(mid)?.classList.add("dragging");
@@ -199,6 +217,27 @@ export function bindCanvas() {
       if (touches.size === 2) { startPinch(); return; }
       if (touches.size > 2) return;
     }
+    /* 궤도 띠를 집었으면 화면 밀기가 아니라 궤도 크기 바꾸기다.
+       크기는 궤도를 잡았을 때만 바뀐다 — 노드를 끌어서는 안 바뀐다. */
+    const oh = (ev.target as Element).closest?.(".orbhit") as SVGCircleElement | null;
+    if (oh && ev.button === 0 && !isViewer()) {
+      const ix = orbitIndex();
+      const R = ix.rings.get(oh.dataset.orb ?? "");
+      if (R) {
+        const ang = new Map<string, number>();
+        const sat = new Map<string, string[]>();
+        for (const id of R.ids) {
+          const n = nodeOf(id);
+          if (!n) continue;
+          ang.set(id, Math.atan2(n.y + (n._h ?? 38) / 2 - R.c.y, n.x + (n._w ?? 140) / 2 - R.c.x));
+          const sd = ix.sat.get(id);
+          if (sd) sat.set(id, sd);
+        }
+        drag = { type: "orb", c: R.c, ids: R.ids, ang, sat, moved: false };
+        ev.preventDefault();
+        return;
+      }
+    }
     ev.preventDefault();   // 캔버스 밖(사이드 패널)까지 번지는 드래그 선택을 막는다
     /* Shift+드래그 — 사각형으로 여러 개 고르기.
        Shift 는 이미 "더 고른다"는 뜻이라(Shift+클릭) 끌 때도 같은 뜻으로 둔다.
@@ -228,7 +267,15 @@ export function bindCanvas() {
       const w = screenToWorld(ev.clientX, ev.clientY);
       const n = nodeOf(drag.id);
       if (!n) return;
-      const nx = Math.round(w.x - drag.dx), ny = Math.round(w.y - drag.dy);
+      let nx = Math.round(w.x - drag.dx), ny = Math.round(w.y - drag.dy);
+      if (drag.orb) {
+        /* 엣지 이름이 선 위에서만 움직이는 것과 같다 — 각도만 바뀌고 반지름은 그대로.
+           손끝을 그대로 따라가지 않고 이 고리 위 가장 가까운 자리로 끌어당긴다 */
+        const w2 = (n._w ?? 140) / 2, h2 = (n._h ?? 38) / 2;
+        const a = Math.atan2(ny + h2 - drag.orb.c.y, nx + w2 - drag.orb.c.x);
+        nx = Math.round(drag.orb.c.x + Math.cos(a) * drag.orb.r - w2);
+        ny = Math.round(drag.orb.c.y + Math.sin(a) * drag.orb.r - h2);
+      }
       if (drag.group) {                               // 그룹을 끌면 멤버가 같이 움직인다
         const ddx = nx - n.x, ddy = ny - n.y;
         drag.group.forEach((mid) => {
@@ -238,12 +285,32 @@ export function bindCanvas() {
       }
       n.x = nx; n.y = ny; n._rx = nx; n._ry = ny;
       drag.moved = true;
-      Drop.target = drag.alt || drag.group ? null
+      Drop.target = drag.alt || drag.group || drag.orb ? null
         : hitTarget(drag.id, n.x + (n._w ?? 140) / 2, n.y + (n._h ?? 38) / 2);
       Drop.kind = Drop.target ? "group" : null;
       for (const [id, el] of nodeEls) {
         el.classList.toggle("drop", Drop.kind === "group" && Drop.target === id);
       }
+      paint();
+    } else if (drag.type === "orb") {
+      const w = screenToWorld(ev.clientX, ev.clientY);
+      const r = Math.max(60, Math.hypot(w.x - drag.c.x, w.y - drag.c.y));
+      for (const id of drag.ids) {
+        const n = nodeOf(id);
+        if (!n) continue;
+        const a = drag.ang.get(id) ?? 0;
+        const ox = n.x, oy = n.y;
+        n.x = Math.round(drag.c.x + Math.cos(a) * r - (n._w ?? 140) / 2);
+        n.y = Math.round(drag.c.y + Math.sin(a) * r - (n._h ?? 38) / 2);
+        n._rx = n.x; n._ry = n.y;
+        /* 이 노드가 행성이면 위성도 같은 만큼 민다 — 안 그러면 위성 궤도만 제자리에
+           남아 중심이 빈다 */
+        for (const sid of drag.sat.get(id) ?? []) {
+          const m = nodeOf(sid);
+          if (m) { m.x += n.x - ox; m.y += n.y - oy; m._rx = m.x; m._ry = m.y; }
+        }
+      }
+      drag.moved = true;
       paint();
     } else if (drag.type === "elbl") {
       const e = edgeOf(drag.eid);
@@ -311,6 +378,13 @@ export function bindCanvas() {
       render();
       return;
     }
+    if (d.type === "orb") {
+      drag = null;
+      stage.classList.remove("panning");
+      if (d.moved) save();
+      render();
+      return;
+    }
     if (d.type === "band") {
       drag = null;
       drawBand();                                  // 사각형을 치운다
@@ -336,17 +410,11 @@ export function bindCanvas() {
       /* 다른 노드 위에 놓였으면 가장 가까운 빈자리로 민다 (새로 만들 때와 같은 규칙).
          여러 개를 한꺼번에 옮기는 중이거나 그룹째 옮기는 중이면 손대지 않는다 —
          사용자가 통째로 잡아 옮긴 배치를 하나만 빼내 흩뜨리게 된다. */
-      if (d.moved && !d.group) nudgeFree(d.id);
-      // 그룹 밖으로 끌어내면 빠진다
-      if (d.moved && !d.group) {
-        const g = groupOf(d.id), n = nodeOf(d.id);
-        if (g && n) {
-          const cx = n.x + (n._w ?? 140) / 2, cy = n.y + (n._h ?? 38) / 2;
-          if (cx < g.x || cx > g.x + g._w! || cy < g.y || cy > g.y + g._h!) {
-            removeFromGroup(g.id, d.id);
-          }
-        }
-      }
+      /* 궤도 위에 있으면 밀지 않는다 — 밀면 궤도에서 떨어진다 */
+      if (d.moved && !d.group && !d.orb) nudgeFree(d.id);
+      /* 상자 밖으로 끌어내서 그룹을 빠져나오던 길은 없앴다. 그룹은 이제 상자가
+         아니라 이름 붙은 고리라서 "상자 밖"이라는 자리가 없다 — 표지 크기(168×40)로
+         재면 멤버를 조금만 움직여도 그룹에서 튕겨 나갔다. 빼는 것은 패널에서 한다. */
     }
     Drop.target = null; Drop.kind = null;
     stage.classList.remove("panning");

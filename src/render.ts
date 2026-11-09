@@ -1,6 +1,6 @@
 import { kickAnim } from "./anim";
 import { gapSet } from "./gaps";
-import { orbitRings } from "./orbit";
+import { orbitHits, orbitRings, syncOrbitHits } from "./orbit";
 import { elblEls, nodeEls, stage, world } from "./dom";
 import { bindNode } from "./interact";
 import {
@@ -159,6 +159,7 @@ export function applyView() {
   document.getElementById("zVal")!.textContent = Math.round(S.view.k * 100) + "%";
   // 의미적 줌 — 상자 크기는 그대로 두고 글자만 지운다 (리플로우가 없어 화면이 안 흔들린다)
   world.classList.toggle("faded", VIEW.labelZoom > 0 && S.view.k < VIEW.labelZoom);
+  syncOrbitHits(world);
   drawMini();
 }
 
@@ -256,6 +257,7 @@ export function drawEdges(fset: Set<string> | null, q: string) {
 
   const dr = dragLine();
   if (dr) out += dr;
+  out += orbitHits();                 // 맨 위 — 엣지 집는 선에 가리지 않게
 
   for (const [id, el] of elblEls) if (!eseen.has(id)) { el.remove(); elblEls.delete(id); }
   svgSet(out);
