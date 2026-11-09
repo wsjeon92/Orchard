@@ -13,11 +13,8 @@ id 가 아니라 구조에서 나온 고리 키(`s:<행성>:<앵커>#<깊이>` /
 3. 창에서 넣은 크기가 고리에 그대로 간다 (띠를 끄는 것과 같은 일).
 4. 궤도 노드는 연결을 받지 않는다 — 모든 연결은 노드들 사이에서.
 """
-import json, pathlib
 from playwright.sync_api import sync_playwright
-from conftest_paths import url, launch
-
-REAL = pathlib.Path('/mnt/user-data/uploads/Orchard/v1.json')
+from conftest_paths import url, launch, fixture
 
 
 def main():
@@ -27,14 +24,22 @@ def main():
         pg = b.new_page(viewport={'width': 1400, 'height': 900})
         errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)))
-        pg.add_init_script("localStorage.setItem('kwgraph.state', %s)"
-                           % json.dumps(REAL.read_text(encoding='utf-8')))
-        pg.goto(url()); pg.wait_for_timeout(800)
-        pg.evaluate("() => { Orchard.tidyOrbit(); Orchard.render(); }")
+        pg.goto(url()); pg.wait_for_function("() => !!window.Orchard")
+        fixture(pg)
+        # 이름 있는 고리 하나를 만들어 둔다 — '이름고리' 자리
+        pg.evaluate("""() => {
+          const h = Orchard.S.nodes.find(n => n.label === '행성');
+          const g = Orchard.addNode('이름고리', 0, 0, 'group');
+          Orchard.addEdge(h.id, g.id, 'sub');
+          const t = Orchard.S.nodes.find(n => n.label === '짝');
+          Orchard.addMember(g.id, t.id);
+          Orchard.placeOnSubOrbit(h.id, t.id, 's:' + h.id + ':' + g.id + '#0');
+          Orchard.render();
+        }""")
 
         # 1) 궤도 노드를 고르면 궤도 창
         r1 = pg.evaluate("""() => {
-          const g = Orchard.S.nodes.find(n => n.label === '대체 결합 포맷');
+          const g = Orchard.S.nodes.find(n => n.label === '이름고리');
           Orchard.select('node', g.id);
           const v = Orchard.UI.sel;
           return {sel: v && v.type, key: v && v.id,
@@ -44,7 +49,7 @@ def main():
         }""")
         print(f"1) 궤도 노드 선택 → {r1['sel']} · {r1['kind']} · 제목 '{r1['title']}'")
         if r1['sel'] != 'orbit': bad.append(f"궤도 창이 안 열렸다: {r1}")
-        if r1['title'] != '대체 결합 포맷': bad.append(f"제목이 틀렸다: {r1['title']}")
+        if r1['title'] != '이름고리': bad.append(f"제목이 틀렸다: {r1['title']}")
         if '중심' not in pg.evaluate("() => document.getElementById('sideActs').textContent"):
             bad.append("중심 노드가 창에 없다")
 
@@ -65,7 +70,7 @@ def main():
 
         # 3) 창에서 크기를 바꾸면 고리가 바뀐다
         r3 = pg.evaluate("""() => {
-          const key = 's:' + Orchard.S.nodes.find(n => n.label === '항체').id + ':';
+          const key = 's:' + Orchard.S.nodes.find(n => n.label === '행성').id + ':';
           const k = [...Orchard.orbitIndex().rings.keys()].find(x => x.startsWith(key));
           const was = Orchard.orbitView(k).r;
           Orchard.setOrbitRadius(k, 400);
@@ -77,8 +82,8 @@ def main():
 
         # 4) 이름 없는 고리에 이름을 쓰면 궤도 노드가 생긴다
         r4 = pg.evaluate("""() => {
-          const ex = Orchard.S.nodes.find(n => n.label === '실험');
-          const di = Orchard.S.nodes.find(n => n.label === '디스플레이');
+          const ex = Orchard.S.nodes.find(n => n.label === '벗');
+          const di = Orchard.S.nodes.find(n => n.label === '이웃');
           Orchard.addEdge(ex.id, di.id, 'sub');
           Orchard.placeOnSubOrbit(ex.id, di.id);
           Orchard.render();
@@ -98,13 +103,13 @@ def main():
         print(f"4) 이름 쓰기 → 궤도 노드 {r4['before']} → {r4['after']}개, "
               f"식구 {r4['식구']}, 고리에 이름 {r4['고리이름']}")
         if r4['after'] != r4['before'] + 1: bad.append("이름을 썼는데 궤도 노드가 안 생겼다")
-        if '디스플레이' not in r4['식구']: bad.append(f"식구가 안 옮겨졌다: {r4['식구']}")
+        if '이웃' not in r4['식구']: bad.append(f"식구가 안 옮겨졌다: {r4['식구']}")
         if not r4['고리이름']: bad.append("새 궤도 이름이 고리에 안 뜬다")
 
         # 5) 궤도 노드는 연결을 받지 않는다
         r5 = pg.evaluate("""() => {
           const g = Orchard.S.nodes.find(n => n.label === '선별 방법');
-          const x = Orchard.S.nodes.find(n => n.label === '로봇');
+          const x = Orchard.S.nodes.find(n => n.label === '동무');
           const hyper = Orchard.addHyper([g.id, x.id]);
           const edge = Orchard.addEdge(g.id, x.id, 'part');
           const e2 = Orchard.S.edges.find(e => e.kind === 'assoc');
@@ -123,10 +128,10 @@ def main():
         # 6) 궤도에서 빼면 자기 메인 궤도로 간다 — 넣을 때만 움직이고 뺄 때는
         #    가만히 있었다. 연결이 없으면 L0, 있으면 합성 깊이대로.
         r6 = pg.evaluate("""() => {
-          const ex = Orchard.S.nodes.find(n => n.label === '실험');
+          const ex = Orchard.S.nodes.find(n => n.label === '벗');
           const pick = (lab) => Orchard.S.nodes.find(n => n.label === lab);
           const out = {};
-          for (const lab of ['수율', '음악']) {       // 교차 있는 것 / 없는 것
+          for (const lab of ['동무', '외톨이']) {     // 교차 있는 것 / 없는 것
             const n = pick(lab);
             Orchard.addEdge(ex.id, n.id, 'sub');
             Orchard.placeOnSubOrbit(ex.id, n.id);
@@ -161,8 +166,8 @@ def main():
                       named: !!R.group, r: Math.round(R.r)});
           }
           // 고리가 둘인 행성에서 번호가 안쪽부터인지
-          const p = Orchard.S.nodes.find(n => n.label === '단백질');
-          const two = out.filter(x => x.planet === '단백질').sort((a, b) => a.r - b.r);
+          const p = Orchard.S.nodes.find(n => n.label === '행성');
+          const two = out.filter(x => x.planet === '행성').sort((a, b) => a.r - b.r);
           void p;
           return {out, two};
         }""")
@@ -189,10 +194,10 @@ def main():
 
         # 9) 하위 키워드는 탭이다 — 고른 궤도의 식구만 보이고, 궤도 노드는 안 보인다
         r9 = pg.evaluate("""() => {
-          const d = Orchard.S.nodes.find(n => n.label === '신약개발');
+          const d = Orchard.S.nodes.find(n => n.label === '행성');
           const g = Orchard.addNode('', 0, 0, 'group');     // 이름 없는 궤도 하나 더
           Orchard.addEdge(d.id, g.id, 'sub');
-          const t = Orchard.S.nodes.find(n => n.label === '골격');
+          const t = Orchard.S.nodes.find(n => n.label === '동무');
           Orchard.addMember(g.id, t.id);
           Orchard.placeOnSubOrbit(d.id, t.id, 's:' + d.id + ':' + g.id + '#0');
           Orchard.render();
@@ -215,8 +220,8 @@ def main():
             bad.append("궤도 노드가 하위 목록에 보인다 — 고리의 이름이지 키워드가 아니다")
         if r9['first'] == r9['second']:
             bad.append(f"탭을 바꿔도 목록이 그대로다: {r9['first']}")
-        if not any('S1' in x for x in r9['tabs']):
-            bad.append(f"탭 이름이 S1 이 아니다: {r9['tabs']}")
+        if not any(x.startswith('S') for x in r9['tabs']):
+            bad.append(f"자동 이름 탭이 없다: {r9['tabs']}")
         if any(x.strip().endswith(tuple('0123456789')) and '·' in x for x in r9['tabs']):
             bad.append(f"탭에 반지름이 남아 있다: {r9['tabs']}")
         # 안쪽부터 S1, S2 — 이름 순서가 반지름 순서와 같아야 한다

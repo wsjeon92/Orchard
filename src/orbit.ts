@@ -352,6 +352,21 @@ function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: 
   }
 }
 
+/** 이 메인 층의 반지름. 지금 그려져 있으면 그것, 아니면 다른 층에 비율을 맞춘다.
+
+    식구가 하나뿐인 층은 "그려져 있다"로 치지 않는다 — 점 하나는 원을 정하지
+    못한다. 실제로 고아가 하나일 때 그 노드가 우연히 있던 자리가 L0 의 반지름이
+    되어, 바깥이어야 할 고리가 L1 안쪽으로 들어왔다. */
+function mainRadius(o: Orb, live: OrbIndex, lay: OrbLayer): number {
+  const R = live.rings.get("m:" + lay.depth);
+  if (R && R.ids.length > 1) return R.r;
+  for (const other of o.layers) {
+    const L = live.rings.get("m:" + other.depth);
+    if (L && L.ids.length > 1 && other.r > 0) return (L.r * lay.r) / other.r;
+  }
+  return lay.r;
+}
+
 /** 보기 → 궤도 정리. 좌표만 바꾼다 — 노드·엣지·문헌은 건드리지 않는다.
 
     **고리 크기는 건드리지 않는다.** 크기는 사용자가 고리를 잡아 정하는 것이고,
@@ -371,7 +386,7 @@ export function tidyOrbit(): number {
 
   for (const lay of o.layers) {
     if (!lay.ns.length) continue;
-    const R = live.rings.get("m:" + lay.depth)?.r ?? lay.r;
+    const R = mainRadius(o, live, lay);
     /* 위성 체계가 큰 행성에 각도를 더 준다. 균등하게 나누면 큰 체계가 이웃을 덮는다 */
     const w = lay.ns.map((n) => arcNeed(o.sys.get(n.id), liveReach(o, live, n.id)));
     const tot = w.reduce((a, b) => a + b, 0) || 1;
@@ -420,11 +435,16 @@ function fitSun(ns: GNode[]): { x: number; y: number } {
     xx += x * x; xy += x * y; yy += y * y; xz += x * z; yz += y * z;
   }
   const det = xx * yy - xy * xy;
-  if (Math.abs(det) < 1e-9) return c0;                     // 한 줄로 늘어섰으면 원이 아니다
-  return {
-    x: c0.x + (xz * yy - yz * xy) / (2 * det),
-    y: c0.y + (yz * xx - xz * xy) / (2 * det),
-  };
+  if (!det) return c0;
+  const dx = (xz * yy - yz * xy) / (2 * det);
+  const dy = (yz * xx - xz * xy) / (2 * det);
+  /* 한 줄로 늘어선 점들에는 원을 맞출 수 없다. det 를 절대값으로 재면 안 된다 —
+     좌표가 커지면 거의 일직선이어도 det 가 크게 나와서 가드를 그냥 지나간다.
+     실제로 y=0 위에 놓인 노드들에서 중심이 75,910 밖으로 날아갔다.
+     고친 값이 점들이 퍼진 범위보다 터무니없이 멀면 원이 아니라고 본다. */
+  const spread = Math.max(...pts.map(([x, y]) => Math.hypot(x - c0.x, y - c0.y)), 1);
+  if (!isFinite(dx) || !isFinite(dy) || Math.hypot(dx, dy) > spread * 12) return c0;
+  return { x: c0.x + dx, y: c0.y + dy };
 }
 
 export interface LiveRing {
@@ -468,11 +488,16 @@ export function orbitIndex(): OrbIndex {
     if (group) of.set(group, key);
   };
 
-  /* 메인 동심원 — 중심은 가장 바깥 층이 말하는 자리. 그 층이 가장 식구가 많고
-     고르게 퍼져 있어서 원을 가장 잘 알려준다. 안쪽 층은 같은 중심을 쓴다 */
-  const outer = (o.layers[0]?.ns ?? []).filter((n) => !UI.hidden.has(n.id));
-  if (outer.length > 2) {
-    const c = fitSun(outer);
+  /* 메인 동심원 — 중심은 **식구가 가장 많은 층**이 말하는 자리. 원을 맞추려면
+     점이 셋은 있어야 하고, 많을수록 잘 맞는다. 안쪽 층은 같은 중심을 쓴다.
+
+     전에는 가장 바깥 층(L0)으로만 맞췄는데, 고아가 하나뿐이면 점이 모자라서
+     **메인 고리가 통째로 사라졌다** — L1 에 서른 개가 멀쩡히 돌고 있는데도. */
+  const vis = o.layers.map((l) => l.ns.filter((n) => !UI.hidden.has(n.id)));
+  let best = 0;
+  vis.forEach((ns, i) => { if (ns.length > vis[best].length) best = i; });
+  if (vis.length && vis[best].length > 2) {
+    const c = fitSun(vis[best]);
     for (const lay of o.layers) add("m:" + lay.depth, c, lay.ns, lay.name);
   }
 
@@ -510,8 +535,10 @@ export function orbitRings(mark?: (id: string) => string): string {
   for (const [key, R] of orbitIndex().rings) {
     const c = R.c, r = R.r.toFixed(1);
     const X = c.x.toFixed(1), Y = c.y.toFixed(1);
-    /* 선 두께는 화면 기준으로 고정한다 — 월드가 축소되면 1px 선이 0.3px 가 돼서 사라진다 */
-    out += `<circle class="orb" cx="${X}" cy="${Y}" r="${r}" vector-effect="non-scaling-stroke"/>`;
+    /* 선 두께는 화면 기준으로 고정한다 — 월드가 축소되면 1px 선이 0.3px 가 돼서 사라진다.
+       점선 간격은 vector-effect 가 안 고쳐 주므로 배율로 나눠 직접 넣는다 */
+    out += `<circle class="orb" cx="${X}" cy="${Y}" r="${r}" `
+      + `stroke-dasharray="${dashArray()}" vector-effect="non-scaling-stroke"/>`;
     if (!R.label) continue;
     /* 이름은 위성 둘 사이 빈 자리에 쓴다. 한 바퀴를 고르게 썼으니 첫 둘의 가운데가
        언제나 비어 있다 — 노드 위에 글자가 얹히지 않는다 */
@@ -544,6 +571,14 @@ export function orbitHits(): string {
   return out;
 }
 
+/** 궤도 점선. 엣지는 실선이라 궤도가 실선이면 둘이 섞여 보인다 — 선 하나로
+    "이건 구조, 저건 연결"이 갈리게 한다. 간격도 화면 기준으로 고정한다:
+    dasharray 는 월드 단위라 20% 로 축소하면 10px 이 2px 이 되어 실선처럼 보인다. */
+const dashArray = () => {
+  const k = Math.max(0.05, S.view.k);
+  return `${(11 / k).toFixed(1)} ${(8 / k).toFixed(1)}`;
+};
+
 /** 집는 띠의 두께. 화면에서 늘 같은 굵기가 되도록 배율로 나눈 월드 단위다.
 
     vector-effect: non-scaling-stroke 로는 안 된다. 그건 **그리는** 두께만 화면에
@@ -556,6 +591,8 @@ const hitWidth = () => (16 / Math.max(0.05, S.view.k)).toFixed(1);
 export function syncOrbitHits(root: ParentNode) {
   const w = hitWidth();
   root.querySelectorAll(".orbhit").forEach((c) => c.setAttribute("stroke-width", w));
+  const d = dashArray();
+  root.querySelectorAll(".orb").forEach((c) => c.setAttribute("stroke-dasharray", d));
 }
 
 /** 이 상하 관계를 궤도가 이미 말하고 있는가.
@@ -783,17 +820,10 @@ export function placeOnMainOrbit(id: string): boolean {
   const settled = (R?.ids ?? []).filter((x) => x !== id).map(nodeOf)
     .filter((x): x is GNode => !!x);
 
-  let r = lay.r;
-  if (settled.length) {
-    r = settled.reduce((sum, m) => sum + Math.hypot(cx(m) - sun.x, cy(m) - sun.y), 0)
-      / settled.length;
-  } else {
-    /* 이 층은 아직 안 그려져 있다. 그려져 있는 다른 층에 계획상의 비율을 맞춘다 */
-    for (const other of o.layers) {
-      const L = live.rings.get("m:" + other.depth);
-      if (L && other.r > 0) { r = (L.r * lay.r) / other.r; break; }
-    }
-  }
+  const r = settled.length
+    ? settled.reduce((sum, m) => sum + Math.hypot(cx(m) - sun.x, cy(m) - sun.y), 0)
+      / settled.length
+    : mainRadius(o, live, lay);
 
   const here = Math.atan2(cy(n) - sun.y, cx(n) - sun.x);
   const a = widestGap(settled.map((m) => Math.atan2(cy(m) - sun.y, cx(m) - sun.x)), here);

@@ -198,6 +198,9 @@ export function drawEdges(fset: Set<string> | null, q: string) {
       } else {
         /* 궤도가 이미 "아래"라고 말하고 있으면 선을 안 그린다 */
         if (orbitSays(ix, A.id, B.id)) continue;
+        /* 궤도 노드로는 선을 뻗지 않는다 — 노드가 아니라 고리의 이름이라 가리킬
+           자리가 없다. 식구가 없어 고리가 아직 없을 때도 마찬가지다 */
+        if (isGroup(A) || isGroup(B)) continue;
         // deep 과 sub 는 둘 다 아래로 내려가는 계층. 색으로 구분한다.
         const x1 = px(A) + (A._w ?? 140) / 2, y1 = py(A) + (A._h ?? 38);
         const x2 = px(B) + (B._w ?? 140) / 2, y2 = py(B);

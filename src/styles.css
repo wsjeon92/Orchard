@@ -414,14 +414,17 @@ html.viewer #btnLink{display:none}
 /* 궤도. 점선으로 두면 안 된다 — dasharray 는 월드 단위라 축소하면 4px 이 0.8px 이
    되어 사라지는데, vector-effect 는 선 두께만 화면에 고정하고 간격은 안 고친다.
    실선이면 어느 배율에서도 보인다 */
-.orb{fill:none;stroke:#8e9cb8;stroke-width:1.1;opacity:.68;
+/* 궤도는 구조, 엣지는 연결. 점선 + 더 차가운 색으로 갈라 둔다 —
+   둘 다 가는 실선이던 때는 어느 쪽이 교차인지 눈으로 못 골랐다 */
+.orb{fill:none;stroke:#6f86b8;stroke-width:1;opacity:.62;
   pointer-events:none;vector-effect:non-scaling-stroke}
 /* 잡는 띠. 보이는 선은 가늘어야 하고 손가락은 굵어야 해서 둘로 나눈다.
    두께를 화면 기준으로 고정해야 축소해도 집을 수 있다 */
 .orbhit{fill:none;stroke:transparent;pointer-events:stroke;cursor:ew-resize}
-.orbhit:hover{stroke:color-mix(in srgb,#b9c6e0 22%,transparent)}
+.orbhit:hover{stroke:color-mix(in srgb,#8aa6e0 20%,transparent)}
+.orbhit:hover + .orb{opacity:.95;stroke:#9db4e8}
 /* 궤도 이름 — 그룹 고리에만 붙는다. 그룹 이름이 그 궤도의 이름이다 */
-.orbl{fill:#8e9cbb;font-size:13px;pointer-events:auto;cursor:pointer;text-anchor:middle;
+.orbl{fill:#8a9ec8;font-size:13px;pointer-events:auto;cursor:pointer;text-anchor:middle;
   dominant-baseline:middle;paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
 .chip.on{border-color:var(--acc);color:var(--text);background:color-mix(in srgb,var(--acc) 16%,transparent)}
 .orbl:hover{fill:var(--text)}

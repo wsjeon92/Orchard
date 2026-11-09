@@ -199,6 +199,15 @@ export function normalize() {
     }
   });
   S.edges = S.edges.filter((e) => e.kind !== "assoc" || (e.members ?? []).length >= 2);
+  /* 식구 없는 궤도 노드를 치운다. 고리가 아니라 부스러기다 — 남겨 두면 행성에서
+     아무 데도 아닌 곳으로 점선이 뻗는다 */
+  const dead = new Set(S.nodes.filter((n) => isGroup(n)
+    && !S.edges.some((e) => e.kind === "sub" && e.a === n.id)).map((n) => n.id));
+  if (dead.size) {
+    S.nodes = S.nodes.filter((n) => !dead.has(n.id));
+    S.edges = S.edges.filter((e) => !dead.has(e.a ?? "") && !dead.has(e.b ?? "")
+      && !(e.members ?? []).some((m) => dead.has(m)));
+  }
 }
 
 export function adopt(o: unknown): boolean {

@@ -259,6 +259,9 @@ export function addEdge(a: string, b: string, kind: GEdge["kind"] = "assoc"): GE
   /* 궤도 노드는 연결을 받지 않는다. sub 만 — 그게 담는 길이다.
      모든 연결은 노드들 사이에서 일어난다 */
   if (kind !== "sub" && (isGroup(nodeOf(a)) || isGroup(nodeOf(b)))) return null;
+  /* 상위는 하나다. 고리에 앉는 자리가 하나뿐이라 둘이면 어느 고리에 있는지가
+     정해지지 않는다 — 떼어 낼 때도 한쪽만 지워져 유령 상위가 남았다 */
+  if (kind === "sub") S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === b));
   if (kind === "assoc") return addHyper([a, b]);
   const dup = S.edges.find((e) => e.kind === kind && e.a === a && e.b === b);
   if (dup) return dup;
@@ -267,6 +270,22 @@ export function addEdge(a: string, b: string, kind: GEdge["kind"] = "assoc"): GE
   };
   S.edges.push(e);
   return e;
+}
+
+/** 식구가 하나도 없는 궤도 노드를 치운다.
+
+    고리가 아니라 부스러기다. 궤도 노드는 고리의 이름인데 이름 붙일 고리가 없으면
+    아무 것도 아니고, 남겨 두면 행성에서 아무 데도 아닌 곳으로 점선이 뻗는다.
+    '새 궤도'로 만들어 둔 뒤 그 하나뿐인 식구를 다른 고리로 옮기면 이렇게 된다. */
+export function pruneEmptyRings(): number {
+  const dead = S.nodes.filter((n) => isGroup(n) && !memberIds(n).length);
+  if (!dead.length) return 0;
+  const ids = new Set(dead.map((n) => n.id));
+  S.nodes = S.nodes.filter((n) => !ids.has(n.id));
+  S.edges = S.edges.filter((e) => !ids.has(e.a ?? "") && !ids.has(e.b ?? "")
+    && !(e.members ?? []).some((m) => ids.has(m)));
+  if (UI.sel && ids.has(UI.sel.id)) setSel(null);
+  return dead.length;
 }
 
 /** 궤도 식구로 넣는다 — sub 엣지 하나. 담는 길이 그것 하나뿐이다 */
@@ -435,7 +454,9 @@ export function removeFromGroup(gid: string, nid: string) {
   if (!g) return;
   S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.a === gid && e.b === nid));
   placeOnMainOrbit(nid);           // 뺀 노드는 그 순간 메인 궤도 소속이다
-  if (memberIds(g).length < 2) {   // 식구 1명 이하면 궤도를 유지할 이유가 없다
+  /* 식구가 하나뿐인 고리도 멀쩡하다 — 상자였을 때와 달리 고리는 하나로도 그려진다.
+     비었을 때만 치운다 */
+  if (!memberIds(g).length) {
     S.nodes = S.nodes.filter((x) => x.id !== gid);
     S.edges = S.edges.filter((e) => e.a !== gid && e.b !== gid
       && !(e.members ?? []).includes(gid));

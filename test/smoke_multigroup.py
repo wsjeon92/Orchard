@@ -62,8 +62,11 @@ with sync_playwright() as pw:
     assert btn(pg, "multiUngroup")["on"], "그룹 멤버인데 빼기가 비활성이다"
     pg.click("#multiUngroup")
     pg.wait_for_timeout(600)
-    print("2) 둘 뺀 뒤 그룹:", groups(pg))
-    assert not groups(pg), "멤버가 1명 남으면 그룹이 사라져야 한다"
+    print("2) 둘 뺀 뒤 궤도:", groups(pg))
+    # 식구 하나짜리 고리도 멀쩡하다 — 상자였을 때와 달리 고리는 하나로도 그려진다.
+    # 비었을 때만 치운다. 셋 중 둘을 뺐으니 하나가 남아 궤도는 유지된다.
+    gs2 = groups(pg)
+    assert len(gs2) == 1 and len(gs2[0]["members"]) == 1, f"식구 하나는 남아야 한다: {gs2}"
 
     # --- 3) 기존 그룹에 새 키워드 합치기 (그룹을 또 만들지 않는다) ---
     setup(pg)

@@ -4,7 +4,7 @@ import {
   addEdge, addHyper, addNode, canGroup, deepAncestors, deepChildren, descendantsOf,
   dropEdge, dropNode, edgeAddMember, edgeDelMember, foldKids, groupOf, isSubDescendant,
   isRipe, parkBeside, parseWorkLine, promote, promoteName, removeFromGroup, ripeCut, subChildren,
-  subParentEdge, tidyGroup, tidySubs, ungroup, addMember, memberIds,
+  subParentEdge, tidyGroup, tidySubs, ungroup, addMember, memberIds, pruneEmptyRings,
 } from "./graph";
 import { kickAnim } from "./anim";
 import { DEPTH_ORDER, KIND, SEARCH } from "./kinds";
@@ -179,6 +179,7 @@ function orbitPanel(v: OrbitView, kindEl: HTMLElement, titleEl: HTMLElement,
       /* 뺀 노드는 그 순간 메인 궤도 소속이 된다 — 거기로 미끄러지게 한다.
          안 보내면 상위는 없는데 자리는 옛 행성 둘레에 남아 거짓말이 된다 */
       placeOnMainOrbit(id);
+      pruneEmptyRings();
       kickAnim();
       render();
     };
@@ -539,6 +540,7 @@ const parentPick = new Map<string, string>();
 /** 이 노드를 저 행성의 저 고리에 넣는다. 붙이는 길을 여기 하나로 모은다 */
 function attachTo(child: GNode, planet: GNode, ringKey: string) {
   S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === child.id));  // 상위는 하나다
+  pruneEmptyRings();                 // 떠난 자리에 빈 고리가 남지 않게
   let key = ringKey;
   if (ringKey === "new") {
     /* 이름은 비워 둔다 — 고리가 자리를 이름으로 받아 S2 가 된다.
@@ -580,14 +582,19 @@ function renderParent(body: HTMLElement, n: GNode) {
     r.appendChild(who);
     btn(r, "abtn sm", host ? "다른 노드로" : "다시", () => {
       parentPick.delete(n.id);
-      if (host) S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === n.id));
-      if (host) { placeOnMainOrbit(n.id); kickAnim(); }
+      if (host) {
+        S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === n.id));
+        placeOnMainOrbit(n.id);
+        pruneEmptyRings();
+        kickAnim();
+      }
       render();
     });
     if (host) {
       btn(r, "abtn sm", "메인으로 나가기", () => {
         S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === n.id));
         placeOnMainOrbit(n.id);
+        pruneEmptyRings();
         kickAnim();
         render();
       });
@@ -685,6 +692,7 @@ function renderSubs(body: HTMLElement, n: GNode) {
       /* 상위는 이 노드일 수도, 이 고리에 이름을 준 궤도 노드일 수도 있다 */
       S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === c.id));
       placeOnMainOrbit(c.id);
+      pruneEmptyRings();
       kickAnim();
       render();
     });
