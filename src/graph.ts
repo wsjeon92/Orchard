@@ -1,4 +1,5 @@
 import { px, py } from "./geom";
+import { placeOnMainOrbit } from "./orbit";
 import {
   RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, isGroup, kindOf, nodeOf,
   setFocusId, setSel, uid,
@@ -433,6 +434,7 @@ export function removeFromGroup(gid: string, nid: string) {
   const g = nodeOf(gid);
   if (!g) return;
   S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.a === gid && e.b === nid));
+  placeOnMainOrbit(nid);           // 뺀 노드는 그 순간 메인 궤도 소속이다
   if (memberIds(g).length < 2) {   // 식구 1명 이하면 궤도를 유지할 이유가 없다
     S.nodes = S.nodes.filter((x) => x.id !== gid);
     S.edges = S.edges.filter((e) => e.a !== gid && e.b !== gid
@@ -443,9 +445,13 @@ export function removeFromGroup(gid: string, nid: string) {
 }
 
 export function ungroup(gid: string) {
+  const freed = memberIds(nodeOf(gid));
   S.nodes = S.nodes.filter((x) => x.id !== gid);
   S.edges = S.edges.filter((e) => e.a !== gid && e.b !== gid
     && !(e.members ?? []).includes(gid));
+  /* 해체하면 식구들은 상위를 잃는다 — 그 순간 메인 궤도 소속이니 거기로 보낸다.
+     안 보내면 상위는 없는데 자리는 옛 고리 위에 남아 거짓말이 된다 */
+  for (const id of freed) placeOnMainOrbit(id);
   if (UI.sel?.id === gid) setSel(null);
   if (UI.focusId === gid) setFocusId(null);
 }

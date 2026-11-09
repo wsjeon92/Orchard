@@ -724,3 +724,51 @@ export function orbitOfNode(id: string): string | undefined {
   for (const [key, R] of live.rings) if (R.group === id) return key;
   return live.of.get(id);
 }
+
+/** 궤도에서 빠진 노드를 자기 메인 궤도로 보낸다.
+
+    넣을 때는 미끄러지는데 뺄 때는 가만히 있었다. 상위를 떼면 그 노드는 그 순간
+    메인 궤도 소속이 되는데(연결이 없으면 L0, 있으면 합성 깊이대로), 자리는
+    여전히 옛 행성 둘레였다. 들어오는 길만 있고 나가는 길이 없었던 셈이다.
+
+    반지름은 **지금 그려져 있는 그 층**에서 읽는다. 그 층이 아직 안 그려져 있으면
+    (L0 에 식구가 없던 경우) 다른 층의 실제 크기에 계획상의 비율을 곱해 맞춘다 —
+    계획값을 그대로 쓰면 사용자가 정해 둔 전체 크기와 어긋난다. */
+export function placeOnMainOrbit(id: string): boolean {
+  const n = nodeOf(id);
+  if (!n) return false;
+  const o = plan();
+  const lay = o.layers.find((l) => l.ns.some((x) => x.id === id));
+  if (!lay) return false;                       // 아직 어딘가의 하위다 — 보낼 곳이 없다
+  const live = orbitIndex();
+
+  const R = live.rings.get("m:" + lay.depth);
+  const outer = (o.layers[0]?.ns ?? []).filter((x) => !UI.hidden.has(x.id) && x.id !== id);
+  const sun = R?.c ?? (outer.length > 2 ? fitSun(outer) : { x: 0, y: 0 });
+  const settled = (R?.ids ?? []).filter((x) => x !== id).map(nodeOf)
+    .filter((x): x is GNode => !!x);
+
+  let r = lay.r;
+  if (settled.length) {
+    r = settled.reduce((sum, m) => sum + Math.hypot(cx(m) - sun.x, cy(m) - sun.y), 0)
+      / settled.length;
+  } else {
+    /* 이 층은 아직 안 그려져 있다. 그려져 있는 다른 층에 계획상의 비율을 맞춘다 */
+    for (const other of o.layers) {
+      const L = live.rings.get("m:" + other.depth);
+      if (L && other.r > 0) { r = (L.r * lay.r) / other.r; break; }
+    }
+  }
+
+  const here = Math.atan2(cy(n) - sun.y, cx(n) - sun.x);
+  const a = widestGap(settled.map((m) => Math.atan2(cy(m) - sun.y, cx(m) - sun.x)), here);
+  const ox = n.x, oy = n.y;
+  n.x = Math.round(sun.x + Math.cos(a) * r - (n._w ?? 140) / 2);
+  n.y = Math.round(sun.y + Math.sin(a) * r - (n._h ?? 38) / 2);
+  /* 위성도 같이 간다 — 안 그러면 위성 궤도만 제자리에 남아 중심이 빈다 */
+  for (const sid of live.sat.get(id) ?? []) {
+    const m = nodeOf(sid);
+    if (m) { m.x += n.x - ox; m.y += n.y - oy; }
+  }
+  return true;
+}

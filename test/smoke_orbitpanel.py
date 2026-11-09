@@ -120,6 +120,36 @@ def main():
             if r5[k]: bad.append(f"궤도 노드에 연결이 붙었다: {k}")
         if not r5['sub됨']: bad.append("sub 는 되어야 한다 — 담는 길이다")
 
+        # 6) 궤도에서 빼면 자기 메인 궤도로 간다 — 넣을 때만 움직이고 뺄 때는
+        #    가만히 있었다. 연결이 없으면 L0, 있으면 합성 깊이대로.
+        r6 = pg.evaluate("""() => {
+          const ex = Orchard.S.nodes.find(n => n.label === '실험');
+          const pick = (lab) => Orchard.S.nodes.find(n => n.label === lab);
+          const out = {};
+          for (const lab of ['수율', '음악']) {       // 교차 있는 것 / 없는 것
+            const n = pick(lab);
+            Orchard.addEdge(ex.id, n.id, 'sub');
+            Orchard.placeOnSubOrbit(ex.id, n.id);
+            Orchard.render();
+            const inRing = Orchard.orbitIndex().of.get(n.id);
+            Orchard.S.edges = Orchard.S.edges.filter(
+              e => !(e.kind === 'sub' && e.a === ex.id && e.b === n.id));
+            const was = {x: n.x, y: n.y};
+            Orchard.placeOnMainOrbit(n.id);
+            Orchard.render();
+            out[lab] = {deg: Orchard.degree(n.id), 들어갈때: inRing,
+                        나온뒤: Orchard.orbitIndex().of.get(n.id),
+                        moved: n.x !== was.x || n.y !== was.y};
+          }
+          return out;
+        }""")
+        for lab, v in r6.items():
+            print(f"6) '{lab}' 연결 {v['deg']} — {v['들어갈때']} → {v['나온뒤']} (이동 {v['moved']})")
+            if not v['moved']: bad.append(f"{lab}: 궤도에서 뺐는데 안 움직였다")
+            want = 'm:-1' if v['deg'] == 0 else 'm:0'
+            if v['나온뒤'] != want:
+                bad.append(f"{lab}: 연결 {v['deg']} 인데 {v['나온뒤']} 로 갔다 (기대 {want})")
+
         if errs: bad.append("콘솔 에러: " + str(errs[:2]))
         b.close()
 

@@ -8,7 +8,7 @@ import {
 } from "./graph";
 import { kickAnim } from "./anim";
 import { DEPTH_ORDER, KIND, SEARCH } from "./kinds";
-import { newRingRadius, orbitView, placeOnSubOrbit, setOrbitRadius, subRings } from "./orbit";
+import { newRingRadius, orbitView, placeOnMainOrbit, placeOnSubOrbit, setOrbitRadius, subRings } from "./orbit";
 import type { OrbitView } from "./orbit";
 import { ask, openBulk } from "./modals";
 import { lightRedraw, render, select, setFocus, toggleFold } from "./render";
@@ -175,6 +175,10 @@ function orbitPanel(v: OrbitView, kindEl: HTMLElement, titleEl: HTMLElement,
       ev.stopPropagation();
       const from = gnode ? gnode.id : v.planet;
       S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.a === from && e.b === id));
+      /* 뺀 노드는 그 순간 메인 궤도 소속이 된다 — 거기로 미끄러지게 한다.
+         안 보내면 상위는 없는데 자리는 옛 행성 둘레에 남아 거짓말이 된다 */
+      placeOnMainOrbit(id);
+      kickAnim();
       render();
     };
     c.appendChild(document.createTextNode(" "));
@@ -581,6 +585,8 @@ function renderSubs(body: HTMLElement, n: GNode) {
     }
     btn(r, "abtn sm", "떼기", () => {
       S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.a === n.id && e.b === c.id));
+      placeOnMainOrbit(c.id);
+      kickAnim();
       render();
     });
   });
