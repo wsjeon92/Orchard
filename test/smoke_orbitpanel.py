@@ -187,6 +187,43 @@ def main():
         if not r8 or not r8['orb']:
             bad.append(f"자동 이름에 궤도 키가 안 달렸다: {r8}")
 
+        # 9) 하위 키워드는 탭이다 — 고른 궤도의 식구만 보이고, 궤도 노드는 안 보인다
+        r9 = pg.evaluate("""() => {
+          const d = Orchard.S.nodes.find(n => n.label === '신약개발');
+          const g = Orchard.addNode('', 0, 0, 'group');     // 이름 없는 궤도 하나 더
+          Orchard.addEdge(d.id, g.id, 'sub');
+          const t = Orchard.S.nodes.find(n => n.label === '골격');
+          Orchard.addMember(g.id, t.id);
+          Orchard.placeOnSubOrbit(d.id, t.id, 's:' + d.id + ':' + g.id + '#0');
+          Orchard.render();
+          Orchard.select('node', d.id);
+          const tabs = [...document.querySelectorAll('#sideBody .chips .chip')]
+            .map(e => e.textContent);
+          const first = [...document.querySelectorAll('#sideBody .candrow .ct')]
+            .map(e => e.textContent);
+          // 두 번째 탭으로
+          const t2 = [...document.querySelectorAll('#sideBody .chips .chip')][1];
+          t2.click();
+          const second = [...document.querySelectorAll('#sideBody .candrow .ct')]
+            .map(e => e.textContent);
+          const rs = Orchard.subRings(d.id);
+          return {tabs, first, second, radii: rs.map(x => Math.round(x.r)),
+                  labels: rs.map(x => x.label)};
+        }""")
+        print(f"9) 탭 {r9['tabs']} · 첫 탭 {r9['first']} · 둘째 탭 {r9['second']}")
+        if any('(제목 없음)' in x for x in r9['first'] + r9['second']):
+            bad.append("궤도 노드가 하위 목록에 보인다 — 고리의 이름이지 키워드가 아니다")
+        if r9['first'] == r9['second']:
+            bad.append(f"탭을 바꿔도 목록이 그대로다: {r9['first']}")
+        if not any('S1' in x for x in r9['tabs']):
+            bad.append(f"탭 이름이 S1 이 아니다: {r9['tabs']}")
+        if any(x.strip().endswith(tuple('0123456789')) and '·' in x for x in r9['tabs']):
+            bad.append(f"탭에 반지름이 남아 있다: {r9['tabs']}")
+        # 안쪽부터 S1, S2 — 이름 순서가 반지름 순서와 같아야 한다
+        autos = [(lab, r) for lab, r in zip(r9['labels'], r9['radii']) if lab.startswith('S')]
+        if sorted(autos, key=lambda x: x[1]) != sorted(autos, key=lambda x: x[0]):
+            bad.append(f"자동 번호가 안쪽부터가 아니다: {autos}")
+
         if errs: bad.append("콘솔 에러: " + str(errs[:2]))
         b.close()
 

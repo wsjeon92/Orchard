@@ -486,14 +486,10 @@ export function orbitIndex(): OrbIndex {
        이름을 고리가 받지 않으면 아무 데도 안 보인다 — 뿌리 궤도 노드가 통째로
        화면에서 사라졌다. 자식으로 매달린 궤도 노드는 자기가 연 고리가 이름을 받는다. */
     const own = isGroup(p) ? p.id : "";
-    s.rings.forEach((g, i) => {
+    const ord = ringOrder(p, s.rings);
+    s.rings.forEach((g) => {
       const names = own && g.key === "#1";     // 이름이 비어 있어도 그 노드가 이 고리의 이름이다
-      /* 이름이 없는 고리에는 자리를 이름으로 준다 — 안쪽부터 S1, S2, …
-         메인이 L0·L1·L2 이니 짝을 맞춘다. 번호는 그 행성의 **모든** 고리 중
-         몇 번째인가다(이름 있는 것도 센다). 그래야 S2 가 늘 "안에서 두 번째"를
-         뜻한다 — 이름 없는 것끼리만 세면 같은 S2 가 날마다 다른 자리를 가리킨다. */
-      const auto = "S" + (i + 1);
-      add("s:" + pid + ":" + g.key, c, g.ns, g.label || (names ? p.label : "") || auto,
+      add("s:" + pid + ":" + g.key, c, g.ns, ringName(p, g, ord.get(g.key) ?? 0),
         g.group || (names ? own : ""));
       for (const n of g.ns) {
         all.push(n.id);
@@ -592,6 +588,35 @@ export interface RingChoice {
   label: string;
   r: number;
   n: number;
+  ids: string[];
+}
+
+/** 고리 이름. 궤도 노드가 있으면 그 이름, 중심이 궤도 노드면 그 이름,
+    둘 다 아니면 **자리를 이름으로** — 안쪽부터 S1, S2 …
+
+    한 곳에서만 정한다. 전에는 그리는 쪽과 고르는 쪽이 따로 정해서, 캔버스에는
+    S1 이라고 쓰여 있는데 패널 칩에는 '직접'이라고 떠 있었다. */
+export function ringName(p: GNode, g: OrbRing, i: number): string {
+  if (g.label) return g.label;
+  if (isGroup(p) && g.key === "#1") return p.label;
+  return "S" + (i + 1);
+}
+
+/** 고리 -> 안쪽부터 몇 번째인가. **지금 좌표**가 정한다.
+
+    계획상의 순서로 매기면 안 된다. 고리 크기는 사용자가 정하고 새 고리는 바깥에
+    생기는데, 계획은 궤도 노드가 연 고리를 먼저 놓기 때문이다. 실제로 바깥 고리가
+    S1, 안쪽 고리가 S2 로 나왔다. */
+function ringOrder(p: GNode, rings: OrbRing[]): Map<string, number> {
+  const c = { x: cx(p), y: cy(p) };
+  const dist = (g: OrbRing) => {
+    const ns = g.ns.filter((n) => !UI.hidden.has(n.id));
+    if (!ns.length) return g.r;
+    return ns.reduce((s, n) => s + Math.hypot(cx(n) - c.x, cy(n) - c.y), 0) / ns.length;
+  };
+  const order = rings.map((g, i) => ({ g, i, d: dist(g) }))
+    .sort((a, b) => a.d - b.d || a.i - b.i);
+  return new Map(order.map((x, k) => [x.g.key, k]));
 }
 
 /** 이 부모가 가진 서브 고리들. 어디에 넣을지 고르게 하려고 쓴다.
@@ -609,12 +634,16 @@ export function subRings(pid: string, exclude?: string): RingChoice[] {
   if (!p || !sys) return [];
   const c = { x: cx(p), y: cy(p) };
   const out: RingChoice[] = [];
-  for (const g of sys.rings) {
+  const ord = ringOrder(p, sys.rings);
+  sys.rings.forEach((g) => {
     const ns = g.ns.filter((n) => n.id !== exclude && !UI.hidden.has(n.id));
-    if (!ns.length) continue;
+    if (!ns.length) return;
     const r = ns.reduce((sum, n) => sum + Math.hypot(cx(n) - c.x, cy(n) - c.y), 0) / ns.length;
-    out.push({ key: "s:" + pid + ":" + g.key, label: g.label || "직접", r, n: ns.length });
-  }
+    out.push({
+      key: "s:" + pid + ":" + g.key, label: ringName(p, g, ord.get(g.key) ?? 0),
+      r, n: ns.length, ids: ns.map((n) => n.id),
+    });
+  });
   return out.sort((a, b) => a.r - b.r);
 }
 

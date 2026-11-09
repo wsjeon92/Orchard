@@ -8,7 +8,8 @@ import {
 } from "./graph";
 import { kickAnim } from "./anim";
 import { DEPTH_ORDER, KIND, SEARCH } from "./kinds";
-import { newRingRadius, orbitView, placeOnMainOrbit, placeOnSubOrbit, setOrbitRadius, subRings } from "./orbit";
+import { orbitView, placeOnMainOrbit, placeOnSubOrbit, setOrbitRadius, subRings } from "./orbit";
+import type { RingChoice } from "./orbit";
 import type { OrbitView } from "./orbit";
 import { ask, openBulk } from "./modals";
 import { lightRedraw, render, select, setFocus, toggleFold } from "./render";
@@ -495,34 +496,40 @@ function attachSub(parent: GNode, childId: string) {
   kickAnim();
 }
 
-/** 궤도 고르기 칩. 고리가 없으면 안 그린다 — 고를 것이 없다 */
-function ringChips(body: HTMLElement, n: GNode) {
+/** 궤도 탭. 고른 궤도의 식구만 아래에 보인다 — 궤도가 여럿이면 한 목록에 섞여
+    나와서 어느 고리의 식구인지 알 수가 없었다. 반지름은 적지 않는다: 궤도 창에
+    있고, 여기서는 어느 고리인지만 고르면 된다 */
+function ringTabs(body: HTMLElement, n: GNode): RingChoice | null {
   const rs = subRings(n.id);
-  if (!rs.length) { ringPick.delete(n.id); return; }
-  const cur = ringPick.get(n.id) ?? rs[0].key;
-  if (!ringPick.has(n.id)) ringPick.set(n.id, cur);
+  if (!rs.length) { ringPick.delete(n.id); return null; }
+  if (!ringPick.has(n.id) || (ringPick.get(n.id) !== "new"
+    && !rs.some((r) => r.key === ringPick.get(n.id)))) {
+    ringPick.set(n.id, rs[0].key);
+  }
   const row = div(body, "addrow");
   const lab = document.createElement("span");
   lab.style.cssText = "font-size:11px;color:var(--dim2);white-space:nowrap";
   lab.textContent = "넣을 궤도";
   row.appendChild(lab);
   const w = div(row, "chips");
-  const mk = (key: string, text: string) => {
-    const b = btn(w, "chip" + (ringPick.get(n.id) === key ? " on" : ""), text, () => {
+  const mk = (key: string, text: string) =>
+    btn(w, "chip" + (ringPick.get(n.id) === key ? " on" : ""), text, () => {
       ringPick.set(n.id, key);
       renderSide();
     });
-    return b;
-  };
-  for (const r of rs) mk(r.key, `${r.label} · ${Math.round(r.r)} (${r.n})`);
-  mk("new", `새 궤도 · ${Math.round(newRingRadius(n.id))}`);
+  for (const r of rs) mk(r.key, `${r.label} ${r.n}`);
+  mk("new", "새 궤도");
+  const cur = ringPick.get(n.id);
+  return rs.find((r) => r.key === cur) ?? null;
 }
 
 /** 하위 키워드 등록 — 한 줄에 여러 개를 쉼표로 넣을 수 있다 */
 function renderSubs(body: HTMLElement, n: GNode) {
   const kids = subChildren(n.id);
   const up = subParentEdge(n.id);
-  const h = sect(body, `하위 키워드 ${kids.length ? kids.length : ""}`);
+  /* 세는 것은 궤도가 아니라 키워드다 — 궤도 노드는 고리의 이름이지 하위 키워드가 아니다 */
+  const total = subRings(n.id).reduce((s2, r) => s2 + r.n, 0) || kids.length;
+  const h = sect(body, `하위 키워드 ${total ? total : ""}`);
   const right = document.createElement("span");
   right.style.cssText = "display:flex;align-items:center;gap:8px";
   h.appendChild(right);
@@ -546,7 +553,7 @@ function renderSubs(body: HTMLElement, n: GNode) {
     right.appendChild(tb);
   }
 
-  ringChips(body, n);
+  const tab = ringTabs(body, n);
   const addRow = div(body, "addrow");
   const inp = document.createElement("input");
   inp.className = "inp";
@@ -570,7 +577,12 @@ function renderSubs(body: HTMLElement, n: GNode) {
       + "<b>구성 요소</b>가 <i>무엇으로 이루어졌나</i>라면, 하위 키워드는 <i>어떤 종류가 있나</i>입니다.";
     return;
   }
-  kids.forEach((c) => {
+  /* 궤도 노드는 목록에 안 낸다 — 노드가 아니라 고리의 이름이라 탭으로 이미 나와 있다.
+     탭이 있으면 그 고리의 식구만, 없으면(고리가 하나도 없으면) 전부 */
+  const shown = (tab ? tab.ids.map(nodeOf).filter((x): x is GNode => !!x) : kids)
+    .filter((c) => !isGroup(c));
+  if (tab && !shown.length) div(body, "empty").textContent = "이 궤도에 식구가 없습니다.";
+  shown.forEach((c) => {
     const r = div(body, "candrow");
     const t = div(r, "ct");
     t.textContent = c.label || "(제목 없음)";
@@ -584,7 +596,8 @@ function renderSubs(body: HTMLElement, n: GNode) {
       r.appendChild(s);
     }
     btn(r, "abtn sm", "떼기", () => {
-      S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.a === n.id && e.b === c.id));
+      /* 상위는 이 노드일 수도, 이 고리에 이름을 준 궤도 노드일 수도 있다 */
+      S.edges = S.edges.filter((e) => !(e.kind === "sub" && e.b === c.id));
       placeOnMainOrbit(c.id);
       kickAnim();
       render();

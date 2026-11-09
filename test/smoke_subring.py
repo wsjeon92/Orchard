@@ -108,7 +108,7 @@ def main():
           const ex = Orchard.S.nodes.find(n => n.label === '실험');
           Orchard.select('node', ex.id);
           return [...document.querySelectorAll('#sideBody .chips .chip')]
-            .map(e => e.textContent).filter(t => /궤도|·/.test(t));
+            .map(e => e.textContent);
         }""")
         print("4) 궤도 고르기 칩:", chips)
         if not any('새 궤도' in c for c in chips):

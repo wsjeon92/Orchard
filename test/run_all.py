@@ -24,6 +24,9 @@ import time
 
 HERE = pathlib.Path(__file__).resolve().parent
 FILES = sorted(HERE.glob("smoke*.py"))
+# 애니메이션 프레임을 세는 테스트는 부하를 타서, 동시에 돌리면 가끔 어긋난다.
+# 같이 돌리면 "가끔 실패하는 테스트"가 되어 신호가 무뎌지므로 마지막에 혼자 돌린다.
+SERIAL = {"smoke_pin.py", "smoke_anim.py", "smoke_reduce.py"}
 # 코어 수 + 1. 브라우저 대기가 섞여 있어 코어보다 하나 더 띄우는 쪽이 빠르다
 WORKERS = int(os.environ.get("ORCHARD_JOBS") or ((os.cpu_count() or 2) + 1))
 
@@ -49,13 +52,22 @@ def main() -> int:
 
     t0 = time.time()
     passed, failed = [], []
-    with cf.ThreadPoolExecutor(max_workers=min(WORKERS, len(files))) as ex:
-        for name, bad, out in ex.map(run, files):      # map 은 입력 순서를 지킨다
-            print(f"── {name}", flush=True)
-            for line in out.splitlines():
-                if line.strip():
-                    print("   " + line)
-            (failed if bad else passed).append(name)
+    par = [f for f in files if f.name not in SERIAL]
+    solo = [f for f in files if f.name in SERIAL]
+
+    def show(name: str, bad: bool, out: str) -> None:
+        print(f"── {name}", flush=True)
+        for line in out.splitlines():
+            if line.strip():
+                print("   " + line)
+        (failed if bad else passed).append(name)
+
+    if par:
+        with cf.ThreadPoolExecutor(max_workers=min(WORKERS, len(par))) as ex:
+            for name, bad, out in ex.map(run, par):    # map 은 입력 순서를 지킨다
+                show(name, bad, out)
+    for f in solo:
+        show(*run(f))
     print(f"\n통과 {len(passed)} / 실패 {len(failed)}  ({time.time() - t0:.0f}초, 동시 {WORKERS})")
     if failed:
         print("실패:", ", ".join(failed))
