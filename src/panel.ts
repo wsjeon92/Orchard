@@ -6,7 +6,9 @@ import {
   isRipe, parkBeside, parseWorkLine, promote, promoteName, removeFromGroup, ripeCut, subChildren,
   subParentEdge, tidyGroup, tidySubs, ungroup, addMember, memberIds,
 } from "./graph";
+import { kickAnim } from "./anim";
 import { DEPTH_ORDER, KIND, SEARCH } from "./kinds";
+import { newRingRadius, placeOnSubOrbit, subRings } from "./orbit";
 import { ask, openBulk } from "./modals";
 import { lightRedraw, render, select, setFocus, toggleFold } from "./render";
 import { S, UI, cut, edgeOf, esc, isGroup, kindOf, nodeOf, save } from "./state";
@@ -260,14 +262,19 @@ export function groupWith(aId: string, targetId: string) {
   let g = isGroup(t) ? t : groupOf(targetId);
   if (g) {
     addMember(g.id, aId);
-    parkBeside(a, memberIds(g));
+    /* 그 궤도 위 빈 곳으로 미끄러진다. 예전에는 옆에 비켜 놓기만 해서,
+       묶이고도 고리 밖에 남아 있다가 궤도 정리를 눌러야 들어갔다 */
+    if (!placeOnSubOrbit(g.id, aId)) parkBeside(a, memberIds(g));
+    kickAnim();
     select("node", g.id);
     return;
   }
   g = addNode("", 0, 0, "group");
+  g.x = t.x; g.y = t.y; g._rx = g.x; g._ry = g.y;
   addMember(g.id, targetId);
   addMember(g.id, aId);
-  parkBeside(a, memberIds(g));
+  if (!placeOnSubOrbit(g.id, aId)) parkBeside(a, memberIds(g));
+  kickAnim();
   select("node", g.id);
   setTimeout(() => el("sideTitle")?.focus(), 30);
 }
@@ -321,6 +328,59 @@ export function unGroupMarked(ids: string[]): number {
 const splitNames = (t: string) =>
   String(t ?? "").split(/[,;\n·、]/).map((s) => s.trim()).filter(Boolean);
 
+
+/* ---------------- 하위로 붙일 때 어느 궤도에 ----------------
+
+   궤도가 여럿이면 어디에 넣을지는 사용자만 안다. 칩으로 고르게 하고, 고른 곳에
+   넣은 다음 그 자리로 미끄러지게 한다. 새 궤도를 고르면 궤도 노드가 하나 같이
+   생긴다 — 고리 이름이 그 노드이기 때문이다. 이름은 바로 고칠 수 있게 패널을 연다. */
+
+/** 지금 고른 궤도. 부모 id -> 고리 키 또는 "new". 패널을 다시 그려도 유지된다 */
+const ringPick = new Map<string, string>();
+
+function attachSub(parent: GNode, childId: string) {
+  const pick = ringPick.get(parent.id);
+  if (pick === "new") {
+    const g = addNode("", 0, 0, "group");
+    addEdge(parent.id, g.id, "sub");
+    addMember(g.id, childId);
+    const key = "s:" + parent.id + ":" + g.id + "#0";
+    placeOnSubOrbit(parent.id, childId, key);
+    /* 궤도 노드는 고리에 앉지 않아서 좌표가 배치에 안 쓰이지만, 전체보기가
+       좌표를 보므로 고리 반대편에 둔다 — 원점에 남겨 두면 화면이 늘어난다 */
+    const c = nodeOf(childId);
+    if (c) { g.x = 2 * parent.x - c.x; g.y = 2 * parent.y - c.y; g._rx = g.x; g._ry = g.y; }
+    ringPick.set(parent.id, key);
+  } else {
+    addEdge(parent.id, childId, "sub");
+    placeOnSubOrbit(parent.id, childId, pick);
+  }
+  kickAnim();
+}
+
+/** 궤도 고르기 칩. 고리가 없으면 안 그린다 — 고를 것이 없다 */
+function ringChips(body: HTMLElement, n: GNode) {
+  const rs = subRings(n.id);
+  if (!rs.length) { ringPick.delete(n.id); return; }
+  const cur = ringPick.get(n.id) ?? rs[0].key;
+  if (!ringPick.has(n.id)) ringPick.set(n.id, cur);
+  const row = div(body, "addrow");
+  const lab = document.createElement("span");
+  lab.style.cssText = "font-size:11px;color:var(--dim2);white-space:nowrap";
+  lab.textContent = "넣을 궤도";
+  row.appendChild(lab);
+  const w = div(row, "chips");
+  const mk = (key: string, text: string) => {
+    const b = btn(w, "chip" + (ringPick.get(n.id) === key ? " on" : ""), text, () => {
+      ringPick.set(n.id, key);
+      renderSide();
+    });
+    return b;
+  };
+  for (const r of rs) mk(r.key, `${r.label} · ${Math.round(r.r)} (${r.n})`);
+  mk("new", `새 궤도 · ${Math.round(newRingRadius(n.id))}`);
+}
+
 /** 하위 키워드 등록 — 한 줄에 여러 개를 쉼표로 넣을 수 있다 */
 function renderSubs(body: HTMLElement, n: GNode) {
   const kids = subChildren(n.id);
@@ -349,6 +409,7 @@ function renderSubs(body: HTMLElement, n: GNode) {
     right.appendChild(tb);
   }
 
+  ringChips(body, n);
   const addRow = div(body, "addrow");
   const inp = document.createElement("input");
   inp.className = "inp";
@@ -364,7 +425,7 @@ function renderSubs(body: HTMLElement, n: GNode) {
   const pool = S.nodes.filter((x) => kindOf(x).axis === "b" && x.id !== n.id
     && !subParentEdge(x.id) && !isSubDescendant(x.id, n.id)).sort(byLabel);
   keywordPicker(body, "이미 있는 키워드를 하위로 붙이기", pool, (id) => {
-    addEdge(n.id, id, "sub");
+    attachSub(n, id);
     select("node", n.id);
   });
   if (!kids.length) {
@@ -396,12 +457,17 @@ function renderSubs(body: HTMLElement, n: GNode) {
 export function addSubKeywords(n: GNode, text: string): boolean {
   const names = splitNames(text);
   if (!names.length) return false;
+  const made: GNode[] = [];
   names.forEach((nm) => {
     const c = addNode(nm, n.x, n.y + (n._h ?? 40) + 80, "atom");
-    addEdge(n.id, c.id, "sub");
+    c._rx = n.x + (n._w ?? 140) / 2; c._ry = n.y + (n._h ?? 38) / 2;   // 부모에서 피어나게
+    attachSub(n, c.id);
+    made.push(c);
   });
-  render();          // 폭을 재야 가운데 정렬이 된다
-  tidySubs(n);
+  render();          // 폭을 재야 자리를 잡을 수 있다
+  for (const c of made) placeOnSubOrbit(n.id, c.id, ringPick.get(n.id) === "new"
+    ? undefined : ringPick.get(n.id));
+  kickAnim();
   select("node", n.id);
   return true;
 }

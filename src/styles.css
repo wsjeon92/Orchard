@@ -423,6 +423,7 @@ html.viewer #btnLink{display:none}
 /* 궤도 이름 — 그룹 고리에만 붙는다. 그룹 이름이 그 궤도의 이름이다 */
 .orbl{fill:#8e9cbb;font-size:13px;pointer-events:auto;cursor:pointer;text-anchor:middle;
   dominant-baseline:middle;paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
+.chip.on{border-color:var(--acc);color:var(--text);background:color-mix(in srgb,var(--acc) 16%,transparent)}
 .orbl:hover{fill:var(--text)}
 .orbl.gap{fill:var(--gapc);stroke-width:5px}
 .orbl.dim{opacity:.12;pointer-events:none}

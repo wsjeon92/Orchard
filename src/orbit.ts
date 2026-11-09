@@ -563,3 +563,96 @@ export function orbitSays(ix: OrbIndex, parent: string, child: string): boolean 
      '단백질 타입'이라, 단백질 타입 > 항체 역시 궤도가 이미 말하고 있다 */
   return ix.rings.get(key)?.group === parent;
 }
+
+/* ---------------- 하위로 붙일 때 자리 잡아 주기 ----------------
+
+   sub 엣지를 만들면 관계만 생기고 자식은 제자리에 있었다. 궤도 정리를 눌러야
+   움직이니, 그 사이에는 방금 무슨 일이 일어났는지 화면이 말해 주지 않는다.
+   붙이는 순간 그 궤도 위로 미끄러지게 한다. */
+
+/** 고리를 처음 열 때의 반지름. 3개가 편히 앉을 둘레와, 부모 상자를 비키는 거리 중 큰 쪽.
+    실제로는 둘레 수요(91px)보다 상자를 비키는 거리가 늘 커서 MOON_R 이 이긴다 —
+    그래도 식으로 적어 둔다. 숫자 하나만 두면 왜 그 숫자인지 다음 사람이 모른다. */
+export const FIRST_RING = Math.max(MOON_R, (3 * SLOT) / (2 * Math.PI));
+
+export interface RingChoice {
+  key: string;
+  label: string;
+  r: number;
+  n: number;
+}
+
+/** 이 부모가 가진 서브 고리들. 어디에 넣을지 고르게 하려고 쓴다.
+
+    식구는 **구조**(plan)에서 읽고 크기는 **지금 좌표**에서 잰다. 그려진 고리
+    목록(orbitIndex)을 쓰면 안 된다 — 거기서는 아직 안 움직인 노드 하나 때문에
+    고리가 동그랗지 않다고 판정되어 통째로 사라진다. 그러면 "고리가 없다"가 되어
+    새 노드가 기존 노드와 같은 각도에 겹쳐 놓였다.
+
+    exclude 는 지금 옮기려는 노드다. sub 엣지가 먼저 생기고 자리는 나중에 잡히므로,
+    그 노드를 빼고 재야 고리의 진짜 크기와 빈 각도가 나온다. */
+export function subRings(pid: string, exclude?: string): RingChoice[] {
+  const p = nodeOf(pid);
+  const sys = plan().sys.get(pid);
+  if (!p || !sys) return [];
+  const c = { x: cx(p), y: cy(p) };
+  const out: RingChoice[] = [];
+  for (const g of sys.rings) {
+    const ns = g.ns.filter((n) => n.id !== exclude && !UI.hidden.has(n.id));
+    if (!ns.length) continue;
+    const r = ns.reduce((sum, n) => sum + Math.hypot(cx(n) - c.x, cy(n) - c.y), 0) / ns.length;
+    out.push({ key: "s:" + pid + ":" + g.key, label: g.label || "직접", r, n: ns.length });
+  }
+  return out.sort((a, b) => a.r - b.r);
+}
+
+/** 새 고리를 열 때의 반지름 — 바깥 고리의 1.5배. 고리가 없으면 첫 고리 크기 */
+export function newRingRadius(pid: string, exclude?: string): number {
+  const rs = subRings(pid, exclude);
+  return rs.length ? rs[rs.length - 1].r * 1.5 : FIRST_RING;
+}
+
+/** 각도들 사이 가장 넓은 빈 곳의 한가운데. 기존 식구 위에 얹히지 않게 */
+function widestGap(angs: number[], away: number): number {
+  if (!angs.length) return away;
+  const a = angs.slice().sort((x, y) => x - y);
+  let best = a[0] + Math.PI, span = -1;
+  for (let i = 0; i < a.length; i++) {
+    const nx = i + 1 < a.length ? a[i + 1] : a[0] + 2 * Math.PI;
+    const d = nx - a[i];
+    if (d > span) { span = d; best = a[i] + d / 2; }
+  }
+  return best;
+}
+
+/** 자식을 부모의 서브 궤도 위에 놓는다.
+
+    **_rx/_ry 는 건드리지 않는다.** 그 둘이 화면상 현재 위치라서, x/y 만 바꾸고
+    kickAnim() 을 부르면 지금 자리에서 새 자리로 미끄러진다. place() 처럼 둘 다
+    쓰면 순간이동한다.
+
+    ringKey 를 주면 그 고리에, 안 주면 이름 없는 '직접' 고리에 넣는다(없으면 연다). */
+export function placeOnSubOrbit(pid: string, cid: string, ringKey?: string): boolean {
+  const p = nodeOf(pid), c = nodeOf(cid);
+  if (!p || !c) return false;
+  const centre = { x: cx(p), y: cy(p) };
+  const key = ringKey ?? "s:" + pid + ":#1";
+
+  /* 식구는 구조에서, 자리는 좌표에서. 지금 옮기는 노드는 양쪽 다에서 뺀다 */
+  const sys = plan().sys.get(pid);
+  const g = sys?.rings.find((x) => "s:" + pid + ":" + x.key === key);
+  const settled = (g?.ns ?? []).filter((n) => n.id !== cid && !UI.hidden.has(n.id));
+  const r = settled.length
+    ? settled.reduce((sum, n) => sum + Math.hypot(cx(n) - centre.x, cy(n) - centre.y), 0)
+      / settled.length
+    : newRingRadius(pid, cid);
+
+  /* 빈 고리면 태양 반대쪽부터 — 바깥을 보게. 식구가 있으면 가장 넓은 빈 곳 */
+  const sun = fitSun((plan().layers[0]?.ns ?? []).filter((n) => !UI.hidden.has(n.id)));
+  const away = Math.atan2(centre.y - sun.y, centre.x - sun.x);
+  const a = widestGap(settled.map((n) => Math.atan2(cy(n) - centre.y, cx(n) - centre.x)), away);
+
+  c.x = Math.round(centre.x + Math.cos(a) * r - (c._w ?? 140) / 2);
+  c.y = Math.round(centre.y + Math.sin(a) * r - (c._h ?? 38) / 2);
+  return true;
+}
