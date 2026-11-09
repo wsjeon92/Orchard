@@ -150,6 +150,43 @@ def main():
             if v['나온뒤'] != want:
                 bad.append(f"{lab}: 연결 {v['deg']} 인데 {v['나온뒤']} 로 갔다 (기대 {want})")
 
+        # 7) 이름 없는 서브 고리는 안쪽부터 S1, S2 … — 메인의 L0·L1·L2 와 짝
+        r7 = pg.evaluate("""() => {
+          const ix = Orchard.orbitIndex();
+          const out = [];
+          for (const [k, R] of ix.rings) {
+            if (!k.startsWith('s:')) continue;
+            const pid = k.slice(2, k.indexOf(':', 2));
+            out.push({planet: Orchard.nodeOf(pid).label, label: R.label,
+                      named: !!R.group, r: Math.round(R.r)});
+          }
+          // 고리가 둘인 행성에서 번호가 안쪽부터인지
+          const p = Orchard.S.nodes.find(n => n.label === '단백질');
+          const two = out.filter(x => x.planet === '단백질').sort((a, b) => a.r - b.r);
+          void p;
+          return {out, two};
+        }""")
+        autos = [x for x in r7['out'] if not x['named']]
+        print("7) 자동 이름:", [f"{x['planet']}→{x['label']}" for x in autos])
+        if not autos: bad.append("이름 없는 고리가 하나도 없다 — 검사가 성립 안 한다")
+        for x in autos:
+            if not x['label'].startswith('S') or not x['label'][1:].isdigit():
+                bad.append(f"자동 이름이 S<번호> 가 아니다: {x['planet']} → {x['label']}")
+        # 이름이 비어 있는 고리가 없어야 한다
+        for x in r7['out']:
+            if not x['label']: bad.append(f"이름 없는 고리가 남았다: {x['planet']} r={x['r']}")
+
+        # 8) 자동 이름을 눌러도 그 궤도가 열린다 (궤도 노드가 없어도)
+        r8 = pg.evaluate("""() => {
+          const t = [...document.querySelectorAll('text.orbl')]
+            .find(e => /^S\\d+$/.test(e.textContent));
+          if (!t) return null;
+          return {text: t.textContent, orb: t.dataset.orb, id: t.dataset.id};
+        }""")
+        print("8) 자동 이름 손잡이:", r8)
+        if not r8 or not r8['orb']:
+            bad.append(f"자동 이름에 궤도 키가 안 달렸다: {r8}")
+
         if errs: bad.append("콘솔 에러: " + str(errs[:2]))
         b.close()
 

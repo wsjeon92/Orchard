@@ -486,16 +486,21 @@ export function orbitIndex(): OrbIndex {
        이름을 고리가 받지 않으면 아무 데도 안 보인다 — 뿌리 궤도 노드가 통째로
        화면에서 사라졌다. 자식으로 매달린 궤도 노드는 자기가 연 고리가 이름을 받는다. */
     const own = isGroup(p) ? p.id : "";
-    for (const g of s.rings) {
+    s.rings.forEach((g, i) => {
       const names = own && g.key === "#1";     // 이름이 비어 있어도 그 노드가 이 고리의 이름이다
-      add("s:" + pid + ":" + g.key, c, g.ns, g.label || (names ? p.label : ""),
+      /* 이름이 없는 고리에는 자리를 이름으로 준다 — 안쪽부터 S1, S2, …
+         메인이 L0·L1·L2 이니 짝을 맞춘다. 번호는 그 행성의 **모든** 고리 중
+         몇 번째인가다(이름 있는 것도 센다). 그래야 S2 가 늘 "안에서 두 번째"를
+         뜻한다 — 이름 없는 것끼리만 세면 같은 S2 가 날마다 다른 자리를 가리킨다. */
+      const auto = "S" + (i + 1);
+      add("s:" + pid + ":" + g.key, c, g.ns, g.label || (names ? p.label : "") || auto,
         g.group || (names ? own : ""));
       for (const n of g.ns) {
         all.push(n.id);
         /* 식구의 식구까지. 행성을 끌면 달의 달도 따라와야 한다 */
         for (const d of sat.get(n.id) ?? []) all.push(d);
       }
-    }
+    });
     sat.set(pid, all);
   }
   return { rings, of, sat };
@@ -506,7 +511,7 @@ export function orbitIndex(): OrbIndex {
     궤도 노드는 더 이상 상자로 안 그려져서, 이름이 유일한 자리다. */
 export function orbitRings(mark?: (id: string) => string): string {
   let out = "";
-  for (const [, R] of orbitIndex().rings) {
+  for (const [key, R] of orbitIndex().rings) {
     const c = R.c, r = R.r.toFixed(1);
     const X = c.x.toFixed(1), Y = c.y.toFixed(1);
     /* 선 두께는 화면 기준으로 고정한다 — 월드가 축소되면 1px 선이 0.3px 가 돼서 사라진다 */
@@ -520,7 +525,8 @@ export function orbitRings(mark?: (id: string) => string): string {
     }).sort((x, y) => x - y);
     const a = as.length > 1 ? (as[0] + as[1]) / 2 : as[0] + Math.PI / 2;
     /* 이름이 곧 그 궤도의 손잡이다 — 눌러서 고르고 패널에서 고친다 */
-    out += `<text class="orbl${mark ? mark(R.group) : ""}" data-id="${R.group}" x="${(c.x + Math.cos(a) * R.r).toFixed(1)}" `
+    out += `<text class="orbl${mark ? mark(R.group) : ""}" data-id="${R.group}" `
+      + `data-orb="${key}" x="${(c.x + Math.cos(a) * R.r).toFixed(1)}" `
       + `y="${(c.y + Math.sin(a) * R.r).toFixed(1)}">${esc(R.label)}</text>`;
   }
   return out;
@@ -691,7 +697,7 @@ export function orbitView(key: string): OrbitView | null {
   const o = plan();
   const label = main
     ? o.layers.find((l) => "m:" + l.depth === key)?.name ?? key
-    : R.label || "직접";
+    : R.label;
   return { key, kind: main ? "main" : "sub", label, group: R.group, planet, c: R.c, r: R.r, ids: R.ids };
 }
 

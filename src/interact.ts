@@ -6,7 +6,7 @@ import {
 } from "./graph";
 import { groupWith } from "./panel";
 import { Drop, applyView, paint, render, select, setBindLabel, setDragLine } from "./render";
-import { orbitIndex, orbitOfNode } from "./orbit";
+import { orbitIndex } from "./orbit";
 import { S, UI, VIEW, edgeOf, isGroup, nodeOf, save } from "./state";
 import { ask, closeAll } from "./modals";
 import { redo, undo } from "./history";
@@ -219,10 +219,9 @@ export function bindCanvas() {
     }
     /* 궤도 이름을 누르면 그 궤도를 고른다 — 이름이 그 노드의 손잡이다 */
     const ol = (ev.target as Element).closest?.(".orbl") as SVGTextElement | null;
-    if (ol?.dataset.id && nodeOf(ol.dataset.id)) {
+    if (ol?.dataset.orb) {
       drag = null;
-      const key = orbitOfNode(ol.dataset.id);
-      select("orbit", key ?? ol.dataset.id);
+      select("orbit", ol.dataset.orb);       // 이름이 곧 그 궤도의 손잡이다
       ev.preventDefault();
       return;
     }
