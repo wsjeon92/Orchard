@@ -200,9 +200,24 @@ function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSy
 const depthOf = (g: OrbRing) => (g.group ? 0 : Number(g.key.split("#")[1]) || 1);
 
 /** 이 행성이 메인 고리에서 차지해야 하는 호 길이 — 위성 체계가 이웃을 밀어낸다 */
-function arcNeed(s: OrbSys | undefined): number {
+function arcNeed(s: OrbSys | undefined, reach?: number): number {
   if (!s || !s.rings.length) return SLOT;
-  return Math.max(SLOT, 2 * s.reach + SLOT * 0.5);
+  return Math.max(SLOT, 2 * (reach ?? s.reach) + SLOT * 0.5);
+}
+
+/** 지금 **그려져 있는** 반지름으로 잰 이 행성의 뻗음. 사용자가 고리를 줄였으면
+    그만큼 자리를 덜 받아야 한다 — 계획값으로 재면 줄인 만큼이 빈 채로 남는다 */
+function liveReach(o: Orb, live: OrbIndex, pid: string): number {
+  const s = o.sys.get(pid);
+  if (!s) return 0;
+  let out = 0;
+  for (const g of s.rings) {
+    const r = live.rings.get("s:" + pid + ":" + g.key)?.r ?? g.r;
+    let inner = 0;
+    for (const n of g.ns) inner = Math.max(inner, liveReach(o, live, n.id));
+    out = Math.max(out, r + inner);
+  }
+  return out;
 }
 
 /* ---------------- 전체 계획 ---------------- */
@@ -310,47 +325,68 @@ function place(n: GNode, x: number, y: number) {
 }
 
 /** 위성을 고리 한 바퀴에 편다. 첫 자리는 태양 반대쪽 — 바깥을 보게.
-    자기 체계를 가진 식구가 있으면 거기서 다시 편다 */
-function moons(o: Orb, id: string, px: number, py: number, out: number) {
+    자기 체계를 가진 식구가 있으면 거기서 다시 편다.
+    반지름은 **지금 그려져 있는 것**을 쓴다 — 크기는 사용자가 정한다 */
+function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: number) {
   const s = o.sys.get(id);
   if (!s) return;
   for (const g of s.rings) {
-    const tot = g.arcs.reduce((a, b) => a + b, 0) || 1;
+    const R = live.rings.get("s:" + id + ":" + g.key)?.r ?? g.r;
+    const arcs = g.ns.map((n) => arcNeed(o.sys.get(n.id), liveReach(o, live, n.id)));
+    const tot = arcs.reduce((a, b) => a + b, 0) || 1;
     let acc = 0;
     g.ns.forEach((m, i) => {
-      const a = out + (2 * Math.PI * (acc + g.arcs[i] / 2)) / tot;
-      acc += g.arcs[i];
-      const x = px + Math.cos(a) * g.r, y = py + Math.sin(a) * g.r;
+      const a = out + (2 * Math.PI * (acc + arcs[i] / 2)) / tot;
+      acc += arcs[i];
+      const x = px + Math.cos(a) * R, y = py + Math.sin(a) * R;
       place(m, x, y);
-      moons(o, m.id, x, y, a);
+      moons(o, live, m.id, x, y, a);
     });
     /* 궤도 노드는 안 그리지만 좌표는 성하게 둔다 — 미니맵·전체보기가 좌표를 본다.
        이름이 쓰이는 자리, 즉 식구 둘 사이 빈 곳에 둔다 */
     const gn = g.group ? nodeOf(g.group) : null;
     if (gn && g.ns.length) {
       const half = g.ns.length > 1 ? Math.PI / g.ns.length : Math.PI / 2;
-      place(gn, px + Math.cos(out + half) * g.r, py + Math.sin(out + half) * g.r);
+      place(gn, px + Math.cos(out + half) * R, py + Math.sin(out + half) * R);
     }
   }
 }
 
-/** 보기 → 궤도 정리. 좌표만 바꾼다 — 노드·엣지·문헌은 건드리지 않는다 */
-export function tidyOrbit() {
+/** 보기 → 궤도 정리. 좌표만 바꾼다 — 노드·엣지·문헌은 건드리지 않는다.
+
+    **고리 크기는 건드리지 않는다.** 크기는 사용자가 고리를 잡아 정하는 것이고,
+    여기서는 그 고리 위에 식구를 고르게 다시 편다. 겹침은 그렇게 푼다 — 한 고리에
+    너무 많이 올려 둘레가 모자라면 그건 고리를 키워야 풀리는 겹침이라 남겨 둔다.
+
+    아직 고리가 없는 그래프(자유 배치)에서는 계획한 크기를 처음 한 번 쓴다.
+    돌려주는 값은 자리가 실제로 바뀐 노드 수다. */
+export function tidyOrbit(): number {
   const o = plan();
+  const live = orbitIndex();
+  const before = new Map(S.nodes.map((n) => [n.id, n.x + "," + n.y]));
+
+  /* 태양도 지금 자리를 쓴다. 정리할 때마다 원점으로 끌어오면 보던 화면이 날아간다 */
+  const outer = (o.layers[0]?.ns ?? []).filter((n) => !UI.hidden.has(n.id));
+  const sun = live.rings.size && outer.length > 2 ? fitSun(outer) : { x: 0, y: 0 };
+
   for (const lay of o.layers) {
     if (!lay.ns.length) continue;
+    const R = live.rings.get("m:" + lay.depth)?.r ?? lay.r;
     /* 위성 체계가 큰 행성에 각도를 더 준다. 균등하게 나누면 큰 체계가 이웃을 덮는다 */
-    const w = lay.ns.map((n) => arcNeed(o.sys.get(n.id)));
+    const w = lay.ns.map((n) => arcNeed(o.sys.get(n.id), liveReach(o, live, n.id)));
     const tot = w.reduce((a, b) => a + b, 0) || 1;
     let acc = 0;
     lay.ns.forEach((n, i) => {
       const a = (2 * Math.PI * (acc + w[i] / 2)) / tot - Math.PI / 2;
       acc += w[i];
-      const x = Math.cos(a) * lay.r, y = Math.sin(a) * lay.r;
+      const x = sun.x + Math.cos(a) * R, y = sun.y + Math.sin(a) * R;
       place(n, x, y);
-      moons(o, n.id, x, y, a);
+      moons(o, live, n.id, x, y, a);
     });
   }
+  let moved = 0;
+  for (const n of S.nodes) if (before.get(n.id) !== n.x + "," + n.y) moved++;
+  return moved;
 }
 
 /* ---------------- 궤도 읽기·그리기 ----------------

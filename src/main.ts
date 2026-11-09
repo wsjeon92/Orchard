@@ -285,26 +285,22 @@ el("shareCopy").onclick = () => {
   b.textContent = "복사됨";
   setTimeout(() => { b.textContent = "복사"; }, 1400);
 };
-el("btnTidy").onclick = () => {
-  const moved = tidyOverlaps();
-  if (!moved) { flashTidy("겹친 키워드가 없습니다"); return; }
+/* 궤도 정리 — 고리 위에 식구를 고르게 다시 편다. 겹침 정리가 여기 들어와 있다.
+   **고리 크기는 안 건드린다** — 크기는 사용자가 고리를 잡아 정하는 것이다.
+   좌표만 바꾸므로 Ctrl+Z 로 되돌아간다. 손으로 잡아 둔 배치를 덮어쓰기 때문에
+   자동으로 돌리지 않고 버튼으로만 둔다. */
+el("btnOrbit").onclick = () => {
+  const moved = tidyOrbit() + tidyOverlaps();   // 궤도 밖에 남은 것도 같이 푼다
+  if (!moved) { flashTidy("정리할 것이 없습니다"); return; }
   save();                       // 실행 취소 스냅샷도 여기에 걸린다
   render();                     // x/y 가 바뀌었으니 애니메이션으로 미끄러진다
   flashTidy(`${moved}개를 옮겼습니다`);
 };
-/* 궤도 정리 — 계층을 반지름으로 읽히게 늘어놓는다. 좌표만 바꾸므로 Ctrl+Z 로 되돌아간다.
-   손으로 잡아 둔 배치를 덮어쓰기 때문에 자동으로 돌리지 않고 버튼으로만 둔다. */
-el("btnOrbit").onclick = () => {
-  tidyOrbit();
-  save();
-  render();
-  fit();
-};
 /** 버튼 옆에 결과를 잠깐 보여준다 — 아무 일도 안 일어난 것처럼 보이면 눌렀는지 알 수 없다 */
 let tidyTimer: ReturnType<typeof setTimeout> | null = null;
 function flashTidy(msg: string) {
-  const b = el("btnTidy");
-  const keep = b.dataset.label ?? (b.dataset.label = b.textContent ?? "겹침 정리");
+  const b = el("btnOrbit");
+  const keep = b.dataset.label ?? (b.dataset.label = b.textContent ?? "궤도 정리");
   b.textContent = msg;
   if (tidyTimer) clearTimeout(tidyTimer);
   tidyTimer = setTimeout(() => { b.textContent = keep; }, 1600);
