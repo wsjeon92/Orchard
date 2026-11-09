@@ -116,10 +116,29 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 const afterSaveFns: (() => void)[] = [];
 export function onAfterSave(fn: () => void) { afterSaveFns.push(fn); }
 
+/* 화면만 움직인 것인지 데이터가 바뀐 것인지 가린다.
+
+   왜 가려야 하나: 파일 연결은 dirty 일 때 폴링을 멈춘다("쓸 게 남아 있으면 우리
+   것을 먼저"). 화면을 조금 움직였다고 dirty 가 서면, 그동안 바깥에서 파일이
+   바뀌어도 못 보고 400ms 뒤에 메모리로 덮어쓴다. 실제로 그렇게 밖에서 쓴
+   변경이 통째로 날아갔다.
+
+   호출 지점을 하나씩 분류하지 않고 여기서 가린다 — render() 끝의 save() 는
+   화면 이동과 데이터 변경이 같이 타고 지나가서, 지점으로 나누면 반드시 빠진다.
+   view 만 뺀 문자열을 지난번 것과 비교한다. strip() 과 stringify 는 어차피
+   로컬 저장에 쓰므로 한 번 더 미는 비용뿐이고, 패닝 중에는 render 가 매 프레임
+   돌지 않고 손을 뗄 때 한 번 돈다. */
+let lastDataKey = "";
+
 export function save() {
   const m = document.getElementById("saveMark");
+  const snap = strip();
+  /* view 를 상수로 바꾼 뒤 비교한다. 화면 좌표·배율만 달라졌으면 같은 문자열이 된다 */
+  const key = JSON.stringify({ ...snap, view: 0 });
+  const dataChanged = key !== lastDataKey;
+  lastDataKey = key;
   try {
-    localStorage.setItem(LS, JSON.stringify(strip()));
+    localStorage.setItem(LS, JSON.stringify(snap));
     localStorage.setItem(LS_AT, String(Date.now()));
     if (m) {
       m.textContent = "저장됨";
@@ -136,8 +155,17 @@ export function save() {
       m.className = "err";
     }
   }
+  /* 화면만 움직였으면 여기서 멈춘다. 파일 쓰기도, 실행 취소 스냅샷도 안 남긴다 —
+     Ctrl+Z 가 화면 위치를 되돌리는 것도 원래 이상했다. 로컬 저장은 위에서 이미
+     했으니 새로고침하면 보던 자리는 그대로다. */
+  if (!dataChanged) return;
   for (const fn of afterSaveFns) fn();
 }
+
+/** 그래프를 통째로 바꾼 직후에 부른다 — 지금 상태를 '방금 저장된 것'으로 친다.
+    안 부르면 시작 직후 첫 save 가 데이터 변경으로 보여서, 보고 있던 로컬 상태를
+    파일에 덮어쓴다. 바깥에서 들어온 그래프를 반영한 직후에도 같은 일이 난다. */
+export function syncDataKey() { lastDataKey = JSON.stringify({ ...strip(), view: 0 }); }
 
 /** assoc 엣지는 멤버가 2개 이상인 하이퍼엣지다. 옛 저장본의 a/b 를 members 로 올린다. */
 export function normalize() {

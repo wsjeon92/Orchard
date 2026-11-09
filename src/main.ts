@@ -33,7 +33,8 @@ import {
   setFocus, setSelect, toggleFold,
 } from "./render";
 import {
-  RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView, seed,
+  RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView,
+  seed, syncDataKey,
   setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion, normalize,
 } from "./state";
 import { bindViewer, isViewer, narrowScreen, setViewer } from "./viewer";
@@ -251,6 +252,7 @@ function syncLinkBtn() {
 
 bindFileLink(syncLinkBtn, (g) => {       // 파일이 바깥에서 바뀌었을 때
   setGraph(g);
+  syncDataKey();                 // 통째로 바뀌었으니 '방금 저장된 것'으로 친다
   normalize();
   syncTitleInput();
   drawTopics();
@@ -321,6 +323,7 @@ loadView();
 hopsEl.value = String(VIEW.hops);
 el("hopsN").textContent = String(VIEW.hops);
 if (!load()) seed();
+syncDataKey();                   // 시작 직후 첫 save 가 파일을 덮지 않게
 drawTopics();
 syncCrossN();
 syncTitleInput();
@@ -337,6 +340,7 @@ async function openFromUrl() {
   if (!g) { alert("링크에 담긴 그래프를 읽지 못했습니다."); return; }
   const open = () => {
     setGraph(g);
+    syncDataKey();
     syncTitleInput();
     drawTopics();
     resetHistoryBase();
@@ -372,7 +376,7 @@ const api = {
   // S 와 VIEW 는 모듈에서 통째로 교체되므로 게터로 내보낸다
   get S() { return S; },
   get VIEW() { return VIEW; },
-  UI, reset,
+  UI, reset, onAfterSave,
   nodeEls, elblEls, stage, world, screenToWorld,
   nodeOf, edgeOf, strip, slots, slotSave, save,
   render, paint, applyView, fit, select, setFocus, toggleFold, foldAll, lightRedraw,
