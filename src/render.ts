@@ -7,12 +7,12 @@ import {
   ctr, edgeLabelText, isPinned, labelOffset, layoutGroups, matchNode,
   migratePin, pinnedPos, px, py, unit,
 } from "./geom";
-import { degree, descendantsOf, focusSet, foldKids, hiddenSet, canGroup, groupOf, memberIds,
+import { crossWorks, degree, descendantsOf, focusSet, foldKids, hiddenSet, canGroup, groupOf, memberIds,
 } from "./graph";
 import { relaxLabels } from "./labels";
 import { drawMini } from "./minimap";
 import { renderSide } from "./panel";
-import { S, UI, VIEW, edgeOf, isGroup, kindOf, nodeOf, save, setHidden } from "./state";
+import { RIPE_FLOOR, S, UI, VIEW, WORK_FLOOR, edgeOf, isGroup, kindOf, nodeOf, save, setHidden } from "./state";
 import { isViewer } from "./viewer";
 import type { GNode } from "./types";
 
@@ -27,6 +27,9 @@ export function render() {
   setHidden(hiddenSet());
   const hid = UI.hidden;
   const fset = UI.focusId ? focusSet(UI.focusId, VIEW.hops) : null;
+  /* 이름 색의 재료. 한 번만 센다 — 노드마다 다시 세면 71 노드에 71 번 돈다 */
+  const cw = crossWorks();
+  const wf = Math.max(1, VIEW.workFloor ?? WORK_FLOOR);
   const q = UI.query.trim().toLowerCase();
   /* 빈 곳 강조. 꺼져 있으면 null 이고 아무 것도 흐려지지 않는다.
      집중·검색과 겹쳐 쓸 수 있도록 dim 조건에 or 로 더한다. */
@@ -64,6 +67,12 @@ export function render() {
       + ((fset && !fset.has(n.id)) || (q && !matchNode(n, q))
          || (gap && !gap.ids.has(n.id)) ? " dim" : "")
       + (gap?.why.has(n.id) ? " gap gap-" + gap.why.get(n.id) : "")
+      /* 이름 글자색 = 그 분야가 얼마나 연구됐나. 테두리·태그는 종류를 계속
+         들고 있다 — 색 하나에 두 가지를 담으면 둘 다 안 읽힌다. 깊이 축은
+         색이 곧 종류라 등급을 안 붙이고 모노톤 그대로 둔다 */
+      + (K.axis === "b" && !isGroup(n)
+         ? ((cw.get(n.id) ?? 0) >= wf ? " nw2" : (cw.get(n.id) ?? 0) > 0 ? " nw1" : " nw0")
+         : "")
       + (UI.marked.has(n.id) ? " mark" : "")
       + (Drop.kind === "group" && Drop.target === n.id ? " drop" : "");
 
@@ -256,7 +265,13 @@ export function drawEdges(fset: Set<string> | null, q: string) {
     }
     /* 'named' 는 사람이 고른 이름이 있을 때만. 승격만 한 교차는 라벨에
        쓸 이름이 없으므로(노드가 그 이름을 갖는다) 선 색으로만 구분한다. */
+    /* 엣지 이름 색 = 이 교차의 근거 상태. 문헌은 이름 붙인 교차에 달리므로
+       여기가 근거의 1차 자리다. 문턱은 '익은 교차' 설정을 같이 쓴다 — 같은
+       뜻의 눈금이 둘이면 어긋난다 */
+    const ew = (e.works ?? []).length;
+    const ef = Math.max(1, VIEW.ripeFloor ?? RIPE_FLOOR);
     le.className = "elbl" + (e.label ? " named" : "")
+      + (e.label ? (ew >= ef ? " ew2" : ew > 0 ? " ew1" : " ew0") : "")
       + (gap?.why.has(e.id) ? " gap gap-" + gap.why.get(e.id) : "")
       + (isSel ? " sel" : "") + (dim ? " dim" : "")
       + (ms.length > 2 ? " hyper" : "")

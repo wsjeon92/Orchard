@@ -97,6 +97,19 @@ export const degree = (id: string) => neighbors(id).size;
  *  **neighbors() 를 쓰지 않는다.** degree() 가 그 함수를 쓰고, degree 는 노드
  *  크기(render)와 궤도 자리 배분(orbit)과 빈 곳 탐지를 정한다 — 여기를 손대면
  *  엉뚱한 데가 조용히 바뀐다. */
+/** 노드마다 "그 노드가 든 교차들의 문헌 합". 이 분야가 얼마나 연구됐나의 척도다.
+    노드 자기 works 를 쓰지 않는 이유는 ViewSettings.workFloor 주석에 적어 뒀다. */
+export function crossWorks(): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const e of S.edges) {
+    if (e.kind !== "assoc") continue;
+    const w = (e.works ?? []).length;
+    if (!w) continue;
+    for (const m of e.members ?? []) out.set(m, (out.get(m) ?? 0) + w);
+  }
+  return out;
+}
+
 export function focusSet(id: string, hops = VIEW.hops): Set<string> {
   const set = new Set<string>([id]);
   for (const d of descendantsOf(id)) set.add(d);   // sub+deep, 아래로만, 궤도를 통과
