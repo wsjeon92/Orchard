@@ -318,6 +318,12 @@ export function bindCanvas() {
           if (m) { m.x += n.x - ox; m.y += n.y - oy; m._rx = m.x; m._ry = m.y; }
         }
       }
+      /* 메인 고리는 실체다 — 끌어서 바꾼 크기를 고리에 적는다. 안 적으면 저장된
+         반지름이 그대로라서, 손을 떼고 다시 그릴 때 식구가 원래 원으로 돌아간다. */
+      if (drag.key.startsWith("m:")) {
+        S.rings ??= {};
+        S.rings[drag.key] = { ...(S.rings[drag.key] ?? {}), r };
+      }
       drag.moved = true;
       paint();
     } else if (drag.type === "elbl") {

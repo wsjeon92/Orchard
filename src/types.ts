@@ -115,6 +115,10 @@ export interface GEdge {
 
 export interface Viewport { x: number; y: number; k: number }
 
+/** 메인 궤도 한 고리에 저장되는 것. 중심은 저장하지 않는다 — 서브 궤도가 행성을
+    중심으로 삼는 것처럼, 메인은 식구가 가장 많은 층이 말하는 자리를 쓴다. */
+export interface MainRing { r: number; name?: string }
+
 export interface GraphState {
   /** 이 그래프의 이름. 내보내기 파일명과 마크다운 제목에 쓰인다 */
   title?: string;
@@ -124,6 +128,16 @@ export interface GraphState {
   seq: number;
   /** 연구 주제 메모. 그래프와 같은 파일에 담겨 내보내기·가져오기를 따라간다 */
   topics: Topic[];
+  /** 메인 궤도의 고리. "m:<합성깊이>" → 반지름과 이름.
+
+      왜 저장하는가: 전에는 고리를 노드 좌표에서 추론했고, 흩어짐이 평균의 30%
+      (ROUND)를 넘으면 고리를 통째로 버렸다. 그래서 노드 하나가 엉뚱한 반지름에
+      끼면 그 층이 화면에서 사라졌다 — 실제로 L2 가 그렇게 없어졌다. 고리가
+      실체가 되면 그 일이 구조적으로 안 생긴다.
+
+      식구는 여기 담지 않는다. 어느 고리에 앉는지는 여전히 그래프가 정한다
+      (연결 유무와 합성 깊이). 담는 길이 둘이면 둘이 어긋난다. */
+  rings?: Record<string, MainRing>;
   /** 치운 교차 후보. "노드id|노드id"(사전순) 꼴.
       그래프에 담아 두는 이유: 치운 판단은 그래프에 대한 판단이라 내보내기를
       따라가야 한다. 보기 설정에 두면 다른 기기에서 같은 것을 또 치워야 한다 */

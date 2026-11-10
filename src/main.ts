@@ -13,7 +13,7 @@ import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
 } from "./history";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
-import { FIRST_RING, newRingRadius, orbitHits, orbitIndex, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, settleComposition, subRings, tidyOrbit } from "./orbit";
+import { FIRST_RING, freezeRings, mainRingName, newRingRadius, orbitHits, orbitIndex, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, settleComposition, subRings, tidyOrbit } from "./orbit";
 import { bindMinimap, drawMini } from "./minimap";
 import {
   bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown, openPhone,
@@ -268,6 +268,7 @@ bindFileLink(syncLinkBtn, (g) => {       // 파일이 바깥에서 바뀌었을 
   setGraph(g);
   syncDataKey();                 // 통째로 바뀌었으니 '방금 저장된 것'으로 친다
   normalize();
+  freezeRings();                 // 고리를 저장하기 전 파일이면 지금 모습대로 굳힌다
   syncTitleInput();
   drawTopics();
   resetHistoryBase();
@@ -341,6 +342,7 @@ hopsEl.value = String(VIEW.hops);
 el("hopsN").textContent = String(VIEW.hops);
 syncEmphClass();                 // 궤도/엣지 무게는 첫 그림부터 맞아야 한다
 if (!load()) seed();
+freezeRings();                   // 고리를 저장하기 전 파일이면 지금 모습대로 굳힌다
 syncDataKey();                   // 시작 직후 첫 save 가 파일을 덮지 않게
 /* 실행 취소의 기준점도 여기서 잡는다. 예전에는 첫 render 의 save 가 snapshot 을
    불러 주면서 얻어걸렸는데, save 가 화면만 바뀐 경우를 건너뛰게 되면서 그 길이
@@ -409,7 +411,7 @@ const api = {
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
-  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
+  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, freezeRings, mainRingName, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass, syncEmphClass,
   isViewer, setViewer, narrowScreen,
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,

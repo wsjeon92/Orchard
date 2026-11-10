@@ -117,9 +117,17 @@ function orbitPanel(v: OrbitView, kindEl: HTMLElement, titleEl: HTMLElement,
   kindEl.innerHTML = `<i style="background:#8e9cb8"></i>궤도`
     + `<span style="color:#5c6472">· ${main ? "메인" : "서브"} · 반지름 ${Math.round(v.r)}</span>`;
   titleEl.textContent = v.label;
-  titleEl.contentEditable = main ? "false" : "true";
-  titleEl.oninput = main ? null : () => {
+  titleEl.contentEditable = "true";
+  titleEl.oninput = () => {
     const name = (titleEl.textContent ?? "").replace(/\n+$/, "").trim();
+    /* 메인 고리는 실체이므로 이름이 고리에 붙는다 — 궤도 노드를 만들지 않는다.
+       비우면 기본 이름(L0·L1·E0 …)으로 돌아간다 */
+    if (main) {
+      S.rings ??= {};
+      S.rings[v.key] = { ...(S.rings[v.key] ?? { r: v.r }), name: name || undefined };
+      lightRedraw();
+      return;
+    }
     if (gnode) { gnode.label = name; lightRedraw(); return; }
     if (!name) return;
     /* 이름 없는 고리에 이름을 쓰면 그 고리가 궤도 노드를 얻는다 */
@@ -189,8 +197,12 @@ function orbitPanel(v: OrbitView, kindEl: HTMLElement, titleEl: HTMLElement,
   if (!v.ids.length) div(body, "empty").textContent = "식구가 없습니다.";
 
   if (main) {
-    div(body, "empty").innerHTML = "메인 궤도의 소속은 <b>상위가 없다</b>는 사실에서 나옵니다. "
-      + "여기서 빼려면 다른 노드의 하위로 붙이세요.";
+    div(body, "empty").innerHTML = "메인 궤도의 소속은 그래프가 정합니다 — "
+      + "<b>L0</b> 연결 없음, <b>L1</b> 연결은 있고 합성은 안 됨, "
+      + "<b>E0</b> 부터는 합성 개념(합성 깊이 그대로). "
+      + "여기서 빼려면 다른 노드의 하위로 붙이세요. "
+      + "고리의 <b>이름과 크기는 저장</b>되니 위에서 고치시면 됩니다 — 이름을 비우면 "
+      + "기본 이름으로 돌아갑니다.";
   } else if (v.planet) {
     /* 새 키워드를 바로 만들어 이 궤도에 넣는 길. 쉼표로 여러 개 */
     const addRow = div(body, "addrow");

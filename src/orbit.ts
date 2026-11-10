@@ -253,6 +253,32 @@ function order(ns: GNode[]): GNode[] {
   return cur;
 }
 
+/** 메인 고리의 키. 층을 정하는 것은 합성 깊이이므로 키도 그것으로 짠다 */
+export const ringKey = (depth: number) => "m:" + depth;
+
+/** 저장된 고리. 없으면 undefined — 아직 안 굳은 층이다 */
+export const storedRing = (depth: number) => S.rings?.[ringKey(depth)];
+
+/** 메인 궤도 층의 이름. (서브 고리 쪽 ringName 과는 다른 일이다 — 저쪽은 궤도
+    노드 이름이나 S1·S2 를 정하고, 이쪽은 합성 깊이를 L·E 로 읽는다)
+
+      L0  연결이 하나도 없는 노드. 가장 바깥
+      L1  연결은 있고 합성은 안 된 순수 개념
+      E0  합성 개념 — 교차에서 올라온 것이든 부품을 붙인 것이든
+      E1  그 합성 개념을 다시 합성한 것 …
+
+    L 과 E 를 한 줄에 세운다. 두 묶음을 각각 동심원으로 만들면 같은 태양을 돌면서
+    반지름이 충돌해, E0 와 L1 이 비슷한 반지름에 앉으면 두 고리가 겹쳐 어느 노드가
+    어디 있는지 화면에서 구분이 안 된다. 실제로 그렇게 겹친 것을 봤다(m:1=611,
+    m:0=600). 깊이 하나로 세우면 그 문제가 아예 없다.
+
+    저장된 이름이 있으면 그것을 쓴다 — 사용자가 고리에 뜻을 붙일 수 있어야 한다. */
+export function mainRingName(depth: number): string {
+  const given = storedRing(depth)?.name?.trim();
+  if (given) return given;
+  return depth < 0 ? "L0" : depth === 0 ? "L1" : "E" + (depth - 1);
+}
+
 export function plan(): Orb {
   const k = kin();
   const cd = compDepth();
@@ -290,7 +316,7 @@ export function plan(): Orb {
   }
   const depths = [...by.keys()].sort((a, b) => a - b);          // 작을수록 바깥
   const layers: OrbLayer[] = depths.map((d) => ({
-    depth: d, name: "L" + (d + 1), ns: order(by.get(d)!), r: 0,
+    depth: d, name: mainRingName(d), ns: order(by.get(d)!), r: 0,
   }));
   if (!layers.length) return { layers, sys };
 
@@ -358,6 +384,10 @@ function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: 
     못한다. 실제로 고아가 하나일 때 그 노드가 우연히 있던 자리가 L0 의 반지름이
     되어, 바깥이어야 할 고리가 L1 안쪽으로 들어왔다. */
 function mainRadius(o: Orb, live: OrbIndex, lay: OrbLayer): number {
+  /* 저장된 고리가 있으면 그것이 답이다. 궤도 정리는 고리 크기를 바꾸지 않는다 —
+     크기는 사용자가 정하는 것이고, 정리는 그 고리 위에 식구를 다시 펴는 일이다 */
+  const st = storedRing(lay.depth)?.r;
+  if (st && st > 0) return st;
   const R = live.rings.get("m:" + lay.depth);
   if (R && R.ids.length > 1) return R.r;
   for (const other of o.layers) {
@@ -378,6 +408,25 @@ function mainRadius(o: Orb, live: OrbIndex, lay: OrbLayer): number {
     돌려주는 값: moved 는 자리가 실제로 바뀐 노드 수, tight 는 **식구에 비해 작은
     고리**의 수다. 크기를 못 건드리니 비좁은 고리는 정리로 풀 수가 없다 — 겹친 채
     두고 말없이 넘어가는 대신 몇 개가 비좁은지 알려 준다. 사람이 키우면 풀린다. */
+/** 아직 저장되지 않은 메인 고리를 **지금 보이는 모습대로** 굳힌다.
+
+    고리를 저장하기 전에 만든 파일을 위한 것이다. 안 굳히면 저장된 반지름이 없는
+    층은 계속 추론으로 돌아가고, 그러면 흩어짐 판정에 또 걸려 사라질 수 있다.
+    굳힐 때는 지금 좌표에서 읽은 값을 쓰므로 화면 모습이 바뀌지 않는다. */
+export function freezeRings(): number {
+  const o = plan();
+  const live = orbitIndex();
+  S.rings ??= {};
+  let n = 0;
+  for (const lay of o.layers) {
+    const key = ringKey(lay.depth);
+    if (S.rings[key]?.r) continue;
+    const r = mainRadius(o, live, lay);
+    if (r > 0) { S.rings[key] = { ...(S.rings[key] ?? {}), r }; n++; }
+  }
+  return n;
+}
+
 export function tidyOrbit(): { moved: number; tight: number } {
   const o = plan();
   const live = orbitIndex();
@@ -402,6 +451,7 @@ export function tidyOrbit(): { moved: number; tight: number } {
       moons(o, live, n.id, x, y, a);
     });
   }
+  freezeRings();              // 새로 생긴 깊이의 고리도 여기서 실체가 된다
   let moved = 0;
   for (const n of S.nodes) if (before.get(n.id) !== n.x + "," + n.y) moved++;
   return { moved, tight: tightRings() };
@@ -498,11 +548,21 @@ export function orbitIndex(): OrbIndex {
   const of = new Map<string, string>();
   const sat = new Map<string, string[]>();
 
-  const add = (key: string, c: { x: number; y: number }, ns: GNode[], label: string, group = "") => {
+  const add = (key: string, c: { x: number; y: number }, ns: GNode[], label: string,
+               group = "", stored?: number) => {
     const vis = ns.filter((n) => !UI.hidden.has(n.id));
     if (!vis.length) return;
     const ds = vis.map((n) => Math.hypot(cx(n) - c.x, cy(n) - c.y));
     const m = ds.reduce((a, b) => a + b, 0) / ds.length;
+    /* 저장된 고리는 흩어짐을 묻지 않는다. 고리가 실체이므로 식구가 밀려 있어도
+       고리는 그대로 있고, 궤도 정리가 그 원 위로 데려온다. 추론하던 때는 여기서
+       버렸고, 그래서 노드 하나가 어긋나면 층이 통째로 화면에서 사라졌다. */
+    if (stored !== undefined && stored > 0) {
+      rings.set(key, { c, r: stored, ids: vis.map((n) => n.id), label, group });
+      for (const n of vis) of.set(n.id, key);
+      if (group) of.set(group, key);
+      return;
+    }
     if (m < 60) return;
     if (vis.length > 1) {
       const sd = Math.sqrt(ds.reduce((a, b) => a + (b - m) ** 2, 0) / ds.length);
@@ -525,7 +585,9 @@ export function orbitIndex(): OrbIndex {
   vis.forEach((ns, i) => { if (ns.length > vis[best].length) best = i; });
   if (vis.length && vis[best].length > 2) {
     const c = fitSun(vis[best]);
-    for (const lay of o.layers) add("m:" + lay.depth, c, lay.ns, lay.name);
+    for (const lay of o.layers) {
+      add(ringKey(lay.depth), c, lay.ns, lay.name, "", storedRing(lay.depth)?.r);
+    }
   }
 
   /* 위성 궤도 — 행성마다, 고리마다. 그룹 고리는 그룹 이름을 달고 나온다 */
@@ -805,6 +867,12 @@ export function setOrbitRadius(key: string, r: number): boolean {
   const v = orbitView(key);
   if (!v || !(r > 0)) return false;
   const live = orbitIndex();
+  /* 메인 고리는 실체다 — 크기를 저장한다. 서브 고리는 행성을 중심으로 좌표에서
+     읽히므로 저장할 것이 없다(식구를 옮기면 그게 곧 크기다) */
+  if (key.startsWith("m:")) {
+    S.rings ??= {};
+    S.rings[key] = { ...(S.rings[key] ?? {}), r };
+  }
   for (const id of v.ids) {
     const n = nodeOf(id);
     if (!n) continue;
@@ -875,10 +943,19 @@ export function placeOnMainOrbit(id: string): boolean {
   const settled = (R?.ids ?? []).filter((x) => x !== id).map(nodeOf)
     .filter((x): x is GNode => !!x);
 
-  const r = settled.length
-    ? settled.reduce((sum, m) => sum + Math.hypot(cx(m) - sun.x, cy(m) - sun.y), 0)
-      / settled.length
-    : mainRadius(o, live, lay);
+  /* 저장된 고리가 있으면 그것이 답이다 — 고리가 실체이므로 식구가 어디 있든 그 원에
+     앉힌다. 살아 있는 고리(R)의 반지름을 그냥 쓰면 안 된다: R 에는 **지금 앉히려는
+     이 노드 자신**이 들어 있어서, 그 층의 첫 노드일 때 제 옛 자리를 답으로 삼는다.
+     실제로 승격한 노드가 교차 옆(678)에 그대로 남아 E0 가 L1 보다 바깥으로 나갔다.
+     그래서 settled(자신을 뺀 식구)가 있을 때만 식구를 따르고, 아무도 없으면 계획에서
+     구한다. */
+  const st = storedRing(lay.depth)?.r;
+  const r = st && st > 0
+    ? st
+    : settled.length
+      ? settled.reduce((sum, m) => sum + Math.hypot(cx(m) - sun.x, cy(m) - sun.y), 0)
+        / settled.length
+      : mainRadius(o, live, lay);
 
   const here = Math.atan2(cy(n) - sun.y, cx(n) - sun.x);
   const a = widestGap(settled.map((m) => Math.atan2(cy(m) - sun.y, cx(m) - sun.x)), here);

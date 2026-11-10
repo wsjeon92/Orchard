@@ -53,7 +53,9 @@ def main():
         if '중심' not in pg.evaluate("() => document.getElementById('sideActs').textContent"):
             bad.append("중심 노드가 창에 없다")
 
-        # 2) 메인 고리도 열린다 — 중심은 가상의 태양, 식구는 읽기 전용
+        # 2) 메인 고리도 열린다 — 중심은 가상의 태양, 식구는 읽기 전용.
+        #    이름은 **고칠 수 있다**: 메인 고리는 실체가 되어 이름과 크기를 저장한다.
+        #    (전에는 못 고쳤다 — 고리가 좌표에서 추론되는 것이라 붙일 자리가 없었다)
         r2 = pg.evaluate("""() => {
           Orchard.select('orbit', 'm:0');
           return {sel: Orchard.UI.sel.id,
@@ -64,7 +66,21 @@ def main():
         }""")
         print(f"2) 메인 고리 — '{r2['title']}', 이름 수정 {r2['editable']}, 빼기 버튼 {r2['빼기']}개")
         if r2['title'] != 'L1': bad.append(f"메인 고리 이름이 틀렸다: {r2['title']}")
-        if r2['editable'] != 'false': bad.append("메인 고리 이름이 수정 가능하다")
+        if r2['editable'] != 'true': bad.append("메인 고리 이름을 고칠 수 없다")
+        # 고친 이름이 고리에 남고, 비우면 기본 이름(L1)으로 돌아간다
+        nm = pg.evaluate("""() => {
+          const t = document.getElementById('sideTitle');
+          t.textContent = '바탕 개념'; t.dispatchEvent(new Event('input'));
+          const kept = (Orchard.S.rings || {})['m:0'];
+          const shown = Orchard.orbitView('m:0').label;
+          t.textContent = ''; t.dispatchEvent(new Event('input'));
+          return {saved: kept && kept.name, shown, back: Orchard.orbitView('m:0').label};
+        }""")
+        print(f"   이름 고치기: 저장 {nm['saved']!r}, 표시 {nm['shown']!r}, 비우면 {nm['back']!r}")
+        if nm['saved'] != '바탕 개념' or nm['shown'] != '바탕 개념':
+            bad.append(f"고친 메인 고리 이름이 안 남는다: {nm['saved']!r} / {nm['shown']!r}")
+        if nm['back'] != 'L1':
+            bad.append(f"이름을 비웠는데 기본 이름으로 안 돌아간다: {nm['back']!r}")
         if '가상의 태양' not in r2['acts']: bad.append("메인 고리 중심 표시가 없다")
         if r2['빼기']: bad.append("메인 고리에 빼기 버튼이 있다 — 뜻이 없는 동작이다")
 
