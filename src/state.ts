@@ -29,16 +29,13 @@ export let S: GraphState = {
 export const CROSS_MIN = 2;
 export const CROSS_MAX = 10;
 export const RIPE_FLOOR = 3;
-/** 노드 이름 색이 "연구가 쌓였다"로 넘어가는 문헌 수. 그래프에서 뽑은 값이 아니라
-    사람이 고르는 눈금이라 설정으로 뺀다 — 박아 두면 그래프가 커질 때 같이 안 움직인다 */
-export const WORK_FLOOR = 5;
 export const RIPE_MAX = 10;
 
 export let VIEW: ViewSettings = {
   labelZoom: 0.45, sizeByDeg: true, minimap: true, hops: 1, anim: true,
   gaps: false, gapWhy: null,
   ripeFloor: RIPE_FLOOR, ripeMax: RIPE_MAX,
-  crossMin: CROSS_MIN, crossMax: CROSS_MAX, crossMode: "score", workFloor: WORK_FLOOR,
+  crossMin: CROSS_MIN, crossMax: CROSS_MAX, crossMode: "score",
   emph: "orb",
 };
 

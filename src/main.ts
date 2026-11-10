@@ -34,7 +34,7 @@ import {
   setFocus, fitFocus, setSelect, toggleFold,
 } from "./render";
 import {
-  RIPE_FLOOR, RIPE_MAX, WORK_FLOOR, S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView,
+  RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView,
   seed, syncDataKey,
   setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion, normalize, isGroup,
 } from "./state";
@@ -171,7 +171,6 @@ function bindRipeNum(id: string, set: (v: number) => void) {
     render();                       // 빈 곳 표시가 켜져 있으면 강조도 따라가야 한다
   });
 }
-bindRipeNum("workFloor", (v) => { VIEW.workFloor = v; });
 bindRipeNum("ripeFloor", (v) => { VIEW.ripeFloor = v; });
 bindRipeNum("ripeMax", (v) => { VIEW.ripeMax = v; });
 
@@ -186,7 +185,6 @@ function syncViewPop() {
   // 잠그지 않는다. 시스템이 '동작 줄이기'면 왜 기본이 꺼짐인지만 알려주고 선택은 맡긴다.
   el("animHint").style.display = reduceMotion ? "" : "none";
   el<HTMLInputElement>("gapsOn").checked = VIEW.gaps;
-  el<HTMLInputElement>("workFloor").value = String(VIEW.workFloor ?? WORK_FLOOR);
   el<HTMLInputElement>("ripeFloor").value = String(VIEW.ripeFloor ?? RIPE_FLOOR);
   el<HTMLInputElement>("ripeMax").value = String(VIEW.ripeMax ?? RIPE_MAX);
   syncRipeNow();
