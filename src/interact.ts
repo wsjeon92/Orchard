@@ -5,7 +5,7 @@ import {
   hitTarget, memberIds, nudgeFree,
 } from "./graph";
 import { groupWith } from "./panel";
-import { Drop, applyView, paint, render, select, setBindLabel, setDragLine } from "./render";
+import { Drop, applyView, paint, render, select, setBindLabel, setDragLine, snapView } from "./render";
 import { orbitIndex } from "./orbit";
 import { S, UI, VIEW, edgeOf, isGroup, nodeOf, save } from "./state";
 import { ask, closeAll } from "./modals";
@@ -203,6 +203,7 @@ function stepPinch() {
   S.view.x = (g.mx - r.left) - (pinch.m0x - pinch.x0) * (k / pinch.k0);
   S.view.y = (g.my - r.top) - (pinch.m0y - pinch.y0) * (k / pinch.k0);
   S.view.k = k;
+  snapView();                 // 집기는 직접 조작이다 — 손가락을 그대로 따라간다
   applyView();
 }
 
@@ -270,6 +271,7 @@ export function bindCanvas() {
       if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
       S.view.x = drag.vx + dx;
       S.view.y = drag.vy + dy;
+      snapView();               // 끌기는 직접 조작이다 — 손가락을 그대로 따라간다
       applyView();
     } else if (drag.type === "node") {
       const w = screenToWorld(ev.clientX, ev.clientY);
@@ -446,6 +448,9 @@ export function bindCanvas() {
     S.view.x = mx - (mx - S.view.x) * (k / old);
     S.view.y = my - (my - S.view.y) * (k / old);
     S.view.k = k;
+    /* 휠도 직접 조작으로 둔다. 이징하면 중간 프레임의 배율로 커서 기준 보정이
+       계산돼서 화면이 커서에서 미끄러져 나간다 — 확대하려던 자리를 놓친다. */
+    snapView();
     applyView();
     save();
   }, { passive: false });

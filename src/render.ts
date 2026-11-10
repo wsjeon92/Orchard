@@ -1,4 +1,5 @@
 import { kickAnim } from "./anim";
+import { atRest, spring } from "./spring";
 import { gapSet } from "./gaps";
 import { orbitHits, orbitIndex, orbitRings, orbitSays, syncOrbitHits } from "./orbit";
 import { elblEls, nodeEls, stage, world } from "./dom";
@@ -156,11 +157,54 @@ export function paint() {
   drawMini();
 }
 
+/* ---------------- 카메라 ----------------
+
+   직접 조작은 1:1, 명령은 이징. 끌기와 휠 핀치는 손가락을 그대로 따라가야 하고(한
+   프레임이라도 뒤처지면 미끄럽지 않고 무겁게 느껴진다), 「맞추기」·「맞춰 보기」·줌
+   버튼처럼 **눌러서 시키는 것**은 눈이 따라갈 수 있게 스프링으로 간다. 전에는 전부
+   한 프레임에 튀어서 어디서 어디로 갔는지 알 수 없었다. */
+const vDisp = { x: 0, y: 0, k: 1, vx: 0, vy: 0, vk: 0 };
+let vEasing = false;
+
+/** 카메라를 지금 자리에서 S.view 로 미끄러뜨린다. 목표는 이미 S.view 에 적혀 있다 */
+export function easeView() {
+  if (!animAllowed()) { snapView(); applyView(); return; }
+  vEasing = true;
+  kickAnim();
+}
+
+/** 표시 카메라를 목표에 즉시 맞춘다 — 끌기·휠처럼 직접 따라가야 하는 조작 */
+export function snapView() {
+  vDisp.x = S.view.x; vDisp.y = S.view.y; vDisp.k = S.view.k;
+  vDisp.vx = vDisp.vy = vDisp.vk = 0;
+  vEasing = false;
+}
+
+export const viewAnimRunning = () => vEasing;
+
+/** 한 프레임 굴린다. dt 는 초. 돌려주는 값: 아직 가는 중인가 */
+export function stepViewAnim(dt: number): boolean {
+  if (!vEasing) return false;
+  /* 배율은 거리 기준이 다르다 — 1.0 과 1.4 의 차이는 px 로 치면 0.4 지만 화면은 크게
+     바뀐다. 그래서 멈춤 판정만 따로 잡는다 */
+  const dk = S.view.k - vDisp.k;
+  const done = atRest(S.view.x - vDisp.x, vDisp.vx)
+    && atRest(S.view.y - vDisp.y, vDisp.vy)
+    && atRest(dk, vDisp.vk, 0.002, 0.03);
+  if (done) { snapView(); applyView(); return false; }
+  [vDisp.x, vDisp.vx] = spring(vDisp.x, vDisp.vx, S.view.x, dt);
+  [vDisp.y, vDisp.vy] = spring(vDisp.y, vDisp.vy, S.view.y, dt);
+  [vDisp.k, vDisp.vk] = spring(vDisp.k, vDisp.vk, S.view.k, dt);
+  applyView();
+  return true;
+}
+
 export function applyView() {
-  world.style.transform = `translate(${S.view.x}px,${S.view.y}px) scale(${S.view.k})`;
-  document.getElementById("zVal")!.textContent = Math.round(S.view.k * 100) + "%";
+  const v = vEasing ? vDisp : S.view;
+  world.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.k})`;
+  document.getElementById("zVal")!.textContent = Math.round(v.k * 100) + "%";
   // 의미적 줌 — 상자 크기는 그대로 두고 글자만 지운다 (리플로우가 없어 화면이 안 흔들린다)
-  world.classList.toggle("faded", VIEW.labelZoom > 0 && S.view.k < VIEW.labelZoom);
+  world.classList.toggle("faded", VIEW.labelZoom > 0 && v.k < VIEW.labelZoom);
   syncOrbitHits(world);
   drawMini();
 }
@@ -352,7 +396,7 @@ export function fit(list?: GNode[]) {
   S.view.k = k;
   S.view.x = r.width / 2 - ((x0 + x1) / 2) * k;
   S.view.y = r.height / 2 - ((y0 + y1) / 2) * k;
-  applyView();
+  easeView();                 // 눌러서 시킨 이동이다 — 눈이 따라갈 수 있게 미끄러진다
   save();
 }
 

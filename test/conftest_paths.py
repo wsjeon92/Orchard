@@ -79,3 +79,38 @@ def fixture(pg):
     pg.evaluate("() => { Orchard.tidyOrbit(); Orchard.render(); }")
     pg.wait_for_timeout(200)
     return ids
+
+
+def settle(pg, timeout: int = 4000) -> bool:
+    """애니메이션이 잦아들 때까지 기다린다.
+
+    고정 대기(wait_for_timeout(250))로는 모자라게 됐다. 지수 감쇠를 애플식 스프링으로
+    바꾸면서 잦아드는 데 ~550ms 가 걸리고, 평행 실행에서 기계가 느려지면 더 걸린다.
+    실제로 smoke_orbit 과 smoke_mainring 이 평행에서만 깨졌다 — 혼자 돌리면 통과했다.
+
+    시간이 아니라 **상태**를 기다린다. 기계가 빠르면 금방 돌아오고 느리면 기다린다.
+    """
+    pg.wait_for_function("() => !window.Orchard || !Orchard.animRunning()", timeout=timeout)
+    return True
+
+
+def booted(pg, timeout: int = 8000) -> bool:
+    """새로고침 뒤 앱이 그래프를 들고 설 때까지 기다린다.
+
+    wait_for_timeout 으로 세던 것을 상태로 바꾼다 — 평행 실행에서 부팅이 600ms 를
+    넘기면 그 뒤 검사가 빈 그래프를 보고 엉뚱하게 실패한다.
+    """
+    pg.wait_for_function("() => !!window.Orchard && Orchard.S.nodes.length > 0", timeout=timeout)
+    settle(pg)
+    return True
+
+
+def ready(pg, timeout: int = 8000) -> bool:
+    """앱이 뜰 때까지 기다린다 — goto 직후의 고정 대기를 대신한다.
+
+    평행 실행에서 기계가 느려지면 500ms 안에 안 뜨고, 그러면 그 뒤 evaluate 가
+    Orchard 를 못 찾아 엉뚱한 실패가 된다. 실제로 한 번 그렇게 깨졌다.
+    """
+    pg.wait_for_function("() => !!window.Orchard", timeout=timeout)
+    settle(pg)
+    return True

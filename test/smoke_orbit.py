@@ -25,7 +25,7 @@
 """
 import json, pathlib
 from playwright.sync_api import sync_playwright
-from conftest_paths import url, launch, shot
+from conftest_paths import url, launch, settle, shot
 
 REAL = pathlib.Path('/mnt/user-data/uploads/Orchard/v1.json')
 
@@ -330,10 +330,14 @@ def main():
             box = pg5.evaluate("(id) => { const b = Orchard.nodeEls.get(id)"
                                ".getBoundingClientRect(); return [b.left + b.width/2, b.top + b.height/2]; }",
                                pick['id'])
+            settle(pg5)              # 집기 전에 멈춰 있어야 한다 — 움직이는 중이면
+            box = pg5.evaluate("(id) => { const b = Orchard.nodeEls.get(id)"
+                               ".getBoundingClientRect(); return [b.left + b.width/2, b.top + b.height/2]; }",
+                               pick['id'])   # 상자 자리가 목표와 달라서 엉뚱한 데를 집는다
             before = state(pick['id'])
             pg5.mouse.move(box[0], box[1]); pg5.mouse.down()
             pg5.mouse.move(box[0] + 90, box[1] + 90, steps=10)
-            pg5.mouse.up(); pg5.wait_for_timeout(250)
+            pg5.mouse.up(); settle(pg5)
             after = state(pick['id'])
             print(f"   노드 '{pick['label']}'  중심거리 {before['d']} → {after['d']}  "
                   f"각도 {before['ang']} → {after['ang']}  궤도 {before['r']} → {after['r']}")

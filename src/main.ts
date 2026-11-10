@@ -13,7 +13,7 @@ import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
 } from "./history";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
-import { FIRST_RING, freezeRings, mainRingName, newRingRadius, orbitHits, orbitIndex, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, settleComposition, subRings, tidyOrbit } from "./orbit";
+import { FIRST_RING, freezeRings, mainRingName, stepRingAnim, newRingRadius, orbitHits, orbitIndex, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, settleComposition, subRings, tidyOrbit } from "./orbit";
 import { bindMinimap, drawMini } from "./minimap";
 import {
   bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown, openPhone,
@@ -25,8 +25,8 @@ import {
   edgeSegments, isPinned, labelTarget, matchNode, pinnedPos, snapToEdge,
 } from "./geom";
 import {
-  applyView, fit, foldAll, lightRedraw, paint, render,
-  setFocus, fitFocus, setSelect, toggleFold,
+  applyView, easeView, fit, foldAll, lightRedraw, paint, render,
+  setFocus, fitFocus, setSelect, snapView, stepViewAnim, toggleFold, viewAnimRunning,
 } from "./render";
 import {
   RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView,
@@ -95,7 +95,7 @@ function zoomBy(f: number) {
   S.view.x = mx - (mx - S.view.x) * (k / old);
   S.view.y = my - (my - S.view.y) * (k / old);
   S.view.k = k;
-  applyView();
+  easeView();                 // 버튼은 눌러서 시키는 것이다 — 미끄러진다
   save();
 }
 el("zIn").onclick = () => zoomBy(1.15);
@@ -410,7 +410,7 @@ const api = {
   focusSet, degree, hiddenSet, foldKids, descendantsOf,
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
-  animRunning, kickAnim, snapPositions, reduceMotion,
+  animRunning, kickAnim, snapPositions, reduceMotion, easeView, snapView, stepViewAnim, stepRingAnim, viewAnimRunning,
   findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, freezeRings, mainRingName, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass, syncEmphClass,
   isViewer, setViewer, narrowScreen,

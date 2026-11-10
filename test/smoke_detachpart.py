@@ -13,7 +13,7 @@
 그 노드의 유일한 연결이었으면 차수가 0 이 되어 L0(가장 바깥)로 가야 한다.
 """
 from playwright.sync_api import sync_playwright
-from conftest_paths import url, launch
+from conftest_paths import url, launch, ready
 
 SETUP = """() => {
   Orchard.reset();
@@ -51,7 +51,7 @@ def main():
     bad = []
     with sync_playwright() as p:
         b = launch(p)
-        pg = b.new_page(); pg.goto(url()); pg.wait_for_timeout(500)
+        pg = b.new_page(); pg.goto(url()); ready(pg)
         v = pg.evaluate(SETUP)
 
         start = {k: pg.evaluate(LAYER, v[k]) for k in ("c0", "c1", "top")}

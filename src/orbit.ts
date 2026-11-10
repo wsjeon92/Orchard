@@ -22,6 +22,7 @@
    deep 을 넣는 이유는 규칙 1 이다 — 질문·가설도 매달린 키워드의 위성이라야
    궤도 밖에 남는 노드가 없다. */
 import { degree } from "./graph";
+import { spring } from "./spring";
 import { S, UI, VIEW, esc, isGroup, nodeOf } from "./state";
 import type { GNode } from "./types";
 
@@ -619,11 +620,60 @@ export function orbitIndex(): OrbIndex {
 /** 보이는 궤도. 선보다 먼저 써서 맨 뒤에 깐다.
     mark 는 궤도 이름에 붙일 여분 class — 빈 곳 표시가 궤도 노드에도 닿게 한다.
     궤도 노드는 더 이상 상자로 안 그려져서, 이름이 유일한 자리다. */
+/* ---------------- 고리의 표시 기하 ----------------
+
+   노드에 목표(x)와 표시(_rx)가 따로 있는 것과 같은 구조다. 판정·히트테스트·패널은
+   목표를 그대로 쓰고, **그리는 것만** 표시값을 쓴다. 표시값을 판정에 쓰면 애니메이션
+   도중에 소속이 흔들린다.
+
+   전에는 고리를 목표 좌표에서 바로 계산해 그렸다. 노드는 _rx 로 미끄러지는데 원과
+   고리 이름, 집는 띠는 즉시 점프해서, 그 사이 노드가 원 밖에 떠 있는 그림이 보였다.
+   고리 크기를 저장하게 된 뒤로는 「작게」·「크게」에서 더 잘 드러났다. */
+interface RingDisp { x: number; y: number; r: number; vx: number; vy: number; vr: number }
+const ringDisp = new Map<string, RingDisp>();
+
+/** 지금 그려야 할 고리의 중심·반지름. 처음 보는 고리는 목표에서 바로 시작한다 —
+    새로 생긴 고리가 화면 중앙에서 날아오면 그게 더 이상하다 */
+function dispOf(key: string, c: { x: number; y: number }, r: number): RingDisp {
+  let d = ringDisp.get(key);
+  if (!d) { d = { x: c.x, y: c.y, r, vx: 0, vy: 0, vr: 0 }; ringDisp.set(key, d); }
+  return d;
+}
+
+/** 한 프레임 굴린다. dt 가 0 이면 **굴리지 않고 움직일 것이 있는지만** 답한다.
+    돌려주는 값: 아직 움직이는 중인가 */
+export function stepRingAnim(dt: number): boolean {
+  const live = orbitIndex().rings;
+  let moving = false;
+  for (const [key, R] of live) {
+    const d = dispOf(key, R.c, R.r);
+    const far = Math.abs(d.x - R.c.x) > 0.4 || Math.abs(d.y - R.c.y) > 0.4
+      || Math.abs(d.r - R.r) > 0.4;
+    const fast = Math.abs(d.vx) > 6 || Math.abs(d.vy) > 6 || Math.abs(d.vr) > 6;
+    if (!far && !fast) { d.x = R.c.x; d.y = R.c.y; d.r = R.r; d.vx = d.vy = d.vr = 0; continue; }
+    if (dt > 0) {
+      [d.x, d.vx] = spring(d.x, d.vx, R.c.x, dt);
+      [d.y, d.vy] = spring(d.y, d.vy, R.c.y, dt);
+      [d.r, d.vr] = spring(d.r, d.vr, R.r, dt);
+    }
+    moving = true;
+  }
+  /* 사라진 고리의 표시값은 들고 있을 이유가 없다 — 다시 생기면 그때 목표에서 시작한다 */
+  if (dt > 0) for (const key of [...ringDisp.keys()]) if (!live.has(key)) ringDisp.delete(key);
+  return moving;
+}
+
+/** 애니메이션을 껐을 때·드래그 중일 때 — 표시값을 목표에 즉시 맞춘다 */
+export function snapRingAnim() {
+  ringDisp.clear();
+}
+
 export function orbitRings(mark?: (id: string) => string,
                            fset?: Set<string> | null): string {
   let out = "";
   for (const [key, R] of orbitIndex().rings) {
-    const c = R.c, r = R.r.toFixed(1);
+    const d = dispOf(key, R.c, R.r);
+    const c = { x: d.x, y: d.y }, r = d.r.toFixed(1);
     const X = c.x.toFixed(1), Y = c.y.toFixed(1);
     /* 선 두께는 화면 기준으로 고정한다 — 월드가 축소되면 1px 선이 0.3px 가 돼서 사라진다 */
     /* 하이라이트 중이면 식구가 하나도 안 걸린 고리는 뒤로 물린다. 전에는 궤도가
@@ -636,13 +686,14 @@ export function orbitRings(mark?: (id: string) => string,
        언제나 비어 있다 — 노드 위에 글자가 얹히지 않는다 */
     const as = R.ids.map((id) => {
       const n = nodeOf(id)!;
-      return Math.atan2(cy(n) - c.y, cx(n) - c.x);
+      const rx = (n._rx ?? n.x) + (n._w ?? 140) / 2, ry = (n._ry ?? n.y) + (n._h ?? 38) / 2;
+      return Math.atan2(ry - c.y, rx - c.x);
     }).sort((x, y) => x - y);
     const a = as.length > 1 ? (as[0] + as[1]) / 2 : as[0] + Math.PI / 2;
     /* 이름이 곧 그 궤도의 손잡이다 — 눌러서 고르고 패널에서 고친다 */
     out += `<text class="orbl${mark ? mark(R.group) : ""}${off ? " dim" : ""}" data-id="${R.group}" `
-      + `data-orb="${key}" x="${(c.x + Math.cos(a) * R.r).toFixed(1)}" `
-      + `y="${(c.y + Math.sin(a) * R.r).toFixed(1)}">${esc(R.label)}</text>`;
+      + `data-orb="${key}" x="${(c.x + Math.cos(a) * d.r).toFixed(1)}" `
+      + `y="${(c.y + Math.sin(a) * d.r).toFixed(1)}">${esc(R.label)}</text>`;
   }
   return out;
 }

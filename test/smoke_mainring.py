@@ -14,7 +14,7 @@
 반지름이 충돌해 두 고리가 겹친다. 실제로 겹친 것을 봤다(m:1=611, m:0=600).
 """
 from playwright.sync_api import sync_playwright
-from conftest_paths import url, launch
+from conftest_paths import url, launch, booted, settle, ready
 
 SETUP = """() => {
   Orchard.reset();
@@ -52,8 +52,8 @@ def main():
     bad = []
     with sync_playwright() as p:
         b = launch(p)
-        pg = b.new_page(); pg.goto(url()); pg.wait_for_timeout(500)
-        ids = pg.evaluate(SETUP)
+        pg = b.new_page(); pg.goto(url()); ready(pg)
+        ids = pg.evaluate(SETUP); settle(pg)
 
         # 1. 이름 — L0 · L1 · E0 로 서야 한다
         names = pg.evaluate(NAMES)
@@ -105,7 +105,7 @@ def main():
                        f"— 저장된 값을 써야 한다")
 
         # 4. 궤도 정리는 고리 크기를 바꾸지 않고 그 위에 다시 편다
-        pg.evaluate("() => { Orchard.tidyOrbit(); Orchard.render(); }")
+        pg.evaluate("() => { Orchard.tidyOrbit(); Orchard.render(); }"); settle(pg)
         after = pg.evaluate(RINGS)
         print(f"  정리 전후 반지름: {before} → {after}")
         if after.get("m:1") != before.get("m:1"):
@@ -117,7 +117,7 @@ def main():
           Orchard.S.rings['m:1'].name = '올린 개념';
           Orchard.save();
         }""")
-        pg.reload(); pg.wait_for_timeout(600)
+        pg.reload(); booted(pg)
         trip = pg.evaluate("""() => {
           const r = (Orchard.S.rings || {})['m:1'] || null;
           const nm = Orchard.orbitPlan().layers.find(l => l.depth === 1);
