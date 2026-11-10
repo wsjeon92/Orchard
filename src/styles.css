@@ -121,25 +121,34 @@ code{background:var(--panel3);padding:1px 5px;border-radius:4px;font-size:11.5px
 .elbl.dim{opacity:.12;pointer-events:none}
 .elbl.drop{border-color:var(--ok);color:var(--ok);background:#14271e}
 
-/* 중요 표시 — 테두리가 무지개로 순환한다.
+/* 중요 표시 — 무지개 고리가 시계 방향으로 돈다.
    구조로도 문헌 수로도 못 세는 판단을 사람이 직접 건 자리다. '딱 맞는 문헌은
-   없지만 rationale 로 붙들고 있는 교차' 같은 것 — 그건 문헌을 읽어야 아는
-   것이라 그래프가 추론할 수 없다. 그래서 눈에 제일 먼저 들어와야 한다.
+   없지만 rationale 로 붙들고 있는 교차' 같은 것 — 문헌을 읽어야 아는 구분이라
+   그래프가 추론할 수 없다. 그래서 눈에 제일 먼저 들어와야 한다.
 
-   색 몇 개를 찍는 keyframes 말고 각도를 등록해 hue 를 돌린다. 그래야 단계가
-   안 보이는 진짜 순환이 된다. @property 가 없는 브라우저에서는 애니메이션만
-   안 돌고 테두리 색은 남는다. */
-@property --sh{syntax:'<angle>';initial-value:0deg;inherits:false}
-@keyframes starspin{to{--sh:360deg}}
-.elbl.star{border-style:solid;border-color:hsl(var(--sh) 95% 68%);
-  box-shadow:0 0 10px -2px hsl(var(--sh) 95% 60%);animation:starspin 6s linear infinite}
-/* 동작 줄이기를 켰으면 돌지 않는다 — 사용자가 꺼 둔 설정과 싸우면 안 되고,
-   끝없이 도는 애니메이션은 CPU 도 계속 쓴다. 표시 자체는 남긴다 */
-.noanim .elbl.star{animation:none;border-color:#ffd24d;box-shadow:0 0 8px -3px #ffd24d}
-/* 고른 것과 놓을 자리는 무지개보다 먼저 보여야 한다. CSS 애니메이션은 일반
-   선언을 이기므로, 끄지 않으면 그 테두리가 계속 덮어써진다 */
-.elbl.star.sel{animation:none;border-color:var(--text);box-shadow:none}
-.elbl.star.drop{animation:none;border-color:var(--ok);box-shadow:none}
+   테두리에 **모든 색이 동시에** 깔리고 그 원판이 회전한다. hue 하나를 시간축으로
+   돌리면 매 순간 한 색뿐이라 '무지개'로 안 보인다 — conic-gradient 를 테두리에
+   깔고 시작 각도만 돌려야 색 고리가 도는 것으로 보인다.
+
+   가상 요소를 안 쓴다. .elbl 에 overflow:hidden 이 걸려 있어서(말줄임 때문)
+   바깥에 그린 고리가 잘린다. 대신 배경을 두 겹으로 깐다 — 안쪽(padding-box)은
+   단색, 테두리 자리(border-box)는 conic. border-radius 도 그대로 따라온다.
+
+   --sa 를 일반 선언으로도 한 번 준다: @property 를 모르는 브라우저에서는
+   var(--sa) 가 무효가 되어 배경 선언 전체가 날아가고 무지개가 아예 안 나온다. */
+@property --sa{syntax:'<angle>';initial-value:0deg;inherits:false}
+@keyframes starspin{to{--sa:360deg}}
+.elbl.star{--sa:0deg;border:2px solid transparent;
+  background:linear-gradient(#1a1e26,#1a1e26) padding-box,
+    conic-gradient(from var(--sa),#ff5f6d,#ffd24d,#9ef06a,#6fdfa4,#38bdf8,#a78bfa,#ff5f6d) border-box;
+  box-shadow:0 0 12px -4px rgba(255,255,255,.45);
+  animation:starspin 6s linear infinite}
+/* 동작 줄이기를 켜면 회전만 멈춘다 — 색 고리는 그대로 다 보인다. 사용자가 꺼 둔
+   설정과 싸우면 안 되고, 끝없이 도는 애니메이션은 CPU 도 계속 쓴다 */
+.noanim .elbl.star{animation:none}
+/* 고른 것과 놓을 자리는 무지개보다 먼저 보여야 한다 */
+.elbl.star.sel{background:var(--panel3);border-color:var(--text);animation:none;box-shadow:none}
+.elbl.star.drop{background:#14271e;border-color:var(--ok);animation:none;box-shadow:none}
 .node.mark,.grp.mark{outline:2px dashed var(--ok);outline-offset:3px}
 
 #multi{position:absolute;left:50%;top:12px;transform:translateX(-50%);display:none;align-items:center;

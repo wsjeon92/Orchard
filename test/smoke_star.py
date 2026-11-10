@@ -1,5 +1,8 @@
 """중요 표시 — 사람이 직접 거는 한 가지.
 
+테두리는 **색이 다 깔린 고리가 회전**하는 것이다. hue 하나를 시간축으로
+돌리면 매 순간 한 색뿐이라 무지개로 안 보인다.
+
 문헌 수로도 구조로도 못 세는 판단이 있다. "딱 맞는 문헌은 없지만 rationale 로
 붙들고 있는 교차" 같은 것 — 그건 문헌을 읽어야 아는 것이라 그래프가 추론할 수
 없다. 그래서 사람이 걸고, 그래프는 그걸 들고 있기만 한다.
@@ -28,12 +31,14 @@ BUILD = """() => {
   return {e: e.id, a: a.id, b: b.id};
 }"""
 
-STATE = """(id) => {
+STATE = r"""(id) => {
   const el = document.querySelector(`.elbl[data-eid="${id}"]`);
   if (!el) return null;
   const cs = getComputedStyle(el);
   return {star: el.classList.contains('star'), flag: !!Orchard.edgeOf(id).star,
-          anim: cs.animationName, border: cs.borderTopColor, shadow: cs.boxShadow};
+          anim: cs.animationName, border: cs.borderTopColor, shadow: cs.boxShadow,
+          conic: /conic-gradient/.test(cs.backgroundImage),
+          hues: (cs.backgroundImage.match(/rgb\(/g) || []).length};
 }"""
 
 
@@ -69,8 +74,14 @@ def main():
         on = st()
         print(f"   켠 뒤(선택 품): star {on['star']} · 애니 {on['anim']} · 테두리 {on['border']}")
         if not on['star'] or not on['flag']: bad.append(f"안 켜졌다: {on}")
-        if on['anim'] != 'starspin': bad.append(f"순환 애니메이션이 안 돈다: {on['anim']}")
+        if on['anim'] != 'starspin': bad.append(f"회전이 안 돈다: {on['anim']}")
         if on['shadow'] in ('none', ''): bad.append("빛나는 그림자가 없다")
+        # 핵심: 한 번에 한 색이 아니라 색이 다 깔린 고리여야 한다
+        if not on['conic']:
+            bad.append("테두리가 conic-gradient 가 아니다 — 한 번에 한 색이면 무지개로 안 보인다")
+        if on['hues'] < 5:
+            bad.append(f"고리에 색이 {on['hues']}개뿐이다 — 무지개가 되려면 더 있어야 한다")
+        print(f"     색 고리: conic {on['conic']} · 색 {on['hues']}개")
 
         # 2) 내보내기 -> 가져오기 왕복
         kept = pg.evaluate("""(i) => {
@@ -91,10 +102,12 @@ def main():
         pg.evaluate("() => { Orchard.VIEW.anim = false; Orchard.syncAnimClass(); }")
         pg.wait_for_timeout(250)
         quiet = st()
-        print(f"   동작 줄이기: 애니 {quiet['anim']} · 테두리 {quiet['border']}")
+        print(f"   동작 줄이기: 애니 {quiet['anim']} · 색 고리 {quiet['conic']}")
         if quiet['anim'] not in ('none', ''):
-            bad.append(f"동작 줄이기인데 순환이 돈다: {quiet['anim']}")
+            bad.append(f"동작 줄이기인데 회전이 돈다: {quiet['anim']}")
         if not quiet['star']: bad.append("동작 줄이기에서 표시 자체가 사라졌다")
+        if not quiet['conic']:
+            bad.append("회전만 멈춰야 하는데 색 고리까지 사라졌다")
         pg.evaluate("() => { Orchard.VIEW.anim = true; Orchard.syncAnimClass(); }")
         pg.wait_for_timeout(200)
 
@@ -112,7 +125,7 @@ def main():
         print("\n실패:")
         for x in bad: print("  -", x)
         raise SystemExit(1)
-    print("\nOK — 켜고 끄기 · 왕복 생존 · 동작 줄이기 존중 · 선택이 먼저")
+    print("\nOK — 색 고리가 회전 · 왕복 생존 · 동작 줄이기 존중 · 선택이 먼저")
 
 
 main()
