@@ -134,6 +134,27 @@ export function save() {
   const key = JSON.stringify({ ...snap, view: 0 });
   const dataChanged = key !== lastDataKey;
   lastDataKey = key;
+
+  /* 화면만 움직였으면 여기서 멈춘다. 보던 자리는 지켜야 하니 로컬 스냅샷은
+     갱신하지만, 그 밖의 것은 전부 건드리지 않는다.
+
+     저장 시각(LS_AT)을 왜 안 미는가: 그 시각이 파일 연결의 승자 판정에 쓰인다
+     (filelink.restore — 파일이 더 새로우면 파일을 읽고, 아니면 메모리를 지킨다).
+     패닝·줌이 시각을 밀면, 바깥에서 파일을 고친 뒤에 화면만 한 번 움직여도
+     브라우저가 더 새로운 것으로 판정돼 앱의 옛 메모리가 파일을 덮는다. 파일 쓰기
+     자체는 아래 afterSave 로 이미 막아 뒀는데 시각은 안 막혀 있어서, 밖에서 쓴
+     그래프 점검 결과가 통째로 날아갔다. 실제로 났다.
+
+     표시도 바꾸지 않는다 — 화면을 움직였을 때 "저장됨"이 뜨면 데이터가 저장된
+     것처럼 보이고, 그게 이 버그를 찾는 데 오래 걸린 이유다.
+
+     파일 쓰기와 실행 취소 스냅샷도 안 남긴다 — Ctrl+Z 가 화면 위치를 되돌리는 것도
+     원래 이상했다. 로컬 저장은 했으니 새로고침하면 보던 자리는 그대로다. */
+  if (!dataChanged) {
+    try { localStorage.setItem(LS, JSON.stringify(snap)); } catch { /* 무시 */ }
+    return;
+  }
+
   try {
     localStorage.setItem(LS, JSON.stringify(snap));
     localStorage.setItem(LS_AT, String(Date.now()));
@@ -152,10 +173,6 @@ export function save() {
       m.className = "err";
     }
   }
-  /* 화면만 움직였으면 여기서 멈춘다. 파일 쓰기도, 실행 취소 스냅샷도 안 남긴다 —
-     Ctrl+Z 가 화면 위치를 되돌리는 것도 원래 이상했다. 로컬 저장은 위에서 이미
-     했으니 새로고침하면 보던 자리는 그대로다. */
-  if (!dataChanged) return;
   for (const fn of afterSaveFns) fn();
 }
 

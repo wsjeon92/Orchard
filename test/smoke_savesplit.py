@@ -114,7 +114,53 @@ def main():
         print(f"  시작 직후 화면 이동: 파일 쓰기 {boot['before']} → {boot['after']}")
         if boot['after'] != boot['before']:
             bad.append("시작 직후 화면 이동이 데이터 변경으로 잡힌다 — 파일을 덮는다")
-        pg2.close(); pg.close(); b.close()
+        pg2.close()
+
+        # 5. 저장 시각(kwgraph.savedAt)과 표시도 화면 이동에 반응하면 안 된다
+        #
+        #    파일 쓰기만 막아서는 모자랐다. 그 시각이 파일 연결의 승자 판정에 쓰인다
+        #    (filelink.restore: 파일이 더 새로우면 파일을 읽고, 아니면 메모리를 지킨다).
+        #    밖에서 파일을 고친 뒤 화면만 한 번 움직여도 시각이 밀려서, 브라우저가
+        #    이기고 앱의 옛 메모리가 파일을 덮었다. 밖에서 쓴 점검 결과가 날아갔다.
+        pg4 = b.new_page(); pg4.goto(url()); pg4.wait_for_timeout(500)
+        at = lambda: pg4.evaluate("() => +(localStorage.getItem('kwgraph.savedAt')||0)")
+        mark = lambda: pg4.evaluate(
+            "() => { const m=document.getElementById('saveMark'); return m ? m.textContent : ''; }")
+        pg4.evaluate("""() => {
+          Orchard.reset();
+          Orchard.addNode('가', 0, 0); Orchard.addNode('나', 300, 0);
+          Orchard.render();
+        }""")
+        pg4.wait_for_timeout(1400)      # 표시가 "자동 저장됨" 으로 돌아오기를 기다린다
+        at0, mark0 = at(), mark()
+
+        pg4.evaluate("() => { Orchard.S.view.k = 2.2; Orchard.render(); }")
+        pg4.wait_for_timeout(60)
+        pg4.evaluate("() => { Orchard.S.view.x = -400; Orchard.S.view.y = 250; Orchard.render(); }")
+        pg4.wait_for_timeout(60)
+        at1, mark1 = at(), mark()
+
+        pg4.evaluate("() => { Orchard.addNode('다', 600, 0); Orchard.render(); }")
+        pg4.wait_for_timeout(60)
+        at2, mark2 = at(), mark()
+
+        print(f"  저장 시각: 기준 {at0} → 줌·이동 뒤 {at1} → 노드추가 뒤 {at2}")
+        print(f"  표시:      기준 {mark0!r} → 줌·이동 뒤 {mark1!r} → 노드추가 뒤 {mark2!r}")
+        if at1 != at0:
+            bad.append("화면만 움직였는데 저장 시각이 밀렸다 — 바깥 파일 변경을 덮는다")
+        if at2 <= at1:
+            bad.append("노드를 더했는데 저장 시각이 안 밀렸다 — 파일이 항상 이겨 로컬이 날아간다")
+        if mark1 != mark0:
+            bad.append("화면만 움직였는데 저장 표시가 바뀐다 — 데이터가 저장된 것처럼 보인다: %r" % mark1)
+        if mark2 == mark1:
+            bad.append("노드를 더했는데 저장 표시가 안 바뀐다")
+
+        # 화면 위치는 그래도 로컬에 남아 있어야 한다 (3번과 같은 요구, 시각 분리 뒤에도)
+        kept = pg4.evaluate("() => JSON.parse(localStorage.getItem('kwgraph.state')).view")
+        print(f"  시각을 분리한 뒤에도 남은 화면: {kept}")
+        if kept['k'] != 2.2 or kept['x'] != -400:
+            bad.append("시각 분리 뒤 화면 위치가 로컬에 안 남는다: %r" % kept)
+        pg4.close(); pg.close(); b.close()
 
     if bad:
         print("실패:"); [print("  -", x) for x in bad]; raise SystemExit(1)
