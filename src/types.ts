@@ -91,6 +91,10 @@ export interface GEdge {
   cands: string[];
   /** 승격해서 만들어진 합성 키워드 노드 id */
   promoted: string[];
+  /** 중요 표시. 문헌 수나 구조로는 못 세는 "이건 내가 눈여겨본다"를 사람이 직접
+   *  건다 — 딱 맞는 문헌이 없지만 rationale 로 붙들고 있는 교차 같은 것.
+   *  strip() 이 엣지를 통째로 펼쳐 내보내므로 저장·내보내기·MCP 를 그냥 탄다 */
+  star?: boolean;
   /** 직접 옮긴 이름의 선 위 위치 */
   lpos?: Pin | null;
   /** 겹침을 피해 선 위를 미끄러진 '목표' 위치. lpos(사용자가 고른 자리)는 그대로 둔다 */

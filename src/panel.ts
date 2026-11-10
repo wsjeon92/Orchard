@@ -771,6 +771,12 @@ function edgePanel(e: GEdge, kindEl: HTMLElement, titleEl: HTMLElement,
   titleEl.contentEditable = "false";
 
   const r = row(acts, "");
+  /* 중요 표시. 구조로도 문헌 수로도 못 세는 판단이라 사람이 직접 건다 */
+  addAct(r, e.star ? "★ 중요" : "☆ 중요 표시", "", () => {
+    e.star = !e.star;
+    save();
+    render();
+  });
   if (isPinned(e)) {
     addAct(r, "이름 위치 자동", "", () => {
       e.lpos = null; e.lx = null; e.ly = null; render();
