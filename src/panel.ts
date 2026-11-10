@@ -8,7 +8,7 @@ import {
 } from "./graph";
 import { kickAnim } from "./anim";
 import { DEPTH_ORDER, KIND, SEARCH } from "./kinds";
-import { orbitView, placeOnMainOrbit, placeOnSubOrbit, setOrbitRadius, subRings } from "./orbit";
+import { orbitView, placeOnMainOrbit, placeOnSubOrbit, setOrbitRadius, settleComposition, subRings } from "./orbit";
 import type { RingChoice } from "./orbit";
 import type { OrbitView } from "./orbit";
 import { ask, openBulk } from "./modals";
@@ -740,6 +740,11 @@ async function addPart(n: GNode) {
   addEdge(p.id, n.id, "part");
   if (n.kind === "atom") n.kind = "compound";
   n.parts = Array.from(new Set([...(n.parts ?? []), p.id]));
+  render();                        // 폭을 재야 자리를 잡을 수 있다
+  /* 둘 다 층이 바뀌었다. p 는 방금 생겼고, n 은 부품이 붙어 합성 깊이가 한 칸
+     늘었으니 한 층 안으로 들어간다. 안 옮기면 n 이 옛 층의 반지름에 남아 그 층의
+     고리를 깨뜨린다 — 고리는 좌표에서 추론하므로 한 노드만 어긋나도 원이 안 맞는다. */
+  settleComposition(p.id);
   select("node", n.id);
 }
 
@@ -749,6 +754,8 @@ async function liftToKeyword(n: GNode) {
   if (!name || !name.trim()) return;
   const k = addNode(name.trim(), n.x + (n._w ?? 150) + 150, n.y, "atom", { note: n.label });
   addEdge(n.id, k.id, "assoc");
+  render();                        // 폭을 재야 자리를 잡을 수 있다
+  placeOnMainOrbit(k.id);          // 교차가 생겼으니 L0 가 아니라 L1 이다
   select("node", k.id);
 }
 

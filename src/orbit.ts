@@ -838,6 +838,29 @@ export function orbitOfNode(id: string): string | undefined {
     반지름은 **지금 그려져 있는 그 층**에서 읽는다. 그 층이 아직 안 그려져 있으면
     (L0 에 식구가 없던 경우) 다른 층의 실제 크기에 계획상의 비율을 곱해 맞춘다 —
     계획값을 그대로 쓰면 사용자가 정해 둔 전체 크기와 어긋난다. */
+/** 합성 깊이가 바뀐 노드와, 그 때문에 따라 깊어지는 조상들을 제 층으로 보낸다.
+
+    부품이 하나 붙으면 그것을 품은 합성 개념도 한 칸 깊어지고, 그것을 품은 것도
+    깊어진다 — compDepth 가 부품들의 최대값 + 1 이니까. 당사자만 옮기면 조상이 옛
+    층의 반지름에 남아 그 고리를 깨뜨린다. 바뀐 쪽에서 위로 타고 올라가므로 깊이가
+    얕은 것부터 차례로 앉는다. */
+export function settleComposition(id: string): void {
+  const seen = new Set<string>();
+  let front = [id];
+  while (front.length) {
+    const next: string[] = [];
+    for (const cur of front) {
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      placeOnMainOrbit(cur);
+      for (const n of S.nodes) {
+        if (!seen.has(n.id) && (n.parts ?? []).includes(cur)) next.push(n.id);
+      }
+    }
+    front = next;
+  }
+}
+
 export function placeOnMainOrbit(id: string): boolean {
   const n = nodeOf(id);
   if (!n) return false;

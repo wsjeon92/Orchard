@@ -1,5 +1,5 @@
 import { px, py } from "./geom";
-import { placeOnMainOrbit } from "./orbit";
+import { placeOnMainOrbit, settleComposition } from "./orbit";
 import {
   RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, isGroup, kindOf, nodeOf,
   setFocusId, setSel, uid,
@@ -366,6 +366,13 @@ export function promoteName(eid: string, name: string): GNode | null {
   const hy = ms.reduce((s, m) => s + m.y + (m._h ?? 38) / 2, 0) / ms.length;
   const c = addNode(name, hx - 80, hy + 100, "compound", { parts: ms.map((m) => m.id) });
   ms.forEach((m) => addEdge(m.id, c.id, "part"));
+  /* 부품이 붙은 순간 c 의 합성 깊이가 정해진다 — 제 층으로 보낸다.
+
+     이걸 안 해서 승격한 노드가 교차 중심 근처(hx-80, hy+100)에 그냥 남았다. 그러면
+     그 층의 노드들 반지름이 제각각이 되고, 살아 있는 고리는 좌표에서 추론하므로
+     원이 안 맞으면 고리가 지워진다 — 실제로 깊이 1 노드 넷이 반지름 220·407·919·949
+     에 흩어져 m:1 이 사라지고 L2 가 화면에서 없어졌다. 919·949 가 승격한 둘이었다. */
+  settleComposition(c.id);
   e.cands = (e.cands ?? []).filter((x) => x !== name);
   e.promoted ??= [];
   e.promoted.push(c.id);
