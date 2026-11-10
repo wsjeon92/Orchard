@@ -12,11 +12,6 @@ import {
 import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
 } from "./history";
-import {
-  bindCross, crossCands, crossDismiss, crossLabel, crossOpen, crossRestoreAll,
-  crossDraw, crossDrawn, crossScanOf, crossScannable, crossSkipped, crossWorksText,
-  drawCross, setCross, setCrossCloseOther, syncCrossN,
-} from "./cross";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
 import { FIRST_RING, newRingRadius, orbitHits, orbitIndex, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, subRings, tidyOrbit } from "./orbit";
 import { bindMinimap, drawMini } from "./minimap";
@@ -40,7 +35,7 @@ import {
 } from "./state";
 import { bindViewer, isViewer, narrowScreen, setViewer } from "./viewer";
 import {
-  addTopic, bindTopics, drawTopics, setTopics, setTopicsCloseOther, syncAnimClass, syncEmphClass, topicsOpen,
+  addTopic, bindTopics, drawTopics, setTopics, syncAnimClass, syncEmphClass, topicsOpen,
 } from "./topics";
 import {
   bindFileLink, checkNow as checkFile, flushNow as flushFile, isLinked,
@@ -62,8 +57,6 @@ function select(type: "node" | "edge" | "orbit" | null, id?: string) {
   }
   setSel(type && id ? ({ type, id } as const) : null);
   render();
-  /* 훑기 모드는 캔버스 선택을 따라간다 — 고르는 칸을 따로 두지 않기로 했다 */
-  if (crossOpen() && VIEW.crossMode === "scan") drawCross();
 }
 setSelect(select);
 setApplyView(applyView);
@@ -338,11 +331,6 @@ el("viewerOn").onchange = (e) => {
   setViewer(on === narrowScreen() ? null : on, () => { syncViewPop(); render(); });
 };
 bindTopics();
-bindCross();
-/* 같은 자리를 쓰므로 서로를 닫는다. 양쪽에 주입해서 어느 쪽을 눌러도 같게 동작한다 */
-setCrossCloseOther(() => setTopics(false));
-setTopicsCloseOther(() => setCross(false));
-onAfterSave(syncCrossN);                  // 그래프가 바뀌면 상단바 숫자도 따라온다
 bindModals(syncViewPop);
 bindCanvas();
 bindMinimap(applyView);
@@ -359,7 +347,6 @@ syncDataKey();                   // 시작 직후 첫 save 가 파일을 덮지 
    끊겼다. 기준점이 없으면 로드 뒤 첫 변경이 Ctrl+Z 로 안 돌아간다. */
 resetHistoryBase();
 drawTopics();
-syncCrossN();
 syncTitleInput();
 render();
 if (!S.view.x && !S.view.y) fit();
@@ -423,8 +410,6 @@ const api = {
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion,
   findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
-  crossCands, crossDismiss, crossRestoreAll, crossSkipped, crossLabel, crossWorksText,
-  crossOpen, setCross, drawCross, crossScanOf, crossScannable, crossDraw, crossDrawn,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass, syncEmphClass,
   isViewer, setViewer, narrowScreen,
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,

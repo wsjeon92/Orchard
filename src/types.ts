@@ -1,4 +1,3 @@
-import type { CrossMode } from "./cross";
 import type { GapWhy } from "./gaps";
 /** 노드 종류.
  *  너비 축: atom 키워드 / compound 합성 키워드 / group 그룹
@@ -128,7 +127,6 @@ export interface GraphState {
   /** 치운 교차 후보. "노드id|노드id"(사전순) 꼴.
       그래프에 담아 두는 이유: 치운 판단은 그래프에 대한 판단이라 내보내기를
       따라가야 한다. 보기 설정에 두면 다른 기기에서 같은 것을 또 치워야 한다 */
-  crossSkip?: string[];
 }
 
 /** 그래프를 보다가 떠오른 연구 주제. 그래프 요소를 가리키지 않는다 —
@@ -156,12 +154,6 @@ export interface ViewSettings {
   ripeFloor: number;
   /** 익은 교차 — 한 번에 권하는 최대 개수. 사람 쪽 값이라 그래프 크기와 무관 */
   ripeMax: number;
-  /** 교차 후보 — 경유가 몇 개부터 신호인가. 분야마다 다르다 */
-  crossMin: number;
-  /** 교차 후보 — 한 번에 권하는 최대 개수. 사람 쪽 값 */
-  crossMax: number;
-  /** 교차 후보 모드 — 권함(점수) / 훑기(한 키워드 전부) / 무작위 */
-  crossMode: CrossMode;
   /** 둘 중 어느 쪽을 먼저 보이게 할까. 고른 쪽이 실선으로 진하게, 나머지는 점선으로
    *  연하게. 궤도는 구조, 엣지는 연결 — 어느 쪽을 읽고 있느냐에 따라 보고 싶은 것이
    *  달라진다. 둘 다 진하던 때는 교차 선이 허브로 모이며 고리를 덮었다 */

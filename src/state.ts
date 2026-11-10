@@ -26,8 +26,6 @@ export let S: GraphState = {
      다르다 — ML 에서 3편은 아무것도 아니고 좁은 분야에서는 많다. 그래서 설정이다.
    · RIPE_MAX 는 사람 쪽 값이다. 한 번에 보고 행동할 수 있는 개수는 그래프가
      커져도 늘지 않는다. 그래서 그래프 크기와 무관한 상수다. */
-export const CROSS_MIN = 2;
-export const CROSS_MAX = 10;
 export const RIPE_FLOOR = 3;
 export const RIPE_MAX = 10;
 
@@ -35,7 +33,6 @@ export let VIEW: ViewSettings = {
   labelZoom: 0.45, sizeByDeg: true, minimap: true, hops: 1, anim: true,
   gaps: false, gapWhy: null,
   ripeFloor: RIPE_FLOOR, ripeMax: RIPE_MAX,
-  crossMin: CROSS_MIN, crossMax: CROSS_MAX, crossMode: "score",
   emph: "orb",
 };
 
@@ -107,7 +104,6 @@ export function strip() {
     /* strip 은 화이트리스트다. 새 최상위 필드는 반드시 여기 적어야 한다 —
        빠뜨리면 저장·내보내기에서 조용히 사라지고 아무 에러도 안 난다. */
     topics: (S.topics ?? []).map((t) => ({ ...t })),
-    crossSkip: (S.crossSkip ?? []).slice(),
   } as GraphState;
 }
 

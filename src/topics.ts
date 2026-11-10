@@ -16,17 +16,13 @@ let openId: string | null = null;
 
 export const topicsOpen = () => open;
 
-/** 교차 후보 패널을 닫는 함수 — 같은 자리를 쓰므로 하나만 열린다.
-    순환을 피하려고 주입받는다 (render.ts 의 select 와 같은 수) */
-let closeOther: () => void = () => {};
-export function setTopicsCloseOther(fn: () => void) { closeOther = fn; }
 
 export function setTopics(on: boolean) {
   open = on;
   const p = el("topics");
   p.classList.toggle("off", !open);
   el("btnTopics").classList.toggle("on", open);
-  if (open) { closeOther(); drawTopics(); }
+  if (open) drawTopics();
 }
 
 /** 애니메이션은 VIEW.anim 하나만 본다. OS 의 '동작 줄이기'는 기본값을 정할 뿐이고,
