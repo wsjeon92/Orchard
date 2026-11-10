@@ -383,6 +383,34 @@ export function promoteName(eid: string, name: string): GNode | null {
   return c;
 }
 
+/** 부품을 뗀다 — 부품 연결만 끊고 키워드는 남긴다.
+
+    들어가는 문(승격·구성 키워드 붙이기)만 있고 나오는 문이 없었다. 부품을 떼는
+    유일한 길이 **그 부품 노드를 삭제하는 것**이어서, E 가족에 한 번 들어간 노드는
+    키워드를 잃지 않고는 L 로 돌아올 수 없었다.
+
+    부품이 다 떨어지면 kind 도 atom 으로 되돌린다 — addPart 가 atom 을 compound 로
+    바꾸는 것의 반대다. parts 가 빈 compound 는 구성 줄이 없는 합성 개념으로 남아
+    화면이 거짓말을 한다.
+
+    승격 기록(엣지의 promoted)은 지우지 않는다. 한 번 올린 것은 올린 것이고, 그
+    기록이 같은 교차를 또 올리라고 권하지 않게 막아 준다. */
+export function detachPart(nid: string, pid: string): boolean {
+  const n = nodeOf(nid);
+  if (!n || !(n.parts ?? []).includes(pid)) return false;
+  n.parts = (n.parts ?? []).filter((x) => x !== pid);
+  for (const e of S.edges.filter((x) => x.kind === "part" && x.a === pid && x.b === nid)) {
+    dropEdge(e.id);
+  }
+  if (!n.parts.length && n.kind === "compound") n.kind = "atom";
+  /* 깊이가 줄었으니 n 과 그 조상들이 한 층씩 바깥으로 간다. 떼어낸 부품도 옮긴다 —
+     그 연결이 유일한 것이었으면 차수가 0 이 되어 L0 로 가야 하고, neighbors() 는
+     parts 도 이웃으로 세므로 실제로 그런 일이 생긴다. */
+  settleComposition(nid);
+  placeOnMainOrbit(pid);
+  return true;
+}
+
 /** 후보 목록의 n 번째를 승격 — promoteName 의 얇은 껍데기 */
 export function promote(eid: string, candIdx: number): GNode | null {
   const e = edgeOf(eid);

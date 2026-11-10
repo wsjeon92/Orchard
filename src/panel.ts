@@ -2,7 +2,7 @@ import { addAct, btn, div, el, row, sect, side } from "./dom";
 import { edgeLabelText, isPinned } from "./geom";
 import {
   addEdge, addHyper, addNode, canGroup, deepAncestors, deepChildren, descendantsOf,
-  dropEdge, dropNode, edgeAddMember, edgeDelMember, foldKids, groupOf, isSubDescendant,
+  detachPart, dropEdge, dropNode, edgeAddMember, edgeDelMember, foldKids, groupOf, isSubDescendant,
   isRipe, parkBeside, parseWorkLine, promote, promoteName, removeFromGroup, ripeCut, subChildren,
   subParentEdge, tidyGroup, tidySubs, ungroup, addMember, memberIds, pruneEmptyRings,
 } from "./graph";
@@ -308,7 +308,22 @@ function nodePanel(n: GNode, kindEl: HTMLElement, titleEl: HTMLElement,
     const w = div(body, "chips");
     n.parts.forEach((pid) => {
       const p = nodeOf(pid);
-      if (p) btn(w, "chip", p.label || "(제목 없음)", () => select("node", pid));
+      if (!p) return;
+      const c = btn(w, "chip", p.label || "(제목 없음)", () => select("node", pid));
+      if (isViewer()) return;
+      /* 궤도 창의 「빼기」와 같은 자리, 같은 뜻 — 연결만 끊고 노드는 남긴다 */
+      const x = document.createElement("button");
+      x.className = "abtn sm";
+      x.textContent = "떼기";
+      x.title = "부품 연결만 끊는다 — 키워드는 남는다";
+      x.onclick = (ev) => {
+        ev.stopPropagation();
+        detachPart(n.id, pid);
+        kickAnim();
+        render();
+      };
+      c.appendChild(document.createTextNode(" "));
+      c.appendChild(x);
     });
   }
   /* 이 노드가 어디에 들어가나 → 이 노드 아래에 무엇이 있나 순서로 읽힌다 */
