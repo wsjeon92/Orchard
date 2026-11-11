@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "orchard",
   "display_name": "Orchard 그래프",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Orchard 아이디어 그래프를 읽고 고칩니다",
   "long_description": "연구 아이디어를 키워드 그래프로 넓히고 깊이 파는 도구 Orchard 의 그래프 파일을 Claude 가 직접 읽고 고칩니다.\n\n키워드와 교차를 더하고, 궤도(상위-하위)에 넣고 빼고, 교차를 합성 키워드로 올리고, 관련 연구를 붙입니다.\n\n구조만 손대고 자리는 잡지 않습니다 — 궤도 배치는 앱의 일이라 고친 뒤 `보기 → 궤도 정리`를 누르면 제자리로 갑니다.\n\n브라우저에서 Orchard 를 같은 파일에 연결해 두면 고친 내용이 1~2 초 안에 화면에 나타납니다.",
   "author": {
@@ -47,7 +47,7 @@
     },
     {
       "name": "connect",
-      "description": "키워드 둘 이상을 한 교차로 잇는다"
+      "description": "키워드 둘 이상을 교차로 잇는다. 멤버가 아직 교차면 승격 후보를 대기열에 올린다"
     },
     {
       "name": "set_parent",
@@ -95,7 +95,7 @@
     },
     {
       "name": "suggest",
-      "description": "그래프를 직접 고치지 않고 사람이 검토할 대기열에 제안을 올린다"
+      "description": "그래프를 직접 고치지 않고 사람이 검토할 대기열에 제안을 올린다 (키워드·교차·문헌·승격)"
     }
   ],
   "user_config": {

@@ -11,6 +11,7 @@
   4. 지금 넣을 수 없는 제안은 막히고 이유를 말한다 (수락 단추가 죽는다)
   5. 저장을 타고 살아남는다 — strip 이 화이트리스트라 빠뜨리면 조용히 사라진다
   6. 왼쪽 패널은 하나만 열린다 — 둘 다 320px 라 같이 열면 캔버스가 사라진다
+  7. 승격 제안을 수락하면 교차가 합성 키워드가 되고 교차의 이름은 비워진다
 
 임계값은 쓰지 않는다. 재는 것은 구조적 사실뿐이다.
 """
@@ -145,7 +146,58 @@ def main():
         if d["pending"] != pre["pending"] - 1:
             bad.append("기각했는데 대기열에서 안 빠졌다")
 
+        # ── 7. 승격 제안 — 교차가 노드가 된다
+        #
+        #  모델 이름이 노드에도 있고 교차에도 있어 헷갈린다는 것이 출발점이었다.
+        #  실제로는 선택이 아니라 한 방향 수명주기다: 전부 교차로 태어나고,
+        #  **다른 것이 이것과 교차하고 싶어진 순간** 노드가 된다.
+        #  그 순간을 사람이 판정하도록 대기열에 올린다.
+        pg.evaluate("""() => {
+          Orchard.addPending({ kind: 'promote', labels: ['기존 교차'], name: '기존 교차',
+            note: '다른 것이 이것과 교차하려 한다', from: 'connect' });
+          Orchard.addPending({ kind: 'promote', labels: ['없는 교차 zz'], name: '없는 교차 zz' });
+        }""")
+        pr = pg.evaluate("""() => {
+          const f = n => Orchard.S.pending.find(q => q.name === n);
+          return { ok: Orchard.pendingBlocker(f('기존 교차')),
+                   no: Orchard.pendingBlocker(f('없는 교차 zz')) };
+        }""")
+        if pr["ok"] is not None:
+            bad.append(f"올릴 수 있는 승격이 막혔다: {pr['ok']}")
+        if not pr["no"]:
+            bad.append("없는 교차를 올리려는데 안 막혔다")
+        nodes0 = pg.evaluate("() => Orchard.S.nodes.length")
+        pg.evaluate("""() => {
+          const q = Orchard.S.pending.find(x => x.name === '기존 교차');
+          Orchard.acceptPending(q.id); Orchard.render();
+        }""")
+        settle(pg)
+        pm = pg.evaluate("""() => {
+          const n = Orchard.S.nodes.find(x => (x.label || '') === '기존 교차');
+          const e = Orchard.S.edges.find(x => (x.promoted || []).length);
+          const lb = i => Orchard.S.nodes.find(y => y.id === i)?.label;
+          return { made: !!n, kind: n?.kind, parts: (n?.parts || []).map(lb).sort(),
+                   nodes: Orchard.S.nodes.length,
+                   edgeLabel: e ? (e.label || '') : null,
+                   partEdges: Orchard.S.edges.filter(x => x.kind === 'part' && x.b === n?.id).length };
+        }""")
+        if not pm["made"]:
+            bad.append("승격을 수락했는데 노드가 안 생겼다")
+        else:
+            if pm["kind"] != "compound":
+                bad.append(f"승격한 노드가 합성이 아니다: {pm['kind']}")
+            if pm["parts"] != ["AI", "단백질"]:
+                bad.append(f"부품이 교차 멤버와 다르다: {pm['parts']}")
+            if pm["partEdges"] != 2:
+                bad.append(f"part 엣지가 멤버 수와 다르다: {pm['partEdges']}")
+            # 같은 이름이 노드와 교차 양쪽에 있으면 문헌을 어디 붙일지 정해지지 않는다
+            if pm["edgeLabel"] != "":
+                bad.append(f"승격했는데 교차에 이름이 남았다: {pm['edgeLabel']!r}")
+            if pm["nodes"] != nodes0 + 1:
+                bad.append(f"노드가 하나만 늘지 않았다: {nodes0} → {pm['nodes']}")
+
         # ── 5. 저장을 타고 살아남는다 (strip 화이트리스트)
+        now = pg.evaluate(COUNTS)        # 위 단계들이 수를 바꿨으니 직전 값으로 다시 잰다
         kept = pg.evaluate("""() => {
           const snap = JSON.parse(JSON.stringify(Orchard.strip ? Orchard.strip() : {}));
           return { has: 'pending' in snap, n: (snap.pending || []).length,
@@ -153,8 +205,8 @@ def main():
         }""")
         if not kept["has"]:
             bad.append("strip 에 pending 이 없다 — 저장·내보내기에서 조용히 사라진다")
-        elif kept["n"] != d["pending"] or kept["dec"] != len(d["declined"]):
-            bad.append(f"strip 의 수가 안 맞는다: {kept} vs {d}")
+        elif kept["n"] != now["pending"] or kept["dec"] != len(now["declined"]):
+            bad.append(f"strip 의 수가 안 맞는다: {kept} vs {now}")
 
         pg.click("#btnPending")
         settle(pg)

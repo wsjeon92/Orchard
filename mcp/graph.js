@@ -157,6 +157,24 @@ export function node(g, label) {
   return hit[0];
 }
 
+/** 이 이름이 지금 '교차'로 존재하나 — 노드가 아니라.
+ *  멤버로 쓰려는데 노드가 없으면 이걸 먼저 본다: 교차로 있다면 그건 "없는 키워드"가
+ *  아니라 **아직 안 올린 키워드**다. 바로 그 순간이 승격할 순간이다. */
+export const crossingNamed = (g, label) => g.edges.find((e) => e.kind === "assoc"
+  && (e.label || "").trim() === String(label).trim());
+
+/** 대기열에 올린다. 이미 있거나 기각된 것이면 올리지 않고 그 사실을 돌려준다.
+ *  suggest 도 여기 모인다 — 올리는 길이 둘이면 중복 검사가 둘이 되고 어긋난다. */
+export function queue(g, q) {
+  const key = (q.name || "").trim() || (q.labels || []).join(" + ");
+  if ((g.declined ?? []).includes(key)) return { ok: false, why: `'${key}' 은(는) 전에 기각된 제안입니다.` };
+  const dup = (g.pending ?? []).find((x) => ((x.name || "") || (x.labels || []).join(" + ")) === key);
+  if (dup) return { ok: false, why: `'${key}' 은(는) 이미 검토 대기에 있습니다 (${dup.id}).` };
+  const item = { id: nextPendingId(g), ...q, at: Date.now() };
+  (g.pending ??= []).unshift(item);
+  return { ok: true, item, key };
+}
+
 /** 검토 대기 제안의 다음 id. 그래프의 seq 를 쓰지 않는다 — 제안은 그래프가 아니고,
  *  seq 를 올리면 앱의 실행 취소 스냅샷이 찍힌다. 제안끼리만 안 겹치면 된다. */
 export function nextPendingId(g) {

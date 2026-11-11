@@ -546,6 +546,9 @@ html.viewer #btnLink{display:none}
 .qcard.k-works{border-left-color:#3f7d58}
 .qcard.k-edge{border-left-color:#5c4580}
 .qcard.k-node{border-left-color:#7d6a3f}
+/* 승격은 그래프의 모양을 바꾼다 — 교차가 노드가 되면 다른 것이 그것과
+   교차할 수 있게 된다. 가장 무거운 쪽이라 가장 또렷하게 */
+.qcard.k-promote{border-left-color:#8a5a3f}
 .qcard.blocked{opacity:.62}
 
 .qtag{flex:0 0 auto;font-size:10px;padding:2px 6px;border-radius:5px;

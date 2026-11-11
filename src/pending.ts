@@ -14,7 +14,7 @@
    기각은 이름만 기억한다. 이유를 모아 규칙을 고치는 고리는 만들지 않기로 했다 —
    여기 남는 것은 "다시 올리지 마라" 하나뿐이다. */
 import { el } from "./dom";
-import { addHyper, addNode } from "./graph";
+import { addHyper, addNode, promoteName } from "./graph";
 import { S, VIEW, isGroup, nodeOf, save } from "./state";
 import type { Pending, Work } from "./types";
 
@@ -46,7 +46,15 @@ const KIND: Record<Pending["kind"], { tag: string; cls: string }> = {
   works: { tag: "문헌", cls: "k-works" },
   edge: { tag: "교차", cls: "k-edge" },
   node: { tag: "키워드", cls: "k-node" },
+  promote: { tag: "승격", cls: "k-promote" },
 };
+
+/** 이름으로 교차를 찾는다 — 승격 제안의 대상 */
+function crossingByLabel(label: string) {
+  const t = label.trim();
+  const hit = S.edges.filter((e) => e.kind === "assoc" && (e.label ?? "").trim() === t);
+  return hit.length === 1 ? hit[0] : null;
+}
 
 /** 이름으로 노드나 교차를 찾는다 — works 제안의 대상. 같은 이름이 여럿이면 포기한다 */
 function byLabel(label: string) {
@@ -69,6 +77,15 @@ export function pendingBlocker(q: Pending): string | null {
     if (!q.labels.length) return "붙일 대상이 없습니다";
     if (!byLabel(q.labels[0])) return `'${q.labels[0]}' 을(를) 찾지 못했습니다`;
     if (!(q.works ?? []).length) return "붙일 문헌이 없습니다";
+    return null;
+  }
+  if (q.kind === "promote") {
+    const t = (q.name ?? q.labels[0] ?? "").trim();
+    if (!t) return "올릴 교차의 이름이 없습니다";
+    if (S.nodes.some((n) => (n.label ?? "").trim() === t)) return `'${t}' 키워드가 이미 있습니다`;
+    const e = crossingByLabel(t);
+    if (!e) return `'${t}' 이름의 교차가 없습니다`;
+    if ((e.members ?? []).length < 2) return "멤버가 둘 이상이어야 올릴 수 있습니다";
     return null;
   }
   // edge
@@ -103,6 +120,9 @@ export function acceptPending(id: string): boolean {
     for (const w of q.works ?? []) {
       if (w.name && !have.has(w.name)) { t.works.push({ ...w }); have.add(w.name); }
     }
+  } else if (q.kind === "promote") {
+    const t = (q.name ?? q.labels[0]).trim();
+    if (!promoteName(crossingByLabel(t)!.id, t)) return false;
   } else {
     const ids = q.labels.map((l) => S.nodes.find((n) => (n.label ?? "").trim() === l.trim())!.id);
     const e = addHyper(ids);
@@ -190,7 +210,9 @@ export function drawPending() {
     ttl.className = "qtitle";
     ttl.textContent = q.kind === "works"
       ? `${q.labels[0]} ← 문헌 ${(q.works ?? []).length}편`
-      : (q.name?.trim() || q.labels.join(" + ") || "(이름 없음)");
+      : q.kind === "promote"
+        ? `${q.name?.trim() || q.labels[0]} → 키워드로`
+        : (q.name?.trim() || q.labels.join(" + ") || "(이름 없음)");
 
     head.appendChild(fold);
     head.appendChild(tag);
@@ -210,6 +232,14 @@ export function drawPending() {
       body.appendChild(r);
     };
     if (q.kind === "edge") line("멤버", q.labels.join(" + "));
+    if (q.kind === "promote") {
+      const e = crossingByLabel((q.name ?? q.labels[0] ?? "").trim());
+      if (e) {
+        const lb = (id: string) => nodeOf(id)?.label ?? id;
+        line("지금 교차", (e.members ?? []).map(lb).join(" + "));
+        line("붙은 문헌", String((e.works ?? []).length) + "편");
+      }
+    }
     if (q.kind === "node" && q.labels.length) line("관련", q.labels.join(", "));
     line("왜", q.note ?? "");
     line("근거", fmtWorks(q.works ?? []));

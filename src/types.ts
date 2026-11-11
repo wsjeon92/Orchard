@@ -170,9 +170,11 @@ export interface Topic {
     더 무겁다. 창이 그 차이를 보여 준다. */
 export interface Pending {
   id: string;
-  /** node: 키워드 추가 · edge: 교차 추가 · works: 기존 것에 문헌 붙이기 */
-  kind: "node" | "edge" | "works";
-  /** edge 면 멤버 이름들, node 면 [새 이름], works 면 [붙일 대상 이름] */
+  /** node: 키워드 추가 · edge: 교차 추가 · works: 기존 것에 문헌 붙이기
+      promote: 이름 붙은 교차를 합성 키워드로 올리기 */
+  kind: "node" | "edge" | "works" | "promote";
+  /** edge 면 멤버 이름들, node 면 [새 이름], works 면 [붙일 대상 이름],
+      promote 면 [올릴 교차의 이름] */
   labels: string[];
   /** 붙일 이름 (edge·node). works 면 비운다 */
   name?: string;

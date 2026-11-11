@@ -347,6 +347,56 @@ const twoNodes = read().nodes.filter((n) => n.kind !== "group" && (n.label || ""
     Array.isArray(read().pending) && (read().declined ?? []).includes("zzz 기각된 것"));
 }
 
+// --- 승격 후보: 실패가 제안이 된다 ---
+//
+// 모델 이름이 노드에도 교차에도 있어 헷갈린다는 것이 출발점이었다. 실제로는 선택이
+// 아니라 한 방향 수명주기다 — 전부 교차로 태어나고, **다른 것이 이것과 교차하고
+// 싶어진 순간** 노드가 된다. 전에는 그 순간에 connect 가 "키워드가 없습니다"로
+// 끝나서, 혼란이 생기는 바로 그 지점에 막다른 길이 있었다.
+
+{
+  const named = read().edges.find((e) => e.kind === "assoc" && (e.label || "").trim()
+    && !read().nodes.some((n) => (n.label || "").trim() === (e.label || "").trim()));
+  const other = read().nodes.find((n) => n.kind !== "group" && (n.label || "").trim());
+  if (!named || !other) { say("  건너뜀 — 이름 붙은 교차가 없는 그래프"); }
+  else {
+    const n0 = (read().pending ?? []).length;
+    const e0 = read().edges.length;
+    const r = await call("connect", { labels: [named.label, other.label], name: "zzz 새 교차" });
+    /* 오류가 아니라 안내다 — 제안을 만들어 냈으면 그건 실패가 아니라 다음 걸음이고,
+       edit() 은 예외가 나면 저장을 건너뛰어 방금 올린 제안이 같이 사라진다 */
+    check("교차 이름을 멤버로 주면 교차를 안 만든다", !r.isError && /만들지 않았습니다/.test(r.text),
+      r.text.slice(0, 70));
+    check("거절하면서 승격 후보를 대기열에 올린다", (read().pending ?? []).length === n0 + 1,
+      JSON.stringify((read().pending ?? [])[0] ?? null).slice(0, 110));
+    check("막다른 길이 아니라 다음 걸음을 알려 준다", /승격/.test(r.text), r.text.slice(0, 90));
+    check("거절했으면 교차는 안 만든다", read().edges.length === e0);
+    const q = (read().pending ?? [])[0];
+    check("올라간 것이 승격 제안이다", q?.kind === "promote" && q?.name === named.label.trim(),
+      JSON.stringify(q ?? null).slice(0, 90));
+    check("왜 올렸는지가 담긴다", (q?.note || "").includes("교차"), (q?.note || "").slice(0, 70));
+
+    // 두 번 부르면 또 올리지 않는다
+    const r2 = await call("connect", { labels: [named.label, other.label], name: "zzz 새 교차" });
+    check("같은 승격 후보를 두 번 올리지 않는다",
+      (read().pending ?? []).length === n0 + 1 && /이미 검토 대기/.test(r2.text), r2.text.slice(0, 90));
+
+    // suggest 로도 같은 종류를 올릴 수 있다
+    const named2 = read().edges.find((e) => e.kind === "assoc" && (e.label || "").trim()
+      && (e.label || "").trim() !== named.label.trim()
+      && !read().nodes.some((n) => (n.label || "").trim() === (e.label || "").trim()));
+    if (named2) {
+      const r3 = await call("suggest", { kind: "promote", name: named2.label, labels: [named2.label],
+        note: "문헌이 쌓였는데 아직 개념으로 안 올렸다" });
+      check("suggest 로도 승격을 올릴 수 있다", !r3.isError
+        && (read().pending ?? []).some((x) => x.kind === "promote" && x.name === named2.label.trim()),
+        r3.text.slice(0, 70));
+    }
+    const r4 = await call("suggest", { kind: "promote", name: "있을 리 없는 교차 zzz", labels: [] });
+    check("없는 교차를 승격 제안하면 거절한다", r4.isError, r4.text.slice(0, 60));
+  }
+}
+
 // --- 바깥에서 고친 것을 덮어쓰지 않는다 ---
 const mid = read();
 mid.nodes.push({ id: "nZZ", label: "사용자가 직접 추가", kind: "atom", x: 2000, y: 2000,

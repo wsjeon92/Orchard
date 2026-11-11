@@ -19,7 +19,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import {
   TIDY, asWork, childrenOf, crossedWith, crossing, degree, isRing, labelOf, load,
-  makeEdge, makeNode, membersOf, nextPendingId, node, nodeById, parentEdge, partsRedundancy, place,
+  crossingNamed, makeEdge, makeNode, membersOf, node, nodeById, parentEdge, partsRedundancy,
+  place, queue,
   planetOf, sameCrossing, save, setParent, target,
 } from "./graph.js";
 
@@ -42,7 +43,7 @@ function edit(fn) {
   } catch (e) { return fail(e); }
 }
 
-const server = new McpServer({ name: "orchard", version: "2.2.0" });
+const server = new McpServer({ name: "orchard", version: "2.3.0" });
 
 /* ---------------- 읽기 ---------------- */
 
@@ -173,6 +174,35 @@ server.registerTool("connect", {
     name: z.string().optional().describe("교차 이름 — 실재하는 도구·논문 이름이면 가장 좋다"),
   },
 }, async ({ labels, name }) => edit((g) => {
+  /* 멤버로 적힌 이름이 노드가 아니라 **교차**면, 그건 없는 키워드가 아니라 아직 안 올린
+     키워드다. 그리고 바로 그 순간이 승격할 순간이다 — 다른 것이 이것과 교차하고 싶어진
+     순간이니까. 전에는 여기서 "키워드가 없습니다"로 끝나서, 혼란이 생기는 바로 그 지점에
+     막다른 길이 있었다. 이제 막는 대신 대기열에 올린다: 실패가 제안이 된다. */
+  const queued = [];
+  for (const l of labels) {
+    const t = String(l).trim();
+    if (g.nodes.some((n) => (n.label || "").trim() === t)) continue;
+    const e = crossingNamed(g, t);
+    if (!e) continue;
+    const r = queue(g, {
+      kind: "promote", labels: [t], name: t,
+      note: `'${labels.filter((x) => String(x).trim() !== t).join(" + ")}' 와(과) 교차하려는데 `
+        + `'${t}' 이(가) 아직 교차라서 멤버가 될 수 없다. 올리면 축이 된다. `
+        + `지금 교차: ${membersOf(e).map((m) => labelOf(g, m)).join(" + ")}`
+        + ` (문헌 ${(e.works ?? []).length}편)`,
+      from: "connect",
+    });
+    queued.push(r.ok ? `${t} → 승격 후보로 올림 (${r.item.id})` : r.why);
+  }
+  if (queued.length) {
+    /* 던지지 않는다. edit() 은 예외가 나면 저장을 건너뛰므로, 방금 올린 승격 후보가
+       같이 굴러떨어진다 — 실제로 그래서 제안이 사라졌다. 게다가 제안을 만들어 냈으면
+       그건 실패가 아니라 다음 걸음이다. 오류 대신 안내를 돌려준다. */
+    return "아직 교차인 이름이 멤버에 있어 교차를 만들지 않았습니다.\n"
+      + queued.map((x) => "· " + x).join("\n")
+      + "\n앱의 「제안」 창에서 승격을 수락한 뒤 다시 부르세요. "
+      + "(사람이 시킨 것이면 promote 로 바로 올려도 됩니다.)";
+  }
   const ns = labels.map((l) => node(g, l));
   const ring = ns.find(isRing);
   if (ring) {
@@ -599,7 +629,8 @@ server.registerTool("suggest", {
     + "  새 교차·새 키워드 — 그래프의 **어휘**를 바꾸는 일. 혼자 돌 때는 반드시 이쪽으로 올린다\n\n"
     + "문헌은 지어내지 않는다. 웹 검색으로 확인한 것만.",
   inputSchema: {
-    kind: z.enum(["node", "edge", "works"]).describe("node: 키워드 추가 · edge: 교차 추가 · works: 문헌 붙이기"),
+    kind: z.enum(["node", "edge", "works", "promote"])
+      .describe("node: 키워드 추가 · edge: 교차 추가 · works: 문헌 붙이기 · promote: 교차를 키워드로 올리기"),
     name: z.string().optional().describe("붙일 이름 (node·edge). works 면 비운다"),
     labels: z.array(z.string()).describe("edge 면 멤버 이름들, node 면 비우거나 관련 키워드, works 면 [붙일 대상 이름]"),
     note: z.string().optional().describe("왜 이것인가 — 사람이 읽고 판단할 한두 줄"),
@@ -614,26 +645,23 @@ server.registerTool("suggest", {
   },
 }, async ({ kind, name, labels, note, works, from }) => edit((g) => {
   const t = (name ?? "").trim();
-  const key = t || labels.join(" + ");
-  if ((g.declined ?? []).includes(key)) {
-    return `'${key}' 은(는) 전에 기각된 제안입니다. 다시 올리지 않았습니다.`;
-  }
-  const dup = (g.pending ?? []).find((q) => ((q.name || "") || (q.labels || []).join(" + ")) === key);
-  if (dup) return `'${key}' 은(는) 이미 검토 대기에 있습니다 (${dup.id}).`;
-  if (kind !== "works" && !t) throw new Error("node·edge 제안에는 name 이 필요합니다");
+  if (kind !== "works" && !t) throw new Error("이 종류의 제안에는 name 이 필요합니다");
   if (kind === "edge" && labels.length < 2) throw new Error("교차 제안에는 멤버가 둘 이상 필요합니다");
   if (kind === "works") {
     if (!labels.length) throw new Error("works 제안에는 붙일 대상 이름이 필요합니다 (labels[0])");
     if (!(works ?? []).length) throw new Error("works 제안에는 문헌이 필요합니다");
   }
-  const q = {
-    id: nextPendingId(g), kind, labels: labels.map((l) => String(l).trim()).filter(Boolean),
+  if (kind === "promote" && !crossingNamed(g, t)) {
+    throw new Error(`'${t}' 이름의 교차가 없습니다. 승격은 이름 붙은 교차를 키워드로 올리는 것입니다.`);
+  }
+  const r = queue(g, {
+    kind, labels: labels.map((l) => String(l).trim()).filter(Boolean),
     ...(t ? { name: t } : {}), ...(note ? { note } : {}),
     ...(works?.length ? { works: works.map(asWork) } : {}),
-    ...(from ? { from } : {}), at: Date.now(),
-  };
-  (g.pending ??= []).unshift(q);
-  return `검토 대기에 올렸습니다 (${q.id}, ${kind}): ${key}. `
+    ...(from ? { from } : {}),
+  });
+  if (!r.ok) return r.why + " 다시 올리지 않았습니다.";
+  return `검토 대기에 올렸습니다 (${r.item.id}, ${kind}): ${r.key}. `
     + `앱의 「제안」 창에서 수락하거나 기각하세요. 지금 대기 ${g.pending.length}개.`;
 }));
 
