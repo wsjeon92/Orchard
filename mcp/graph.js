@@ -22,6 +22,8 @@ export function load(path) {
   g.view ??= { x: 0, y: 0, k: 1 };
   g.title ??= "";
   g.topics ??= [];
+  g.pending ??= [];      // 검토 대기 제안 — 창이 생기기 전 파일을 끌어온다
+  g.declined ??= [];
   // seq 가 낮게 저장돼 있으면 id 가 겹친다 — 실제 쓰인 번호보다 반드시 커야 한다
   const used = [...g.nodes, ...g.edges]
     .map((x) => parseInt(String(x.id).replace(/\D/g, ""), 10))
@@ -153,6 +155,17 @@ export function node(g, label) {
   }
   if (hit.length > 1) throw new Error(`'${label}' 이름의 키워드가 ${hit.length}개입니다. 먼저 정리해 주세요.`);
   return hit[0];
+}
+
+/** 검토 대기 제안의 다음 id. 그래프의 seq 를 쓰지 않는다 — 제안은 그래프가 아니고,
+ *  seq 를 올리면 앱의 실행 취소 스냅샷이 찍힌다. 제안끼리만 안 겹치면 된다. */
+export function nextPendingId(g) {
+  let max = 0;
+  for (const q of g.pending ?? []) {
+    const n = +(q.id || "").slice(1);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return "q" + (max + 1);
 }
 
 /** 이 노드와 **교차를 함께한** 노드들 — assoc 만 본다.

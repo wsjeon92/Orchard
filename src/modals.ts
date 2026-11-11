@@ -1,5 +1,6 @@
 import { div, el } from "./dom";
 import { drawTopics } from "./topics";
+import { syncPendingCount } from "./pending";
 import {
   adopt, S, UI, VIEW, cut, esc, isGroup, kindOf, nodeOf, safeName, save, saveView,
   slotDelete, slots, slotSave, strip,
@@ -155,6 +156,7 @@ export function loadSlot(name: string) {
   resetHistoryBase();
   syncTitleInput();
   drawTopics();
+  syncPendingCount();
   render(); fit();
 }
 
@@ -258,6 +260,7 @@ export function bindModals(syncViewPop: () => void) {
       resetHistoryBase();
       syncTitleInput();
       drawTopics();
+      syncPendingCount();
       el("impMask").classList.add("hidden");
       render(); fit();
     } catch (e) {

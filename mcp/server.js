@@ -19,7 +19,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import {
   TIDY, asWork, childrenOf, crossedWith, crossing, degree, isRing, labelOf, load,
-  makeEdge, makeNode, membersOf, node, nodeById, parentEdge, partsRedundancy, place,
+  makeEdge, makeNode, membersOf, nextPendingId, node, nodeById, parentEdge, partsRedundancy, place,
   planetOf, sameCrossing, save, setParent, target,
 } from "./graph.js";
 
@@ -42,7 +42,7 @@ function edit(fn) {
   } catch (e) { return fail(e); }
 }
 
-const server = new McpServer({ name: "orchard", version: "2.1.0" });
+const server = new McpServer({ name: "orchard", version: "2.2.0" });
 
 /* ---------------- 읽기 ---------------- */
 
@@ -491,5 +491,150 @@ server.registerTool("propose", {
     ].join("\n"));
   } catch (err) { return fail(err); }
 });
+
+/* ---------------- 유입구 ---------------- */
+
+server.registerTool("place", {
+  title: "이름을 그래프에 놓아 보기",
+  description: "바깥에서 가져온 이름 하나(도구·논문·개념)를 그래프 위에 놓아 보고 셋 중 어디인지 답한다.\n\n"
+    + "  축이 없다      → 채울 키워드가 그래프에 없다. 노드를 더할 자리\n"
+    + "  교차가 없다    → 멤버는 다 있는데 아무도 안 이어 놓았다. **제일 흔하고 제일 자주 놓친다**\n"
+    + "  이미 있다      → 문헌만 보강하면 된다\n\n"
+    + "빠진 교차는 그래프 안에서 못 찾는다 — 실재하는 이름은 구조적 사실이 아니라 바깥 세상의 "
+    + "사실이기 때문이다. 그래서 바깥에서 이름을 가져와 이 도구에 통과시킨다. "
+    + "매일 읽는 문헌의 이름들을 여기 흘려보내면 그래프가 문헌과 같이 늙는다.",
+  inputSchema: {
+    name: z.string().describe("놓아 볼 이름 — 실재하는 도구·논문·개념"),
+    members: z.array(z.string()).optional()
+      .describe("이 이름이 무엇과 무엇의 교차인지. 그래프의 키워드 이름으로 적는다"),
+  },
+}, async ({ name, members }) => {
+  try {
+    const g = load(PATH);
+    const t = name.trim();
+    const lower = t.toLowerCase();
+    const hitNode = g.nodes.filter((n) => (n.label || "").trim().toLowerCase() === lower);
+    const hitEdge = g.edges.filter((e) => (e.label || "").trim().toLowerCase() === lower);
+    const inCands = g.edges.filter((e) => (e.cands ?? []).some((c) => (c || "").toLowerCase() === lower));
+    const declined = (g.declined ?? []).some((d) => (d || "").toLowerCase() === lower);
+    const queued = (g.pending ?? []).filter((q) => (q.name || "").toLowerCase() === lower);
+    const lines = [`이름: ${t}`];
+    if (declined) lines.push("⚠ 전에 기각된 이름입니다 — 다시 올리지 마세요.");
+    if (queued.length) lines.push(`⚠ 이미 검토 대기에 있습니다 (${queued.map((q) => q.id).join(", ")}).`);
+
+    if (hitNode.length || hitEdge.length || inCands.length) {
+      lines.push("", "## 이미 있다 — 문헌만 보강");
+      for (const n of hitNode) lines.push(`- 키워드 '${n.label}' (문헌 ${(n.works ?? []).length})`);
+      for (const e of hitEdge) {
+        lines.push(`- 교차 '${e.label}': ${membersOf(e).map((m) => labelOf(g, m)).join(" + ")}`
+          + ` (문헌 ${(e.works ?? []).length})`);
+      }
+      for (const e of inCands) {
+        if (hitEdge.includes(e)) continue;
+        lines.push(`- 이름 후보로 적혀 있음: 교차 '${e.label || "(이름 없음)"}'`
+          + ` = ${membersOf(e).map((m) => labelOf(g, m)).join(" + ")}`);
+      }
+      lines.push("", "→ add_works 로 문헌을 붙이거나, suggest 로 문헌 제안을 올리세요.");
+      return text(lines.join("\n"));
+    }
+
+    if (!members?.length) {
+      lines.push("", "그래프에 이 이름이 없습니다. 무엇과 무엇의 교차인지 members 에 적어 다시 부르면",
+        "축이 빠진 것인지 교차가 빠진 것인지 가려 줍니다.");
+      return text(lines.join("\n"));
+    }
+
+    const have = [], miss = [];
+    for (const l of members) {
+      const n = g.nodes.find((x) => (x.label || "").trim() === String(l).trim());
+      (n ? have : miss).push(n ? n : String(l).trim());
+    }
+    if (miss.length) {
+      lines.push("", "## 축이 없다 — 키워드를 더할 자리",
+        `채울 수 없는 칸: ${miss.join(", ")}`,
+        `이미 있는 칸: ${have.map((n) => n.label).join(", ") || "없음"}`,
+        "",
+        "→ 못 채운 칸이 바로 빠진 축입니다. suggest 로 키워드 제안을 올리세요.");
+      return text(lines.join("\n"));
+    }
+    const ring = have.find(isRing);
+    if (ring) {
+      lines.push("", `'${ring.label || "(이름 없는 궤도)"}' 은(는) 궤도입니다 — 교차에 못 들어갑니다.`,
+        "그 궤도의 식구를 고르세요.");
+      return text(lines.join("\n"));
+    }
+    const ids = have.map((n) => n.id);
+    const same = sameCrossing(g, ids);
+    if (same) {
+      lines.push("", "## 이미 있다 — 그 교차가 이름만 없다",
+        `교차 '${same.label || "(이름 없음)"}' = ${membersOf(same).map((m) => labelOf(g, m)).join(" + ")}`,
+        "", "→ rename 으로 이름을 주고 add_works 로 문헌을 붙이세요.");
+      return text(lines.join("\n"));
+    }
+    const red = partsRedundancy(g, ids);
+    lines.push("", "## 교차가 없다 — 멤버는 다 있는데 아무도 안 이어 놓았다",
+      `${have.map((n) => n.label).join(" + ")}`,
+      "", "제일 흔하고 제일 자주 놓치는 경우입니다. → suggest 로 교차 제안을 올리세요.");
+    if (red.length) {
+      lines.push("", "참고 — 부품 중복: " + red.map(([a, b]) => `${a} ⊂ ${b}`).join(", ")
+        + ". 합성이 이미 그 부품을 담고 있으니, 그 부품이 다른 경로로도 닿는 축일 때만 넣으세요.");
+    }
+    const nearby = g.edges.filter((e) => e.kind === "assoc"
+      && membersOf(e).filter((i) => ids.includes(i)).length >= 2);
+    if (nearby.length) {
+      lines.push("", `이 이웃에 이미 걸린 교차 ${nearby.length}개:`,
+        ...nearby.map((e) => `- ${e.label || "(이름 없음)"}: ${membersOf(e).map((m) => labelOf(g, m)).join(" + ")}`));
+    }
+    return text(lines.join("\n"));
+  } catch (err) { return fail(err); }
+});
+
+server.registerTool("suggest", {
+  title: "검토 대기에 제안 올리기",
+  description: "그래프를 직접 고치지 않고 **사람이 검토할 대기열**에 올린다. 앱의 「제안」 창에 뜨고, "
+    + "사람이 수락하면 그래프에 들어가고 기각하면 이름이 기억돼 다시 올라오지 않는다.\n\n"
+    + "무엇을 이쪽으로 보내고 무엇을 바로 쓰는가:\n"
+    + "  문헌 보강  — 이미 있는 것에 근거를 붙이는 일. 사실이고 검증 가능하고 덧붙이기만 한다.\n"
+    + "               사람이 시켰으면 add_works 로 바로 써도 된다\n"
+    + "  새 교차·새 키워드 — 그래프의 **어휘**를 바꾸는 일. 혼자 돌 때는 반드시 이쪽으로 올린다\n\n"
+    + "문헌은 지어내지 않는다. 웹 검색으로 확인한 것만.",
+  inputSchema: {
+    kind: z.enum(["node", "edge", "works"]).describe("node: 키워드 추가 · edge: 교차 추가 · works: 문헌 붙이기"),
+    name: z.string().optional().describe("붙일 이름 (node·edge). works 면 비운다"),
+    labels: z.array(z.string()).describe("edge 면 멤버 이름들, node 면 비우거나 관련 키워드, works 면 [붙일 대상 이름]"),
+    note: z.string().optional().describe("왜 이것인가 — 사람이 읽고 판단할 한두 줄"),
+    works: z.array(z.object({
+      name: z.string(),
+      year: z.union([z.string(), z.number()]).optional(),
+      venue: z.string().optional(),
+      note: z.string().optional(),
+      url: z.string().optional(),
+    })).optional(),
+    from: z.string().optional().describe("어디서 왔나 — 예: '브리핑 2026-11-11', 'propose'"),
+  },
+}, async ({ kind, name, labels, note, works, from }) => edit((g) => {
+  const t = (name ?? "").trim();
+  const key = t || labels.join(" + ");
+  if ((g.declined ?? []).includes(key)) {
+    return `'${key}' 은(는) 전에 기각된 제안입니다. 다시 올리지 않았습니다.`;
+  }
+  const dup = (g.pending ?? []).find((q) => ((q.name || "") || (q.labels || []).join(" + ")) === key);
+  if (dup) return `'${key}' 은(는) 이미 검토 대기에 있습니다 (${dup.id}).`;
+  if (kind !== "works" && !t) throw new Error("node·edge 제안에는 name 이 필요합니다");
+  if (kind === "edge" && labels.length < 2) throw new Error("교차 제안에는 멤버가 둘 이상 필요합니다");
+  if (kind === "works") {
+    if (!labels.length) throw new Error("works 제안에는 붙일 대상 이름이 필요합니다 (labels[0])");
+    if (!(works ?? []).length) throw new Error("works 제안에는 문헌이 필요합니다");
+  }
+  const q = {
+    id: nextPendingId(g), kind, labels: labels.map((l) => String(l).trim()).filter(Boolean),
+    ...(t ? { name: t } : {}), ...(note ? { note } : {}),
+    ...(works?.length ? { works: works.map(asWork) } : {}),
+    ...(from ? { from } : {}), at: Date.now(),
+  };
+  (g.pending ??= []).unshift(q);
+  return `검토 대기에 올렸습니다 (${q.id}, ${kind}): ${key}. `
+    + `앱의 「제안」 창에서 수락하거나 기각하세요. 지금 대기 ${g.pending.length}개.`;
+}));
 
 await server.connect(new StdioServerTransport());

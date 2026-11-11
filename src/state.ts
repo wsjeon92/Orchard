@@ -17,7 +17,7 @@ const LS_VIEW = "kwgraph.view";
 const LS_AT = "kwgraph.savedAt";
 
 export let S: GraphState = {
-  title: "", nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1, topics: [], rings: {},
+  title: "", nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1, topics: [], rings: {}, pending: [], declined: [],
 };
 /* 익은 교차의 기본 설정.
 
@@ -105,6 +105,8 @@ export function strip() {
        빠뜨리면 저장·내보내기에서 조용히 사라지고 아무 에러도 안 난다. */
     topics: (S.topics ?? []).map((t) => ({ ...t })),
     rings: { ...(S.rings ?? {}) },
+    pending: (S.pending ?? []).map((q) => ({ ...q, works: (q.works ?? []).map((w) => ({ ...w })) })),
+    declined: [...(S.declined ?? [])],
   } as GraphState;
 }
 
@@ -185,6 +187,8 @@ export function syncDataKey() { lastDataKey = JSON.stringify({ ...strip(), view:
 /** assoc 엣지는 멤버가 2개 이상인 하이퍼엣지다. 옛 저장본의 a/b 를 members 로 올린다. */
 export function normalize() {
   S.topics ??= [];                       // 주제 탭이 생기기 전 파일을 끌어온다
+  S.pending ??= [];                      // 제안 대기 창이 생기기 전 파일
+  S.declined ??= [];
   S.rings ??= {};                        // 고리를 저장하기 전 파일 — 첫 정리에서 굳는다
   S.nodes.forEach((n) => {
     n.works ??= [];

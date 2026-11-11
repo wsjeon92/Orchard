@@ -138,6 +138,18 @@ export interface GraphState {
       식구는 여기 담지 않는다. 어느 고리에 앉는지는 여전히 그래프가 정한다
       (연결 유무와 합성 깊이). 담는 길이 둘이면 둘이 어긋난다. */
   rings?: Record<string, MainRing>;
+  /** 에이전트가 올려 둔 제안 — 사람이 검토해서 수락하거나 기각한다.
+
+      그래프 본체(노드·엣지)를 바로 고치지 않고 여기 쌓는 이유: 수락 전까지는
+      제안일 뿐이다. 바로 쓰면 검토가 '사후 수습'이 되고, 매일 도는 유입구가
+      관심 없는 것들로 그래프를 부풀린다. 사람의 역할이 평가라면 평가할 자리가
+      있어야 한다.
+
+      같은 파일에 담아 내보내기·가져오기를 따라가게 한다 — 주제 메모와 같다. */
+  pending?: Pending[];
+  /** 기각한 제안의 이름 — 같은 것을 다시 올리지 않기 위한 것뿐이다.
+      이유는 담지 않는다. 이유를 모아 규칙을 고치는 고리는 만들지 않기로 했다 */
+  declined?: string[];
   /** 치운 교차 후보. "노드id|노드id"(사전순) 꼴.
       그래프에 담아 두는 이유: 치운 판단은 그래프에 대한 판단이라 내보내기를
       따라가야 한다. 보기 설정에 두면 다른 기기에서 같은 것을 또 치워야 한다 */
@@ -149,6 +161,27 @@ export interface Topic {
   id: string;
   title: string;
   body: string;
+}
+
+/** 검토 대기 중인 제안. 에이전트가 MCP 로 올리고 사람이 창에서 처리한다.
+
+    works 제안은 '이미 있는 것에 근거를 붙이자'라서 가장 안전하고(사실이고,
+    검증 가능하고, 덧붙이기만 한다), node·edge 제안은 그래프의 어휘를 바꾸므로
+    더 무겁다. 창이 그 차이를 보여 준다. */
+export interface Pending {
+  id: string;
+  /** node: 키워드 추가 · edge: 교차 추가 · works: 기존 것에 문헌 붙이기 */
+  kind: "node" | "edge" | "works";
+  /** edge 면 멤버 이름들, node 면 [새 이름], works 면 [붙일 대상 이름] */
+  labels: string[];
+  /** 붙일 이름 (edge·node). works 면 비운다 */
+  name?: string;
+  note?: string;
+  works?: Work[];
+  /** 어디서 왔나 — "브리핑", "propose", 사람이 적은 말 */
+  from?: string;
+  /** 올라온 시각 (ms) */
+  at?: number;
 }
 
 export interface ViewSettings {

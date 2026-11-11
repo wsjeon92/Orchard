@@ -38,6 +38,10 @@ import {
   addTopic, bindTopics, drawTopics, setTopics, syncAnimClass, syncEmphClass, topicsOpen,
 } from "./topics";
 import {
+  acceptPending, addPending, bindPending, declinePending, drawPending, pendingBlocker,
+  pendingOpen, setPending, setPendingRedraw, syncPendingCount,
+} from "./pending";
+import {
   bindFileLink, checkNow as checkFile, flushNow as flushFile, isLinked,
   link as linkFile, needsPermission, regrant as regrantFile, restore as restoreLink,
   state as linkState, supported as fileSupported, touch as touchFile, unlink as unlinkFile,
@@ -271,6 +275,7 @@ bindFileLink(syncLinkBtn, (g) => {       // 파일이 바깥에서 바뀌었을 
   freezeRings();                 // 고리를 저장하기 전 파일이면 지금 모습대로 굳힌다
   syncTitleInput();
   drawTopics();
+  syncPendingCount();
   resetHistoryBase();
   render();
   syncLinkBtn();
@@ -332,6 +337,23 @@ el("viewerOn").onchange = (e) => {
   setViewer(on === narrowScreen() ? null : on, () => { syncViewPop(); render(); });
 };
 bindTopics();
+bindPending();
+/* 수락하면 캔버스에 노드·교차가 생긴다. pending 이 render 를 직접 부르면
+   순환 import 가 되므로 여기서 넣어 준다 */
+setPendingRedraw(() => render());
+/* 왼쪽 패널은 하나만 열린다 — 둘 다 320px 라 같이 열면 캔버스가 사라진다.
+   bindTopics·bindPending 이 건 핸들러를 여기서 덮어쓴다 */
+el("btnTopics").onclick = () => {
+  const on = !topicsOpen();
+  if (on) setPending(false);
+  setTopics(on);
+};
+el("btnPending").onclick = () => {
+  const on = !pendingOpen();
+  if (on) setTopics(false);
+  setPending(on);
+};
+el("topicsAdd").onclick = () => { setPending(false); if (!topicsOpen()) setTopics(true); addTopic(); };
 bindModals(syncViewPop);
 bindCanvas();
 bindMinimap(applyView);
@@ -349,6 +371,7 @@ syncDataKey();                   // 시작 직후 첫 save 가 파일을 덮지 
    끊겼다. 기준점이 없으면 로드 뒤 첫 변경이 Ctrl+Z 로 안 돌아간다. */
 resetHistoryBase();
 drawTopics();
+syncPendingCount();
 syncTitleInput();
 render();
 if (!S.view.x && !S.view.y) fit();
@@ -366,6 +389,7 @@ async function openFromUrl() {
     syncDataKey();
     syncTitleInput();
     drawTopics();
+  syncPendingCount();
     resetHistoryBase();
     render();
     fit();
@@ -393,6 +417,7 @@ function reset() {                       // 테스트가 깨끗한 상태에서 
   UI.sel = null; UI.focusId = null; UI.query = ""; UI.marked.clear(); UI.hidden.clear();
   setGraph({ nodes: [], edges: [], view: { x: 0, y: 0, k: 1 }, seq: 1, topics: [] });
   drawTopics();
+  syncPendingCount();
   clearStacks(); resetHistoryBase();
 }
 const api = {
@@ -413,6 +438,8 @@ const api = {
   animRunning, kickAnim, snapPositions, reduceMotion, easeView, snapView, stepViewAnim, stepRingAnim, viewAnimRunning,
   findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, swapSubRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, freezeRings, mainRingName, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass, syncEmphClass,
+  addPending, acceptPending, declinePending, drawPending, setPending, pendingOpen,
+  pendingBlocker, syncPendingCount,
   isViewer, setViewer, narrowScreen,
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,
   encodeGraph, decodeGraph, shareUrl,

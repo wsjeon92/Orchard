@@ -22,6 +22,7 @@
     <button class="tbtn" id="btnSlots">저장본</button>
     <button class="tbtn ghost" id="btnLink" hidden>파일 연결</button>
     <button class="tbtn ghost" id="btnTopics">주제 <b id="topicsN">0</b></button>
+    <button class="tbtn ghost" id="btnPending">제안 <b id="pendingN"></b></button>
     <button class="tbtn ghost" id="btnPhone">폰으로</button>
     <button class="tbtn ghost" id="btnExport">내보내기</button>
     <button class="tbtn ghost" id="btnImport">가져오기</button>
@@ -36,6 +37,15 @@
       </div>
       <div id="topicsList"></div>
       <div id="topicsHint">그래프와 같은 파일에 저장됩니다. 내보내기·가져오기에 따라옵니다.</div>
+    </div>
+
+    <div id="pending" class="off">
+      <div id="pendingHead">
+        <b>제안 대기</b>
+        <button id="pendingClose" title="닫기">×</button>
+      </div>
+      <div id="pendingList"></div>
+      <div id="pendingHint">에이전트가 올린 제안입니다. 수락하면 그래프에 들어가고, 기각하면 다시 올라오지 않습니다.</div>
     </div>
     <div id="stage">
       <div id="world"><svg id="svg"></svg></div>

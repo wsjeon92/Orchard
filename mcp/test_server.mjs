@@ -286,6 +286,67 @@ if (named) {
   check("순서가 판정이 아니라고 밝힌다", /판정이 아니다/.test(big.text));
 }
 
+// --- 유입구: place 3분기 + suggest 대기열 ---
+//
+// 빠진 교차는 그래프 안에서 못 찾는다 — 실재하는 이름은 바깥 세상의 사실이다.
+// 그래서 바깥에서 이름을 가져와 셋 중 어디인지 가린다.
+
+const anyNode = read().nodes.find((n) => n.kind !== "group" && (n.label || "").trim());
+const twoNodes = read().nodes.filter((n) => n.kind !== "group" && (n.label || "").trim()).slice(0, 2);
+
+{
+  // 이미 있다 — 그래프에 있는 이름을 그대로 넣는다
+  const r = await call("place", { name: anyNode.label });
+  check("place: 이미 있는 이름을 알아본다", /이미 있다/.test(r.text), r.text.slice(0, 80));
+
+  // 축이 없다 — 없는 키워드를 멤버로 준다
+  const r2 = await call("place", { name: "zzz 새 도구", members: [anyNode.label, "있을 리 없는 키워드 zz"] });
+  check("place: 못 채우는 칸을 축 누락으로 가린다", /축이 없다/.test(r2.text), r2.text.slice(0, 80));
+
+  // 이미 있다(교차) — 실제로 이어져 있는 두 노드를 준다
+  const someEdge = read().edges.find((e) => e.kind === "assoc" && (e.members ?? []).length === 2);
+  if (someEdge) {
+    const ls = someEdge.members.map(lbOf);
+    const r3 = await call("place", { name: "zzz 다른 이름", members: ls });
+    check("place: 이미 이어진 조합을 알아본다", /이미 있다/.test(r3.text), r3.text.slice(0, 80));
+  }
+}
+
+{
+  const n0 = (read().pending ?? []).length;
+  const snapNodes = read().nodes.length, snapEdges = read().edges.length;
+  const r = await call("suggest", {
+    kind: "edge", name: "zzz 제안 교차", labels: twoNodes.map((n) => n.label),
+    note: "왜 이었는지", from: "테스트",
+    works: [{ name: "Some Real Paper", year: "2026", venue: "bioRxiv" }],
+  });
+  check("suggest 가 대기열에 올린다", !r.isError && (read().pending ?? []).length === n0 + 1,
+    r.text.slice(0, 80));
+  check("suggest 는 그래프를 바꾸지 않는다",
+    read().nodes.length === snapNodes && read().edges.length === snapEdges);
+  const q = (read().pending ?? [])[0];
+  check("제안에 근거와 출처가 담긴다",
+    !!q && (q.works ?? []).length === 1 && q.from === "테스트" && q.note === "왜 이었는지",
+    JSON.stringify(q ?? null).slice(0, 120));
+  const again = await call("suggest", {
+    kind: "edge", name: "zzz 제안 교차", labels: twoNodes.map((n) => n.label),
+  });
+  check("같은 제안을 두 번 올리지 않는다", /이미 검토 대기/.test(again.text), again.text.slice(0, 60));
+  const r2 = await call("place", { name: "zzz 제안 교차" });
+  check("place 가 대기 중인 것을 알려 준다", /이미 검토 대기/.test(r2.text), r2.text.slice(0, 80));
+
+  // 기각한 이름은 다시 안 올라간다
+  const g3 = read();
+  g3.declined = [...(g3.declined ?? []), "zzz 기각된 것"];
+  writeFileSync(FILE, JSON.stringify(g3));
+  const r3 = await call("suggest", { kind: "node", name: "zzz 기각된 것", labels: [] });
+  check("기각된 이름은 다시 안 올라간다", /기각된 제안/.test(r3.text), r3.text.slice(0, 60));
+  const r4 = await call("place", { name: "zzz 기각된 것" });
+  check("place 가 기각된 이름을 경고한다", /기각된 이름/.test(r4.text), r4.text.slice(0, 80));
+  check("pending·declined 가 저장을 타고 남는다",
+    Array.isArray(read().pending) && (read().declined ?? []).includes("zzz 기각된 것"));
+}
+
 // --- 바깥에서 고친 것을 덮어쓰지 않는다 ---
 const mid = read();
 mid.nodes.push({ id: "nZZ", label: "사용자가 직접 추가", kind: "atom", x: 2000, y: 2000,
