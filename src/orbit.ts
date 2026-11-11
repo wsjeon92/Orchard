@@ -357,23 +357,12 @@ function place(n: GNode, x: number, y: number) {
 function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: number) {
   const s = o.sys.get(id);
   if (!s) return;
-  /* 고리 순서를 지킨다. 바깥 고리가 안쪽 고리 안으로 들어가면 두 고리의 식구가 같은
-     띠에 앉아 겹친다 — AI 의 서브 고리가 계획으로는 420·840·1020 인데 실제로는
-     409·241·133 으로 뒤집혀 있었고, 그래서 시뮬레이션의 달(가상현실)이 MLIP 과 7°
-     떨어진 같은 반지름에 앉았다.
-
-     한 번 뒤집히면 스스로 유지된다. 여기서 좌표에서 읽은 반지름을 그대로 쓰는데,
-     그 좌표가 뒤집힌 배치에서 나온 것이라 정리할 때마다 같은 값을 다시 읽었다.
-
-     크기는 사용자가 잡는 것이라 줄이지는 않는다. 안쪽 이웃 **안으로** 들어간 고리만
-     밖으로 민다. 여유는 계획과 같은 셈이다 — 안쪽 고리 식구의 달은 바깥으로 뻗고
-     바깥 고리 식구의 달은 안쪽으로도 뻗으니 양쪽을 다 더한다. */
-  let prevR = 0, prevReach = 0;
+  /* 고리 크기는 여기서 바꾸지 않는다. 크기는 사용자가 잡는 것이고 정리는 그 고리 위에
+     식구를 다시 펼 뿐이다. 한때 뒤집힌 고리를 밖으로 밀어 봤는데, 그건 정리가 크기를
+     바꾸는 일이라 규칙을 어긴다 — 되돌렸다. 고리끼리 너무 가까우면 tightRings 가
+     세어서 알린다. */
   for (const g of s.rings) {
-    const cur = Math.max(0, ...g.ns.map((n) => o.sys.get(n.id)?.reach ?? 0));
-    const floor = prevR ? prevR + MOON_GAP + prevReach + cur : 0;
-    const R = Math.max(live.rings.get("s:" + id + ":" + g.key)?.r ?? g.r, floor);
-    prevR = R; prevReach = cur;
+    const R = live.rings.get("s:" + id + ":" + g.key)?.r ?? g.r;
     const arcs = g.ns.map((n) => arcNeed(o.sys.get(n.id), liveReach(o, live, n.id)));
     const tot = arcs.reduce((a, b) => a + b, 0) || 1;
     let acc = 0;
@@ -492,6 +481,21 @@ function tightRings(): number {
       const need = g.ns.reduce((s2, x) =>
         s2 + arcNeed(o.sys.get(x.id), liveReach(o, live, x.id)), 0);
       if (need > 2 * Math.PI * R.r) n++;
+    }
+    /* 반지름 방향으로도 좁을 수 있다. 둘레만 재면 "한 바퀴에 다 들어가는가"만 보고,
+       이웃 고리와 얼마나 떨어졌는가를 안 본다 — 실제로 한 행성의 고리가 409 와 241
+       로 붙어 있어서, 안쪽 고리 식구의 달이 바깥 고리의 식구를 덮었는데도 이 수는
+       0 이었다. 지금 그려져 있는 반지름 순으로 이웃끼리 본다. */
+    const live2 = sys.rings
+      .map((g) => ({ g, R: live.rings.get("s:" + pid + ":" + g.key) }))
+      .filter((x): x is { g: OrbRing; R: LiveRing } => !!x.R)
+      .sort((a, b) => a.R.r - b.R.r);
+    for (let i = 1; i < live2.length; i++) {
+      const inner = live2[i - 1], outer = live2[i];
+      /* 안쪽 고리 식구의 달은 바깥으로 뻗고 바깥 고리 식구의 달은 안쪽으로도 뻗는다 */
+      const a = Math.max(0, ...inner.g.ns.map((x) => o.sys.get(x.id)?.reach ?? 0));
+      const b2 = Math.max(0, ...outer.g.ns.map((x) => o.sys.get(x.id)?.reach ?? 0));
+      if (outer.R.r - inner.R.r < a + b2) n++;
     }
   }
   return n;
@@ -825,6 +829,37 @@ function ringOrder(p: GNode, rings: OrbRing[]): Map<string, number> {
 
     exclude 는 지금 옮기려는 노드다. sub 엣지가 먼저 생기고 자리는 나중에 잡히므로,
     그 노드를 빼고 재야 고리의 진짜 크기와 빈 각도가 나온다. */
+/** 두 서브 고리의 반지름을 맞바꾼다 — 안쪽 고리를 밖으로, 바깥 고리를 안으로.
+
+    서브 고리의 크기는 저장되는 곳이 없고 **식구가 어디 있느냐**로 정해진다. 그래서
+    순서를 바꾸는 일은 곧 반지름을 맞바꾸는 일이다. 두 반지름의 값 자체는 그대로고
+    어느 고리가 어느 자리에 앉느냐만 바뀐다 — 정리가 크기를 바꾸지 않는다는 규칙과
+    어긋나지 않는다. 바꾸는 주체가 사용자다.
+
+    각도는 지킨다. 식구가 고리만 갈아타고 방향은 그대로여서, 바뀐 것이 무엇인지
+    눈으로 따라갈 수 있다. 달까지 제자리에 앉히는 것은 부르는 쪽에서 정리로 한다. */
+export function swapSubRings(pid: string, keyA: string, keyB: string): boolean {
+  const p = nodeOf(pid);
+  if (!p || keyA === keyB) return false;
+  const live = orbitIndex();
+  const A = live.rings.get(keyA), B = live.rings.get(keyB);
+  if (!A || !B) return false;
+  const c = { x: cx(p), y: cy(p) };
+  const move = (R: LiveRing, r: number) => {
+    const ids = R.group ? [...R.ids, R.group] : R.ids;
+    for (const id of ids) {
+      const n = nodeOf(id);
+      if (!n) continue;
+      const a = Math.atan2(cy(n) - c.y, cx(n) - c.x);
+      place(n, c.x + Math.cos(a) * r, c.y + Math.sin(a) * r);
+    }
+  };
+  const rA = A.r, rB = B.r;
+  move(A, rB);
+  move(B, rA);
+  return true;
+}
+
 export function subRings(pid: string, exclude?: string): RingChoice[] {
   const p = nodeOf(pid);
   const sys = plan().sys.get(pid);

@@ -8,7 +8,7 @@ import {
 } from "./graph";
 import { kickAnim } from "./anim";
 import { DEPTH_ORDER, KIND, SEARCH } from "./kinds";
-import { orbitView, placeOnMainOrbit, placeOnSubOrbit, setOrbitRadius, settleComposition, subRings } from "./orbit";
+import { orbitView, placeOnMainOrbit, placeOnSubOrbit, setOrbitRadius, settleComposition, subRings, swapSubRings, tidyOrbit } from "./orbit";
 import type { RingChoice } from "./orbit";
 import type { OrbitView } from "./orbit";
 import { ask, openBulk } from "./modals";
@@ -658,6 +658,52 @@ function renderParent(body: HTMLElement, n: GNode) {
   });
 }
 
+/** 궤도 순서 — 어느 고리를 안쪽에 둘지 정한다.
+
+    S1·S2 는 저장된 이름이 아니라 **반지름 순서에서 나오는 이름**이다. 그래서 순서를
+    바꾼다는 것은 두 고리의 반지름을 맞바꾸는 일이고, 바꾸고 나면 이름도 따라 바뀐다
+    — 그래서 목록에는 번호가 아니라 식구를 같이 적는다. 안 그러면 무엇이 어디로
+    갔는지 알 수가 없다.
+
+    자동으로 순서를 고치지 않는 이유: 그건 정리가 고리 크기를 바꾸는 일이 된다.
+    크기는 사용자가 잡는 것이다. */
+function ringOrderRow(body: HTMLElement, planet: GNode) {
+  if (isViewer()) return;
+  const rs = subRings(planet.id);          // 안 → 밖 순
+  if (rs.length < 2) return;
+  const h = sect(body, "궤도 순서");
+  const hint = document.createElement("span");
+  hint.style.cssText = "font-size:11px;color:var(--dim2);letter-spacing:0";
+  hint.textContent = "안쪽 → 바깥쪽";
+  h.appendChild(hint);
+  rs.forEach((r, i) => {
+    const row = div(body, "candrow");
+    const t = div(row, "ct");
+    const who = r.ids.map((id) => nodeOf(id)?.label || "").filter(Boolean);
+    t.textContent = `${r.label} · ${cut(who.join(", "), 34)}`;
+    t.title = who.join(", ");
+    const num = document.createElement("span");
+    num.style.cssText = "font-size:11px;color:var(--dim2)";
+    num.textContent = Math.round(r.r) + "px";
+    row.appendChild(num);
+    const mv = (j: number, label: string, tip: string) => {
+      const x = document.createElement("button");
+      x.className = "abtn sm";
+      x.textContent = label;
+      x.title = tip;
+      x.onclick = () => {
+        if (!swapSubRings(planet.id, r.key, rs[j].key)) return;
+        tidyOrbit();                       // 달까지 새 반지름에 맞춰 다시 앉힌다
+        kickAnim();
+        render();
+      };
+      row.appendChild(x);
+    };
+    if (i > 0) mv(i - 1, "안으로", "안쪽 고리와 자리를 맞바꾼다");
+    if (i < rs.length - 1) mv(i + 1, "밖으로", "바깥쪽 고리와 자리를 맞바꾼다");
+  });
+}
+
 /** 하위 키워드 등록 — 한 줄에 여러 개를 쉼표로 넣을 수 있다 */
 function renderSubs(body: HTMLElement, n: GNode) {
   const kids = subChildren(n.id);
@@ -689,6 +735,7 @@ function renderSubs(body: HTMLElement, n: GNode) {
   }
 
   const tab = ringTabs(body, n, n.id);
+  ringOrderRow(body, n);
   const addRow = div(body, "addrow");
   const inp = document.createElement("input");
   inp.className = "inp";

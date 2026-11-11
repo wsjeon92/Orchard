@@ -13,7 +13,7 @@ import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
 } from "./history";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
-import { FIRST_RING, freezeRings, mainRingName, stepRingAnim, newRingRadius, orbitHits, orbitIndex, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, settleComposition, subRings, tidyOrbit } from "./orbit";
+import { FIRST_RING, freezeRings, mainRingName, stepRingAnim, newRingRadius, orbitHits, orbitIndex, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, settleComposition, subRings, swapSubRings, tidyOrbit } from "./orbit";
 import { bindMinimap, drawMini } from "./minimap";
 import {
   bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown, openPhone,
@@ -411,7 +411,7 @@ const api = {
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion, easeView, snapView, stepViewAnim, stepRingAnim, viewAnimRunning,
-  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, freezeRings, mainRingName, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
+  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, swapSubRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, freezeRings, mainRingName, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass, syncEmphClass,
   isViewer, setViewer, narrowScreen,
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,

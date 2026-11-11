@@ -1,77 +1,53 @@
-"""서브 궤도는 안에서 밖으로 순서를 지킨다.
+"""궤도 크기는 사용자가 정한다 — 정리는 손대지 않고, 순서는 창에서 바꾼다.
 
-한 행성이 여러 서브 고리를 가질 때, 바깥 고리는 안쪽 고리보다 밖에 있어야 한다.
-어기면 두 고리의 식구가 같은 띠에 앉아 서로를 덮는다.
+규칙: **궤도 정리는 고리 크기를 바꾸지 않는다.** 크기는 사용자가 잡는 것이고,
+정리는 그 고리 위에 식구를 고르게 다시 펼 뿐이다.
 
-실제로 사용자 그래프에서 AI 의 서브 고리가 계획으로는 420·840·1020 인데 화면에서는
-409·241·133 으로 **뒤집혀** 있었다. 그래서 시뮬레이션의 달인 '가상현실'(AI 로부터
-247)과 '모델링' 바깥 고리의 'MLIP'(242)이 7° 떨어진 같은 반지름에 앉아 겹쳤다.
+한때 이 규칙을 어겼다. 서브 고리가 뒤집혀 있는(바깥 고리가 안쪽 고리 안에 들어간)
+그래프를 보고, 정리가 뒤집힌 고리를 밖으로 밀게 했다. 겹침은 줄었지만 정리가 크기를
+바꾸는 일이라 규칙 위반이고, 사용자가 잡아 둔 크기가 눌러볼 때마다 달라졌다.
 
-한 번 뒤집히면 스스로 유지된다. moons() 가 고리 반지름을 **좌표에서 읽은 값**으로
-쓰는데, 그 좌표가 뒤집힌 배치에서 나온 것이라 정리를 눌러도 같은 값을 다시 읽었다.
-계획(plan)은 처음부터 제대로 중첩을 계산하고 있었다 — 버려지고 있었을 뿐이다.
+되돌리고 둘로 나눴다.
+  · 정리는 크기를 안 바꾼다. 고리끼리 너무 가까우면 '비좁은 궤도'로 **세어서 알린다**.
+  · 순서는 중심 노드 창에서 사용자가 바꾼다. 서브 고리의 크기는 저장되는 곳이 없고
+    식구가 어디 있느냐로 정해지므로, 순서를 바꾸는 일은 두 고리의 반지름을 맞바꾸는
+    일이다 — 반지름 값 자체는 그대로고 어느 고리가 어느 자리에 앉느냐만 바뀐다.
 
-크기는 사용자가 잡는 것이라 줄이지는 않는다. 안쪽 이웃 안으로 들어간 고리만 민다.
+S1·S2 는 저장된 이름이 아니라 반지름 순서에서 나오는 이름이라, 맞바꾸면 이름도 따라
+바뀐다. 그래서 창에도 번호가 아니라 식구를 같이 적는다.
 """
 from playwright.sync_api import sync_playwright
 from conftest_paths import url, launch, ready, settle
 
-# AI 를 행성으로 두고 서브 고리 둘을 만든다. 하나에는 자기 달을 가진 식구를 둔다 —
-# 그 달이 이웃 고리로 뻗는 것이 이 버그의 핵심이었다.
 SETUP = """() => {
   Orchard.reset();
   const hub = Orchard.addNode('AI', 0, 0);
   const other = Orchard.addNode('단백질', 1400, 0);
   Orchard.addHyper([hub.id, other.id]);
-
   const mk = (label, x, y, parent) => {
     const n = Orchard.addNode(label, x, y);
     Orchard.addEdge(parent, n.id, 'sub');
     return n;
   };
-  // 고리 1: 이름 있는 궤도(그룹) — 안쪽에 온다
   const g1 = Orchard.addNode('모델링', 100, 100, 'group');
   Orchard.addEdge(hub.id, g1.id, 'sub');
   const sim = mk('시뮬레이션', 300, 0, g1.id);
   mk('예측', 0, 300, g1.id);
   mk('선별', -300, 0, g1.id);
-  // 시뮬레이션은 자기 달을 가진다 — 이 달들이 이웃 고리를 침범했다
   for (const [l, x, y] of [['world model', 420, 0], ['가상현실', 300, 160], ['게임', 300, -160]])
     mk(l, x, y, sim.id);
-  // 고리 2: 다른 궤도 — 바깥에 와야 한다
   const g2 = Orchard.addNode('기법', -100, -100, 'group');
   Orchard.addEdge(hub.id, g2.id, 'sub');
   for (const [l, x, y] of [['MLIP', 360, 60], ['Token', 60, 360], ['LLM', -360, 60]])
     mk(l, x, y, g2.id);
-
   Orchard.render(); Orchard.tidyOrbit(); Orchard.render();
-  return { hub: hub.id, sim: sim.id };
+  return hub.id;
 }"""
 
-# 그 행성의 서브 고리를, 계획이 정한 안→밖 순서대로 실제 반지름과 함께
-RINGS = """hub => {
-  const o = Orchard.orbitPlan(), ix = Orchard.orbitIndex();
-  const sys = o.sys.get(hub);
-  if (!sys) return null;
-  return sys.rings.map(g => {
-    const R = ix.rings.get('s:' + hub + ':' + g.key);
-    return { key: g.key, plan: Math.round(g.r), live: R ? Math.round(R.r) : null,
-             ns: g.ns.map(n => n.label) };
-  });
-}"""
-
-OVERLAP = """() => {
-  /* 궤도 노드는 그리지 않으므로 뺀다 — 좌표는 성하게 두지만 화면에 없다 */
-  const vis = Orchard.S.nodes.filter(n => !Orchard.UI.hidden.has(n.id) && n.kind !== 'group');
-  const box = n => ({ x: n.x, y: n.y, w: n._w || 140, h: n._h || 38 });
-  const hit = [];
-  for (let i = 0; i < vis.length; i++) for (let j = i + 1; j < vis.length; j++) {
-    const a = box(vis[i]), c = box(vis[j]);
-    if (a.x < c.x + c.w && c.x < a.x + a.w && a.y < c.y + c.h && c.y < a.y + a.h)
-      hit.push([vis[i].label, vis[j].label]);
-  }
-  return hit;
-}"""
+RINGS = """hub => Orchard.subRings(hub).map(r => ({
+  label: r.label, r: Math.round(r.r),
+  ns: r.ids.map(i => (Orchard.nodeOf(i) || {}).label).sort()
+}))"""
 
 
 def main():
@@ -79,60 +55,82 @@ def main():
     with sync_playwright() as p:
         b = launch(p)
         pg = b.new_page(); pg.goto(url()); ready(pg)
-        v = pg.evaluate(SETUP); settle(pg)
+        hub = pg.evaluate(SETUP); settle(pg)
 
-        rings = pg.evaluate(RINGS, v["hub"])
-        print("  정리 직후 고리:")
-        for r in rings:
-            print(f"    {r['key']:<10} 계획 {r['plan']:<5} 실제 {r['live']:<5} {r['ns']}")
-        live = [r["live"] for r in rings if r["live"]]
-        if len(live) < 2:
-            bad.append(f"서브 고리가 둘 이상 생기지 않았다: {rings}")
-        elif live != sorted(live):
-            bad.append(f"서브 고리가 안→밖 순서가 아니다: {live} — 바깥 고리가 안쪽 "
-                       f"고리 안에 들어가면 두 고리의 식구가 같은 띠에서 겹친다")
+        start = pg.evaluate(RINGS, hub)
+        print("  처음 (안→밖):")
+        for r in start:
+            print(f"    {r['label']:<8} {r['r']:<5} {r['ns']}")
+        if len(start) < 2:
+            bad.append(f"서브 고리가 둘 이상 생기지 않았다: {start}")
 
-        hit = pg.evaluate(OVERLAP)
-        print(f"  겹치는 쌍: {hit or '없음'}")
-        if hit:
-            bad.append(f"정리했는데 노드가 겹친다: {hit}")
+        # 1. 정리를 눌러도 크기는 그대로여야 한다 — 이게 깨진 적이 있다
+        pg.evaluate("() => { Orchard.tidyOrbit(); Orchard.render(); }"); settle(pg)
+        again = pg.evaluate(RINGS, hub)
+        print(f"  정리 한 번 더: {[r['r'] for r in again]}")
+        for a, c in zip(start, again):
+            if abs(a["r"] - c["r"]) > 2:
+                bad.append(f"정리가 고리 크기를 바꿨다: {a['label']} {a['r']} → {c['r']} "
+                           f"— 크기는 사용자가 잡는 것이다")
 
-        # 고리를 **뒤집어** 놓고 정리를 눌러도 되돌아와야 한다.
-        # 실제 사고가 이 상태였다 — 한 번 뒤집히면 좌표에서 그 값을 다시 읽어
-        # 정리를 눌러도 스스로 유지됐다.
+        # 2. 뒤집어 놓아도 정리는 되돌리지 않는다. 알리기만 한다.
         pg.evaluate("""hub => {
-          const o = Orchard.orbitPlan(), ix = Orchard.orbitIndex();
-          const sys = o.sys.get(hub), h = Orchard.nodeOf(hub);
+          const h = Orchard.nodeOf(hub);
           const cx = h.x + (h._w || 140) / 2, cy = h.y + (h._h || 38) / 2;
-          /* 바깥 고리 식구들을 안쪽으로 끌어당겨 순서를 뒤집는다 */
-          const outer = sys.rings[sys.rings.length - 1];
-          for (const n of outer.ns) {
+          const rs = Orchard.subRings(hub);
+          for (const n of rs[rs.length - 1].ids.map(i => Orchard.nodeOf(i))) {
             const a = Math.atan2(n.y + 19 - cy, n.x + 70 - cx);
             n.x = Math.round(cx + Math.cos(a) * 120 - 70);
             n.y = Math.round(cy + Math.sin(a) * 120 - 19);
           }
           Orchard.render();
-        }""", v["hub"]); settle(pg)
-        flipped = pg.evaluate(RINGS, v["hub"])
-        fl = [r["live"] for r in flipped if r["live"]]
-        print(f"  일부러 뒤집은 뒤: {fl}")
-        if fl == sorted(fl):
-            print("    (뒤집기가 안 먹었다 — 이 경우 아래 검사는 약해진다)")
+        }""", hub); settle(pg)
+        res = pg.evaluate("() => Orchard.tidyOrbit()")
+        pg.evaluate("() => Orchard.render()"); settle(pg)
+        flipped = pg.evaluate(RINGS, hub)
+        print(f"  뒤집은 뒤 정리: {[r['r'] for r in flipped]}  비좁은 궤도 {res['tight']}개")
+        if not res["tight"]:
+            bad.append("고리가 서로 파고들었는데 '비좁은 궤도'로 안 센다 — 정리가 크기를 "
+                       "안 바꾸는 대신 알려는 줘야 한다")
+        if max(r["r"] for r in flipped) > max(r["r"] for r in start) + 2:
+            bad.append(f"정리가 고리를 밖으로 밀었다: {[r['r'] for r in flipped]} "
+                       f"— 그건 크기를 바꾸는 일이다")
 
-        pg.evaluate("() => { Orchard.tidyOrbit(); Orchard.render(); }"); settle(pg)
-        fixed = pg.evaluate(RINGS, v["hub"])
-        fx = [r["live"] for r in fixed if r["live"]]
-        print("  정리 뒤:")
-        for r in fixed:
-            print(f"    {r['key']:<10} 계획 {r['plan']:<5} 실제 {r['live']:<5} {r['ns']}")
-        if fx != sorted(fx):
-            bad.append(f"뒤집힌 고리를 정리가 되돌리지 못했다: {fx} — 좌표에서 읽은 "
-                       f"반지름을 그대로 써서 뒤집힌 상태가 스스로 유지된다")
-
-        hit2 = pg.evaluate(OVERLAP)
-        print(f"  겹치는 쌍: {hit2 or '없음'}")
-        if hit2:
-            bad.append(f"뒤집힌 뒤 정리했는데 노드가 겹친다: {hit2}")
+        # 3. 순서는 사용자가 바꾼다 — 반지름을 맞바꾼다. 값의 집합은 그대로여야 한다.
+        pg.evaluate("""hub => {
+          const h = Orchard.nodeOf(hub);
+          const cx = h.x + (h._w || 140) / 2, cy = h.y + (h._h || 38) / 2;
+          const rs = Orchard.subRings(hub);
+          for (const n of rs[0].ids.map(i => Orchard.nodeOf(i))) {
+            const a = Math.atan2(n.y + 19 - cy, n.x + 70 - cx);
+            n.x = Math.round(cx + Math.cos(a) * 760 - 70);
+            n.y = Math.round(cy + Math.sin(a) * 760 - 19);
+          }
+          Orchard.render(); Orchard.tidyOrbit(); Orchard.render();
+        }""", hub); settle(pg)
+        pre = pg.evaluate(RINGS, hub)
+        swapped = pg.evaluate("""hub => {
+          const rs = Orchard.subRings(hub);
+          const ok = Orchard.swapSubRings(hub, rs[0].key, rs[1].key);
+          Orchard.tidyOrbit(); Orchard.render();
+          return ok;
+        }""", hub); settle(pg)
+        post = pg.evaluate(RINGS, hub)
+        print("  맞바꾸기 전:", [(r["label"], r["r"], r["ns"][0]) for r in pre])
+        print("  맞바꾼 뒤  :", [(r["label"], r["r"], r["ns"][0]) for r in post])
+        if not swapped:
+            bad.append("swapSubRings 가 실패했다")
+        # place() 가 좌표를 반올림해서 1~2px 는 흔들린다. 자리를 맞바꾼 것이지
+        # 크기를 새로 정한 것이 아니라는 뜻이면 된다.
+        ra, rb = sorted(r["r"] for r in pre), sorted(r["r"] for r in post)
+        if max(abs(x - y) for x, y in zip(ra, rb)) > 3:
+            bad.append(f"맞바꿨는데 반지름의 집합이 달라졌다: {ra} → {rb} "
+                       f"— 자리만 바뀌어야 한다")
+        if pre[0]["ns"] == post[0]["ns"]:
+            bad.append(f"맞바꿨는데 가장 안쪽 고리의 식구가 그대로다: {post[0]['ns']}")
+        if pre[0]["ns"] != post[1]["ns"] or pre[1]["ns"] != post[0]["ns"]:
+            bad.append(f"두 고리가 서로의 자리로 가지 않았다: {pre[0]['ns']}/{pre[1]['ns']} "
+                       f"→ {post[0]['ns']}/{post[1]['ns']}")
 
         pg.close(); b.close()
 
