@@ -142,6 +142,7 @@ export function drawTopics() {
     growTitle(ti, t.id === openId);
     if (t.id === openId) autoGrow(body);
   }
+  if (openId) regrowSoon(list);
 }
 
 function toggle(id: string) {
@@ -152,22 +153,43 @@ function toggle(id: string) {
   }
 }
 
-/** 칸이 글에 맞춰 자란다 — 스크롤바 안에 스크롤바가 생기면 읽기 어렵다 */
+/** 칸이 글에 맞춰 자란다 — 스크롤바 안에 스크롤바가 생기면 읽기 어렵다.
+
+    못 쟀을 때 높이를 박지 않는 것이 이 함수의 전부다. 아직 배치되지 않은 칸은
+    scrollHeight 가 0 으로 나오고, 그러면 Math.max 의 바닥인 120px 에 영영 갇힌다.
+    거기에 max-height 까지 같이 박으면 되돌릴 길이 없어지고, overflow:hidden 이라
+    안쪽이 스크롤된 채 글의 **위가** 잘린다. 실제로 그렇게 터졌다 — 2,396자 본문이
+    120px 안에서 첫 줄이 글자 중간부터 보였다. */
 function autoGrow(ta: HTMLTextAreaElement) {
+  ta.style.maxHeight = "none";             // 상한이 재기를 왜곡한다. 재기 전에 푼다
   ta.style.height = "auto";
-  const h = Math.max(120, ta.scrollHeight);
-  ta.style.height = h + "px";
-  /* max-height 는 펼침 애니메이션에만 쓰는데, 상수로 두면 그 높이에서 본문이
-     조용히 잘린다 — overflow:hidden 이라 스크롤도 안 된다. 2000px 에서 실제로
-     잘렸다(3,349자 = 2,497px, 498px 가 사라졌다). 내용만큼 올려 준다 */
-  ta.style.maxHeight = h + "px";
+  const h = ta.scrollHeight;
+  if (!h) { ta.style.height = ""; return; }   // 못 쟀으면 CSS 에 맡기고 다음 프레임에 다시
+  ta.style.height = Math.max(120, h) + "px";
+  ta.scrollTop = 0;                        // 안쪽 스크롤이 남으면 글 위가 가려진다
 }
 
 /** 펼친 카드의 제목은 줄을 접어 전부 보이고, 접힌 카드는 CSS 가 주는 한 줄이다 */
 function growTitle(ta: HTMLTextAreaElement, open: boolean) {
   if (!open) { ta.style.height = ""; return; }
   ta.style.height = "auto";
-  ta.style.height = ta.scrollHeight + "px";
+  const h = ta.scrollHeight;
+  if (!h) { ta.style.height = ""; return; }
+  ta.style.height = h + "px";
+  ta.scrollTop = 0;
+}
+
+/** 한 프레임 뒤에 펼친 카드를 다시 잰다 — 그릴 때 패널이 아직 배치 전일 수 있다.
+    되풀이하지 않는다: 한 번 더 재도 0 이면 CSS 가 준 높이로 두고 스크롤로 읽는다 */
+function regrowSoon(list: HTMLElement) {
+  requestAnimationFrame(() => {
+    const c = list.querySelector<HTMLElement>(".tcard.open");
+    if (!c) return;
+    const bo = c.querySelector<HTMLTextAreaElement>(".tbody");
+    const ti = c.querySelector<HTMLTextAreaElement>(".ttitle");
+    if (bo) autoGrow(bo);
+    if (ti) growTitle(ti, true);
+  });
 }
 
 /* id 는 seq 에서 뽑지 않는다. seq 를 올리면 실행 취소 스냅샷이 찍히고(그래프는 그대로인데),

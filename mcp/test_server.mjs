@@ -445,6 +445,30 @@ const twoNodes = read().nodes.filter((n) => n.kind !== "group" && (n.label || ""
   check("기존 주제는 그대로다", (read().topics ?? []).length === n0 + 1);
 }
 
+// --- drop_topic: 주제를 지우는 유일한 길 ---
+{
+  const n0 = (read().topics ?? []).length;
+  await call("set_topic", { title: "zzz 지울 주제", body: "옮겨 적어야 할 줄" });
+  const made = (read().topics ?? []).find((x) => x.title === "zzz 지울 주제");
+  check("지울 주제를 만들었다", !!made);
+
+  const bad = await call("drop_topic", { which: "있을 리 없는 주제 zzz" });
+  check("없는 주제는 못 지운다", bad.isError, bad.text.slice(0, 50));
+  check("못 지웠으면 개수가 그대로다", (read().topics ?? []).length === n0 + 1);
+
+  // 지운 본문을 돌려줘야 한다 — 묶고 남은 쪽을 지울 때 옮겨 적은 걸 확인하는 유일한 자리
+  const r = await call("drop_topic", { which: made.id.toUpperCase() });  // 앱은 T6 으로 보여 준다
+  check("id 로 지운다 (대문자도)", !r.isError && !(read().topics ?? []).some((x) => x.id === made.id));
+  check("지운 본문을 돌려준다", r.text.includes("옮겨 적어야 할 줄"), r.text.slice(0, 40));
+  check("개수가 줄었다", (read().topics ?? []).length === n0);
+
+  await call("set_topic", { title: "zzz 제목으로 지울 주제", body: "x" });
+  const r2 = await call("drop_topic", { which: "zzz 제목으로 지울 주제" });
+  check("제목으로도 지운다",
+    !r2.isError && !(read().topics ?? []).some((x) => x.title === "zzz 제목으로 지울 주제"));
+  check("다른 주제는 다치지 않았다", (read().topics ?? []).length === n0);
+}
+
 // --- 바깥에서 고친 것을 덮어쓰지 않는다 ---
 const mid = read();
 mid.nodes.push({ id: "nZZ", label: "사용자가 직접 추가", kind: "atom", x: 2000, y: 2000,

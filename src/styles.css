@@ -603,7 +603,10 @@ html.viewer #btnLink{display:none}
   background:transparent;color:var(--dim);font:inherit;font-size:12.5px;line-height:1.65;
   outline:none;overflow:hidden;
   transition:max-height .26s cubic-bezier(.2,.8,.3,1),opacity .18s,padding .26s,border-color .26s}
-.tcard.open .tbody{max-height:2000px;opacity:1;padding:10px 11px 12px;border-top-color:var(--line)}
+/* 펼친 본문은 상한을 두지 않는다 — 상한이 곧 잘림이었다. overflow 도 auto 로:
+   높이 계산이 어긋나도 스크롤로 읽을 수는 있어야 한다(hidden 이면 영영 못 본다) */
+.tcard.open .tbody{max-height:none;overflow-y:auto;opacity:1;padding:10px 11px 12px;
+  border-top-color:var(--line)}
 .tcard .tbody::placeholder{color:var(--dim2)}
 
 @keyframes tIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}

@@ -737,4 +737,31 @@ server.registerTool("set_topic", {
     + ` (${topic.id}, 본문 ${(topic.body || "").length}자). 지금 주제 ${g.topics.length}개.`;
 }));
 
+server.registerTool("drop_topic", {
+  title: "주제 지우기",
+  description: "주제 메모를 지운다. 제목이나 id(t6) 로 고른다.\n\n"
+    + "지우기 전에 그 주제의 본문을 통째로 돌려준다 — 두 주제를 하나로 묶고 남은 쪽을 "
+    + "지울 때, 옮겨 적지 못한 줄이 있으면 여기서만 보인다. 되살릴 길은 앱의 실행 취소뿐이다.",
+  inputSchema: {
+    which: z.string().describe("주제 제목, 또는 id (t6)"),
+  },
+}, async ({ which }) => edit((g) => {
+  g.topics ??= [];
+  const q = which.trim();
+  /* id 로 먼저 찾는다 — 제목은 겹칠 수 있고 id 는 안 겹친다.
+     대소문자는 보지 않는다: 앱이 T6 으로 보여 주고 파일에는 t6 으로 적혀 있다 */
+  const byId = g.topics.filter((x) => (x.id || "").toLowerCase() === q.toLowerCase());
+  const hit = byId.length ? byId : g.topics.filter((x) => (x.title || "").trim() === q);
+  if (!hit.length) {
+    const have = g.topics.map((x) => `${(x.id || "").toUpperCase()} ${x.title || "(이름 없음)"}`);
+    throw new Error(`'${q}' 주제가 없습니다. 지금 있는 것: ${have.join(" / ") || "없음"}`);
+  }
+  if (hit.length > 1) throw new Error(`'${q}' 에 맞는 주제가 ${hit.length}개입니다. id 로 골라 주세요.`);
+  const t = hit[0];
+  g.topics = g.topics.filter((x) => x !== t);
+  const body = (t.body || "").trim();
+  return `주제 '${t.title || "(이름 없음)"}' (${t.id}) 지웠습니다. 지금 주제 ${g.topics.length}개.\n\n`
+    + `--- 지운 본문 ${body.length}자 (되살리려면 앱에서 실행 취소) ---\n${body || "(비어 있음)"}`;
+}));
+
 await server.connect(new StdioServerTransport());

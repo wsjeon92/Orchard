@@ -94,6 +94,31 @@ def main():
         if "\n" in v: bad.append("제목에 줄바꿈이 들어갔다")
         if "tbody" not in focused: bad.append("Enter 가 본문으로 안 넘어갔다: %r" % focused)
 
+        # --- 5. 배치되기 전에 그려도 120px 에 갇히지 않는다 (실제로 터진 자리)
+        #     패널이 display:none 인 채 그리면 scrollHeight 가 0 이고, 거기서 높이를
+        #     박으면 Math.max 의 바닥 120px 에 영영 갇힌다. 그러면 2,396자 본문이
+        #     120px 안에서 안쪽만 스크롤돼 글 **위가** 잘린다.
+        put(pg, TITLE, LONG); fold(pg, True)
+        pg.evaluate("""() => {
+          const p = document.getElementById('topics');
+          p.style.display = 'none';          // 배치 없음 — scrollHeight 가 0 이 된다
+          Orchard.drawTopics();
+          p.style.display = '';
+        }""")
+        pg.wait_for_timeout(300)             # regrowSoon 이 한 프레임 뒤에 다시 잰다
+        r = pg.evaluate(FIT)
+        stuck = pg.evaluate("""() => { const b = document.querySelector(".tcard[data-tid='t8'] .tbody");
+          return { h: b.style.height, max: b.style.maxHeight, top: b.scrollTop,
+                   ov: getComputedStyle(b).overflowY }; }""")
+        print("   배치 전 그린 뒤 → height %r max %r scrollTop %d overflow %s, 잘림 %dpx"
+              % (stuck["h"], stuck["max"], stuck["top"], stuck["ov"], r["bodyCut"]))
+        if stuck["h"] == "120px":
+            bad.append("배치 전에 잰 높이 120px 에 갇혔다 — 글 위가 잘린다")
+        if stuck["top"] != 0: bad.append("안쪽 스크롤이 %d 남았다 — 글 위가 가려진다" % stuck["top"])
+        if r["bodyCut"] > 2: bad.append("배치 전에 그린 뒤 본문이 %dpx 잘렸다" % r["bodyCut"])
+        if stuck["ov"] == "hidden":
+            bad.append("펼친 본문이 overflow:hidden — 높이가 어긋나면 영영 못 읽는다")
+
         if errs: bad.append("콘솔 에러: %s" % errs[:2])
         b.close()
 
