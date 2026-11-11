@@ -81,11 +81,26 @@ export function drawTopics() {
     tid.className = "tid";
     tid.textContent = t.id.toUpperCase();
 
-    const ti = document.createElement("input");
+    /* 제목은 한 줄 입력칸이면 긴 제목이 잘려서 안 보인다 — 이 그래프의 제목은
+       "이름 — 질문" 꼴로 길다. 펼친 카드에서는 줄을 접어 전부 보이고, 접힌 카드는
+       한 줄로 둔다. 목록을 훑는 자리에서 카드마다 세 줄이면 훑을 수 없다. */
+    const ti = document.createElement("textarea");
     ti.className = "ttitle";
+    ti.rows = 1;
     ti.value = t.title;
     ti.placeholder = "주제 이름";
-    ti.oninput = () => { t.title = ti.value; commit(); };
+    ti.title = t.title;                      // 접힌 카드는 띄워서 읽는다
+    ti.oninput = () => {
+      t.title = ti.value; ti.title = ti.value; commit();
+      growTitle(ti, t.id === openId);
+    };
+    /* 제목 칸의 Enter 는 줄바꿈이 아니다 — 본문으로 넘어간다. 제목에 줄바꿈이
+       들어가면 접힌 카드의 한 줄에서 뒷부분이 영영 안 보인다 */
+    ti.onkeydown = (ev) => {
+      if ((ev as KeyboardEvent).key !== "Enter") return;
+      ev.preventDefault();
+      card.querySelector<HTMLTextAreaElement>(".tbody")?.focus();
+    };
     /* 닫힌 카드의 제목을 누르면 펼친다. 열려 있을 때는 제목을 고치려는 것이므로
        가만둔다 — 커서를 놓으려다 카드가 접히면 쓸 수 없다. */
     ti.onclick = (ev) => {
@@ -124,6 +139,7 @@ export function drawTopics() {
     card.appendChild(head);
     card.appendChild(body);
     list.appendChild(card);
+    growTitle(ti, t.id === openId);
     if (t.id === openId) autoGrow(body);
   }
 }
@@ -139,7 +155,19 @@ function toggle(id: string) {
 /** 칸이 글에 맞춰 자란다 — 스크롤바 안에 스크롤바가 생기면 읽기 어렵다 */
 function autoGrow(ta: HTMLTextAreaElement) {
   ta.style.height = "auto";
-  ta.style.height = Math.max(120, ta.scrollHeight) + "px";
+  const h = Math.max(120, ta.scrollHeight);
+  ta.style.height = h + "px";
+  /* max-height 는 펼침 애니메이션에만 쓰는데, 상수로 두면 그 높이에서 본문이
+     조용히 잘린다 — overflow:hidden 이라 스크롤도 안 된다. 2000px 에서 실제로
+     잘렸다(3,349자 = 2,497px, 498px 가 사라졌다). 내용만큼 올려 준다 */
+  ta.style.maxHeight = h + "px";
+}
+
+/** 펼친 카드의 제목은 줄을 접어 전부 보이고, 접힌 카드는 CSS 가 주는 한 줄이다 */
+function growTitle(ta: HTMLTextAreaElement, open: boolean) {
+  if (!open) { ta.style.height = ""; return; }
+  ta.style.height = "auto";
+  ta.style.height = ta.scrollHeight + "px";
 }
 
 /* id 는 seq 에서 뽑지 않는다. seq 를 올리면 실행 취소 스냅샷이 찍히고(그래프는 그대로인데),
@@ -159,7 +187,7 @@ export function addTopic() {
   openId = t.id;
   commit();
   drawTopics();
-  const first = el("topicsList").querySelector<HTMLInputElement>(".ttitle");
+  const first = el("topicsList").querySelector<HTMLTextAreaElement>(".ttitle");
   first?.focus();
 }
 

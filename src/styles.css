@@ -576,6 +576,8 @@ html.viewer #btnLink{display:none}
 .tcard.gone{opacity:0;transform:translateX(-12px) scale(.97)}
 
 .thead{display:flex;align-items:center;gap:4px;padding:8px 9px;cursor:pointer}
+/* 제목이 여러 줄로 접히면 손잡이와 × 는 첫 줄에 붙어 있어야 읽힌다 */
+.tcard.open .thead{align-items:flex-start}
 .tfold{border:none;background:transparent;color:var(--dim);font-size:15px;line-height:1;
   padding:3px 5px;border-radius:5px;cursor:pointer;flex:none;width:24px;text-align:center;
   transition:transform .22s cubic-bezier(.2,.8,.3,1),color .12s}
@@ -585,8 +587,9 @@ html.viewer #btnLink{display:none}
   font-variant-numeric:tabular-nums;padding:2px 4px;border-radius:4px;background:var(--panel3);
   user-select:none;transition:color .12s}
 .tcard.open .tid{color:#8ab4ff}
-.ttitle{flex:1;background:transparent;border:none;outline:none;color:var(--text);
-  font-size:13px;font-weight:600;padding:2px 3px;border-radius:5px;transition:.12s}
+.ttitle{flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--text);
+  font:inherit;font-size:13px;font-weight:600;line-height:1.45;padding:2px 3px;border-radius:5px;
+  resize:none;overflow:hidden;height:22px;word-break:break-word;transition:background .12s}
 .ttitle:focus{background:var(--panel3)}
 .ttitle::placeholder{color:var(--dim2);font-weight:400}
 .tdel{border:none;background:transparent;color:var(--dim2);font-size:16px;line-height:1;
