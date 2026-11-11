@@ -61,6 +61,35 @@ def main():
         if abs(before["k"] - fitted["k"]) < 0.05:
             bad.append("나가기 전 배율과 전체 보기가 원래 같다 — 이 확인은 헛돈다")
 
+        # --- 파일 연결 경로. 여기가 실제로 터진 자리였다: 시작 직후 fit() 은 돌지만
+        #     연결된 파일이 도착하면서 setGraph(g) 가 **파일에 적힌 보기**로 덮었다.
+        FILE = """(camInFile) => {
+          const g = JSON.parse(JSON.stringify(Orchard.strip()));
+          g.view = camInFile;                 // 파일에 다른 자리가 적혀 있다
+          Orchard.fileGraph(g);
+        }"""
+        far = {"x": -2500, "y": -1500, "k": 2.1}
+
+        pg.reload(); pg.wait_for_timeout(1200)
+        pg.evaluate(FILE, far)                 # 첫 읽기 → 전체 보기여야 한다
+        pg.wait_for_timeout(900)
+        first = pg.evaluate(V)
+        print("   파일 첫 읽기 → %s (파일에 적힌 자리 %s)" % (first, far))
+        if abs(first["k"] - fitted["k"]) > 0.05:
+            bad.append("파일 첫 읽기가 전체 보기가 아니다: %s" % (first,))
+
+        # 그 뒤의 바깥 변경(MCP 가 그래프를 고칠 때)은 보던 자리를 건드리면 안 된다
+        pg.evaluate("""() => { Orchard.S.view.k = 1.7; Orchard.S.view.x = -800;
+          Orchard.S.view.y = -600; Orchard.applyView(); }""")
+        pg.wait_for_timeout(300)
+        mine = pg.evaluate(V)
+        pg.evaluate(FILE, far)
+        pg.wait_for_timeout(600)
+        after2 = pg.evaluate(V)
+        print("   그 뒤 바깥 변경 → %s (보던 자리 %s)" % (after2, mine))
+        if after2 != mine:
+            bad.append("바깥에서 파일이 바뀌자 화면이 튀었다: %s → %s" % (mine, after2))
+
         if errs: bad.append("콘솔 에러: %s" % errs[:2])
         b.close()
 

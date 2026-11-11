@@ -268,8 +268,19 @@ function syncLinkBtn() {
       : "그래프를 담을 .json 파일을 고릅니다";
 }
 
-bindFileLink(syncLinkBtn, (g) => {       // 파일이 바깥에서 바뀌었을 때
+/* 파일이 바깥에서 바뀌었을 때.
+
+   **카메라는 내 것이다.** 파일의 view 를 그대로 받으면 MCP 가 그래프를 고칠 때마다
+   화면이 파일에 적힌 자리로 튄다. 그래서 보던 자리를 떠서 되돌려 놓는다.
+
+   다만 연결한 파일을 **처음 읽을 때**는 전체 보기로 연다. 시작 직후의 fit() 은 아직
+   로컬 사본을 맞춘 것이고, 연결된 파일이 곧 진짜 그래프라 도착하면 다시 맞춰야 한다 —
+   이게 빠져서 "새로고침해도 전체 보기가 안 된다"가 났다. */
+let firstPull = true;
+function onFileGraph(g: Parameters<Parameters<typeof bindFileLink>[1]>[0]) {
+  const cam = { ...S.view };
   setGraph(g);
+  if (!firstPull) S.view = cam;  // 보던 자리를 지킨다
   syncDataKey();                 // 통째로 바뀌었으니 '방금 저장된 것'으로 친다
   normalize();
   freezeRings();                 // 고리를 저장하기 전 파일이면 지금 모습대로 굳힌다
@@ -278,8 +289,11 @@ bindFileLink(syncLinkBtn, (g) => {       // 파일이 바깥에서 바뀌었을 
   syncPendingCount();
   resetHistoryBase();
   render();
+  if (firstPull) { firstPull = false; fit(); }
+  else applyView();
   syncLinkBtn();
-});
+}
+bindFileLink(syncLinkBtn, onFileGraph);
 onAfterSave(touchFile);                   // 그래프가 바뀔 때마다 파일에 쓴다
 void restoreLink().then(syncLinkBtn);
 
@@ -450,6 +464,7 @@ const api = {
   linkState, checkFile, flushFile, linkFile, unlinkFile, isLinked, needsPermission,
   encodeGraph, decodeGraph, shareUrl,
   stacks, resetHistory: () => { clearStacks(); resetHistoryBase(); },
+  fileGraph: onFileGraph,            // 테스트가 파일 연결 경로를 직접 걷는다
   slotLoad: (name: string) => loadSlot(name),
 };
 window.Orchard = api;
