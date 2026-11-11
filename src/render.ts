@@ -294,8 +294,11 @@ export function drawEdges(fset: Set<string> | null, q: string) {
     if (!le) {
       le = document.createElement("div");
       le.dataset.eid = e.id;
+      le.innerHTML = '<span class="t"></span><span class="mk"></span>';
       world.appendChild(le);
       elblEls.set(e.id, le);
+      /* 핸들러는 .elbl 자체에 붙고 클로저의 dataset.eid 를 쓴다 — 자식에서 눌러도
+         버블링으로 그대로 온다 */
       bindLabel(le);
     }
     /* 'named' 는 사람이 고른 이름이 있을 때만. 승격만 한 교차는 라벨에
@@ -319,7 +322,13 @@ export function drawEdges(fset: Set<string> | null, q: string) {
       le.style.left = e._anchor.x + off.dx + "px";
       le.style.top = e._anchor.y + off.dy + "px";
     }
-    le.textContent = edgeLabelText(e);
+    le.querySelector<HTMLElement>(".t")!.textContent = edgeLabelText(e);
+    /* 문헌 수 뱃지 — 노드와 같은 규칙이다. 이름 없는 교차("+")에도 붙는데, 그게
+       오히려 쓸모 있다: 문헌은 쌓였는데 아직 개념으로 안 올린 자리가 보인다 */
+    const emk = le.querySelector<HTMLElement>(".mk")!;
+    const wn = (e.works ?? []).length;
+    if (wn) { emk.className = "mk badge"; emk.textContent = String(wn); }
+    else { emk.className = "mk"; emk.textContent = ""; }
   }
 
   const dr = dragLine();

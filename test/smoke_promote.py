@@ -31,10 +31,16 @@ def fresh(pg, cands, label=""):
 
 
 def shown(pg, eid):
-    """캔버스에 실제로 그려진 엣지 라벨 글자."""
+    """캔버스에 실제로 그려진 엣지 라벨 글자.
+
+    .elbl 안의 .t 를 읽는다 — 겉의 textContent 를 읽으면 문헌 뱃지 숫자가 붙어
+    "BindCraft5" 가 된다. 글자와 뱃지가 형제라서 그렇다.
+    """
     return pg.evaluate("""eid => {
       const el = Orchard.elblEls.get(eid);
-      return el ? el.textContent.trim() : null;
+      if (!el) return null;
+      const t = el.querySelector('.t');
+      return (t ? t.textContent : el.textContent).trim();
     }""", eid)
 
 
