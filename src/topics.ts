@@ -75,6 +75,12 @@ export function drawTopics() {
     fold.textContent = "▶";
     fold.onclick = (ev) => { ev.stopPropagation(); toggle(t.id); };
 
+    /* 주제를 T7 처럼 id 로 부를 수 있게 머리에 달아 둔다 — 말로 "t7" 이라고 하면
+       어느 주제인지 바로 안 보인다. 저장된 id 는 소문자이고 보이는 것만 대문자다 */
+    const tid = document.createElement("span");
+    tid.className = "tid";
+    tid.textContent = t.id.toUpperCase();
+
     const ti = document.createElement("input");
     ti.className = "ttitle";
     ti.value = t.title;
@@ -104,6 +110,7 @@ export function drawTopics() {
     };
 
     head.appendChild(fold);
+    head.appendChild(tid);
     head.appendChild(ti);
     head.appendChild(del);
     head.onclick = () => { if (openId !== t.id) toggle(t.id); };
