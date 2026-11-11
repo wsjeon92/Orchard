@@ -357,8 +357,23 @@ function place(n: GNode, x: number, y: number) {
 function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: number) {
   const s = o.sys.get(id);
   if (!s) return;
+  /* 고리 순서를 지킨다. 바깥 고리가 안쪽 고리 안으로 들어가면 두 고리의 식구가 같은
+     띠에 앉아 겹친다 — AI 의 서브 고리가 계획으로는 420·840·1020 인데 실제로는
+     409·241·133 으로 뒤집혀 있었고, 그래서 시뮬레이션의 달(가상현실)이 MLIP 과 7°
+     떨어진 같은 반지름에 앉았다.
+
+     한 번 뒤집히면 스스로 유지된다. 여기서 좌표에서 읽은 반지름을 그대로 쓰는데,
+     그 좌표가 뒤집힌 배치에서 나온 것이라 정리할 때마다 같은 값을 다시 읽었다.
+
+     크기는 사용자가 잡는 것이라 줄이지는 않는다. 안쪽 이웃 **안으로** 들어간 고리만
+     밖으로 민다. 여유는 계획과 같은 셈이다 — 안쪽 고리 식구의 달은 바깥으로 뻗고
+     바깥 고리 식구의 달은 안쪽으로도 뻗으니 양쪽을 다 더한다. */
+  let prevR = 0, prevReach = 0;
   for (const g of s.rings) {
-    const R = live.rings.get("s:" + id + ":" + g.key)?.r ?? g.r;
+    const cur = Math.max(0, ...g.ns.map((n) => o.sys.get(n.id)?.reach ?? 0));
+    const floor = prevR ? prevR + MOON_GAP + prevReach + cur : 0;
+    const R = Math.max(live.rings.get("s:" + id + ":" + g.key)?.r ?? g.r, floor);
+    prevR = R; prevReach = cur;
     const arcs = g.ns.map((n) => arcNeed(o.sys.get(n.id), liveReach(o, live, n.id)));
     const tot = arcs.reduce((a, b) => a + b, 0) || 1;
     let acc = 0;
