@@ -43,7 +43,7 @@ function edit(fn) {
   } catch (e) { return fail(e); }
 }
 
-const server = new McpServer({ name: "orchard", version: "2.3.0" });
+const server = new McpServer({ name: "orchard", version: "2.4.0" });
 
 /* ---------------- 읽기 ---------------- */
 
@@ -494,8 +494,29 @@ server.registerTool("propose", {
     const near = g.edges.filter((x) => x.kind === "assoc" && x !== e
       && membersOf(x).filter((i) => M.includes(i)).length >= 2);
     const pc = (v) => Math.round(v * 100) + "%";
+    /* 기전은 이미 그래프에 있다 — 메모와 문헌에. 이름 붙은 교차 65개 중 39개에 메모가
+       있고 34개에 숫자가, 32개에 연도가 들어 있다. 전에는 propose 가 멤버 id 만 읽고
+       그걸 전부 버렸다. 그래서 출력이 "에피토프 칸을 PBPK 로 갈아라" 에서 멈췄고,
+       거기서 연구 주제까지 가려면 읽은 것이 하나도 없는 채로 다시 시작해야 했다.
+
+       이제 재료를 같이 들려 보낸다: 기준 교차가 지금 어떻게 돌아가고 숫자가 얼마인지,
+       후보 키워드가 다른 데서 무슨 일을 하고 있는지. 그 숫자가 곧 베이스라인이다. */
+    const cut = (t, n) => {
+      const x = (t || "").replace(/\s+/g, " ").trim();
+      return x.length > n ? x.slice(0, n) + "…" : x;
+    };
+    const workList = (o, n) => (o.works ?? []).slice(0, n)
+      .map((w) => w.name + (w.year ? ` (${w.year})` : "")).join(" · ");
+    /* 이 키워드가 걸린 교차 중 메모가 가장 두꺼운 것 — 그게 이 키워드가 무엇을
+       하는 물건인지 가장 많이 말해 준다 */
+    const richest = (id) => g.edges
+      .filter((x) => x.kind === "assoc" && membersOf(x).includes(id) && (x.note || "").trim())
+      .sort((x, y) => (y.note || "").length - (x.note || "").length)[0];
     return text([
       `기준 교차: ${e.label || "(이름 없음)"} = ${M.map(lb).join(" + ")}`,
+      ...(e.note ? ["", "### 지금 이 자리가 어떻게 돌아가는가", cut(e.note, 700)] : []),
+      ...((e.works ?? []).length ? [`문헌: ${workList(e, 4)}`] : []),
+      "",
       `후보 ${best.size}개(키워드 기준, 중복 제거) 중 위 ${picks.length}개.`,
       "",
       "순서는 **약한 힌트일 뿐 판정이 아니다.** 구조만 보고는 어느 칸을 가는 수가 값진지",
@@ -503,12 +524,18 @@ server.registerTool("propose", {
       "무엇이 그 교차의 목적·입력·판단·동작 중 어느 칸을 바꾸는지 판단해야 한다.",
       "여기서 보장하는 것은 빠짐없이 세고, 중복과 이미 해 본 조합을 걸렀다는 것뿐이다.",
       "",
-      ...picks.map((p) =>
-        `- **${lb(p.id)}**  (‘${lb(p.out)}’ 칸 자리에)\n`
-        + `    → ${[...M.filter((x) => x !== p.out), p.id].map(lb).join(" + ")}\n`
-        + `    덮음 ${pc(p.cover)} (${p.met.length}/${M.length - 1})`
-        + ` · 고유함 ${pc(p.only)} · 차수 ${p.deg}`
-        + ` · 이미 교차해 본 상대: ${p.met.map(lb).join(", ")}`),
+      ...picks.map((p) => {
+        const src = richest(p.id);
+        const n = nodeById(g, p.id);
+        return `- **${lb(p.id)}**  (‘${lb(p.out)}’ 칸 자리에)\n`
+          + `    → ${[...M.filter((x) => x !== p.out), p.id].map(lb).join(" + ")}\n`
+          + `    덮음 ${pc(p.cover)} (${p.met.length}/${M.length - 1})`
+          + ` · 고유함 ${pc(p.only)} · 차수 ${p.deg}`
+          + ` · 이미 교차해 본 상대: ${p.met.map(lb).join(", ")}`
+          + (n?.note ? `\n    이 키워드: ${cut(n.note, 180)}` : "")
+          + (src ? `\n    '${src.label || "(이름 없음)"}' 에서 하는 일: ${cut(src.note, 220)}` : "")
+          + (src && (src.works ?? []).length ? `\n      문헌: ${workList(src, 2)}` : "");
+      }),
       "",
       `## 이 이웃에 이미 걸린 교차 ${near.length}개 — 다시 제안하지 말 것`,
       near.length
@@ -518,6 +545,12 @@ server.registerTool("propose", {
       "각 후보를 웹 검색으로 확인하세요. 이미 있으면 connect 로 넣고(빠져 있던 교차), "
         + "없으면 주제 후보입니다. 둘 중 어느 쪽도 아니면(검색으로 결판이 안 나면) 버리세요 "
         + "— 한 번의 검색으로 죽거나 사는 후보만 쓸모가 있습니다.",
+      "",
+      "살아남은 후보를 주제로 쓸 때: **위에 붙은 숫자가 베이스라인입니다.** 기준 교차의 "
+      + "메모가 지금 그 자리가 어떻게 돌아가고 얼마나 잘 되는지를 들고 있고, 후보 쪽 메모가 "
+      + "그 키워드가 다른 데서 무슨 일을 하는지를 들고 있습니다. 둘을 잇는 데 무엇이 막혀 "
+      + "있는지가 곧 그 주제의 알맹이입니다. 막힌 것이 없으면 — 매핑 규칙만 정하면 바로 "
+      + "결과가 나오면 — 논문도 제품도 안 됩니다.",
     ].join("\n"));
   } catch (err) { return fail(err); }
 });

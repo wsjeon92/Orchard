@@ -267,6 +267,33 @@ if (named) {
   // 이미 있는 조합은 후보로 나오지 않는다 — 기준 교차 자신의 멤버가 후보 줄에 그대로 나오면 안 된다
   const self = (named.members ?? []).map(lbOf).join(" + ");
   check("이미 해 본 조합은 후보에서 빠진다", !r.text.includes("→  " + self), self);
+  /* 기전이 같이 실려 나오는가 — 천장 하나가 여기였다.
+     전에는 propose 가 멤버 id 만 읽어서 출력이 "이 칸을 저걸로 갈아라" 에서 멈췄다.
+     그러면 거기서 연구 주제까지 가려면 읽은 것이 하나도 없는 채로 다시 시작해야 한다.
+     그런데 기전은 이미 그래프에 있었다 — 이름 붙은 교차의 60%에 메모가 있고 그 대부분에
+     숫자와 연도가 들어 있다. 버리던 것을 같이 들려 보낸다. */
+  const withNote = read().edges.find((e) => e.kind === "assoc" && (e.label || "").trim()
+    && (e.note || "").trim().length > 40);
+  if (withNote) {
+    const br = await call("propose", { name: withNote.label, count: 6 });
+    const head = (withNote.note || "").replace(/\s+/g, " ").trim().slice(0, 30);
+    check("기준 교차의 메모를 같이 싣는다", br.text.includes(head), br.text.slice(0, 120));
+    check("그 자리가 어떻게 돌아가는지를 제목으로 밝힌다", /어떻게 돌아가는가/.test(br.text));
+    // 후보 쪽 기전 — 메모가 있는 교차에 걸린 후보가 하나라도 있으면 실려야 한다
+    const names = [...br.text.matchAll(/^- \*\*(.+?)\*\*/gm)].map((m) => m[1]);
+    const anyRich = names.some((nm) => {
+      const n = read().nodes.find((x) => (x.label || "").trim() === nm);
+      return n && read().edges.some((e) => e.kind === "assoc"
+        && (e.members ?? []).includes(n.id) && (e.note || "").trim());
+    });
+    if (anyRich) {
+      check("후보가 다른 데서 무슨 일을 하는지도 싣는다", /에서 하는 일:/.test(br.text),
+        br.text.slice(0, 160));
+    }
+    check("숫자를 베이스라인으로 쓰라고 말한다", /베이스라인/.test(br.text));
+    check("막힌 것이 없으면 주제가 아니라고 말한다", /막힌 것이 없으면/.test(br.text));
+  }
+
   const bad = await call("propose", { name: "있을 리 없는 교차 이름 zzz" });
   check("없는 교차를 부르면 분명히 알려 준다", bad.isError, bad.text.slice(0, 60));
 
