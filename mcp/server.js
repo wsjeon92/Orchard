@@ -43,7 +43,7 @@ function edit(fn) {
   } catch (e) { return fail(e); }
 }
 
-const server = new McpServer({ name: "orchard", version: "2.4.0" });
+const server = new McpServer({ name: "orchard", version: "2.5.0" });
 
 /* ---------------- 읽기 ---------------- */
 
@@ -696,6 +696,45 @@ server.registerTool("suggest", {
   if (!r.ok) return r.why + " 다시 올리지 않았습니다.";
   return `검토 대기에 올렸습니다 (${r.item.id}, ${kind}): ${r.key}. `
     + `앱의 「제안」 창에서 수락하거나 기각하세요. 지금 대기 ${g.pending.length}개.`;
+}));
+
+server.registerTool("set_topic", {
+  title: "주제 메모 쓰기",
+  description: "주제 메모의 제목이나 본문을 고친다. 없는 제목이면 새로 만든다.\n\n"
+    + "주제는 그래프 요소를 가리키지 않는다 — 근거(문헌)는 그래프가 갖고, 여기는 생각을 적는 곳이다. "
+    + "본문에 쓸 만한 꼴 하나: 필요한 부품을 늘어놓고 각각 **있음/비어 있음**을 근거·숫자·연도와 "
+    + "함께 찍는 '부품 재고'. 비어 있는 칸이 곧 연구다. 그리고 그 형식은 주제를 늙게 만든다 — "
+    + "다음에 같은 검색을 돌리면 '비어 있음'이 '있음'으로 바뀌고, 그게 주제를 죽이거나 날카롭게 한다.",
+  inputSchema: {
+    title: z.string().describe("주제 제목. 없으면 새로 만든다"),
+    body: z.string().optional().describe("본문 전체. 비우면 제목만 바꾼다"),
+    new_title: z.string().optional().describe("제목을 바꿀 때"),
+    append: z.boolean().optional().describe("true 면 본문 끝에 덧붙인다"),
+  },
+}, async ({ title, body, new_title, append }) => edit((g) => {
+  g.topics ??= [];
+  const t = title.trim();
+  const hit = g.topics.filter((x) => (x.title || "").trim() === t);
+  if (hit.length > 1) throw new Error(`'${t}' 이름의 주제가 ${hit.length}개입니다. 먼저 정리해 주세요.`);
+  let topic = hit[0];
+  let made = false;
+  if (!topic) {
+    if (new_title) throw new Error(`'${t}' 주제가 없습니다. 이름을 바꾸려면 있는 주제를 적어 주세요.`);
+    let max = 0;
+    for (const x of g.topics) {
+      const n = +(x.id || "").slice(1);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    topic = { id: "t" + (max + 1), title: t, body: "" };
+    g.topics.unshift(topic);
+    made = true;
+  }
+  if (new_title?.trim()) topic.title = new_title.trim();
+  if (body != null) {
+    topic.body = append ? ((topic.body || "").trim() + (topic.body ? "\n\n" : "") + body) : body;
+  }
+  return `주제 '${topic.title}' ${made ? "만들었습니다" : (body == null ? "제목 바꿨습니다" : (append ? "덧붙였습니다" : "본문 썼습니다"))}`
+    + ` (${topic.id}, 본문 ${(topic.body || "").length}자). 지금 주제 ${g.topics.length}개.`;
 }));
 
 await server.connect(new StdioServerTransport());

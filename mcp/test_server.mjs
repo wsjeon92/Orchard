@@ -424,6 +424,27 @@ const twoNodes = read().nodes.filter((n) => n.kind !== "group" && (n.label || ""
   }
 }
 
+// --- set_topic: 주제를 쓰는 유일한 길 ---
+{
+  const n0 = (read().topics ?? []).length;
+  const r = await call("set_topic", { title: "zzz 테스트 주제", body: "부품 재고\n· A — 있음\n· B — 비어 있음" });
+  check("없는 제목이면 새로 만든다", !r.isError && (read().topics ?? []).length === n0 + 1, r.text.slice(0, 70));
+  const t = () => (read().topics ?? []).find((x) => (x.title || "").trim() === "zzz 테스트 주제");
+  check("본문이 들어간다", (t()?.body || "").includes("비어 있음"));
+  await call("set_topic", { title: "zzz 테스트 주제", body: "덧붙임", append: true });
+  check("덧붙이기가 된다", (t()?.body || "").includes("비어 있음") && (t()?.body || "").includes("덧붙임"));
+  await call("set_topic", { title: "zzz 테스트 주제", body: "갈아끼움" });
+  check("덮어쓰기가 된다", (t()?.body || "") === "갈아끼움");
+  await call("set_topic", { title: "zzz 테스트 주제", new_title: "zzz 바뀐 주제" });
+  check("제목을 바꾼다", !t() && (read().topics ?? []).some((x) => x.title === "zzz 바뀐 주제"));
+  check("제목만 바꾸면 본문은 그대로다",
+    ((read().topics ?? []).find((x) => x.title === "zzz 바뀐 주제")?.body || "") === "갈아끼움");
+  const r2 = await call("set_topic", { title: "있을 리 없는 주제 zzz", new_title: "아무거나" });
+  check("없는 주제의 이름은 못 바꾼다", r2.isError, r2.text.slice(0, 60));
+  // 기존 주제가 다치지 않았는가
+  check("기존 주제는 그대로다", (read().topics ?? []).length === n0 + 1);
+}
+
 // --- 바깥에서 고친 것을 덮어쓰지 않는다 ---
 const mid = read();
 mid.nodes.push({ id: "nZZ", label: "사용자가 직접 추가", kind: "atom", x: 2000, y: 2000,
