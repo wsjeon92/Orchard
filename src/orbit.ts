@@ -21,7 +21,7 @@
    부모는 그룹 > sub > deep 순으로 먼저 잡은 쪽이 이긴다. 달은 행성 하나를 돈다.
    deep 을 넣는 이유는 규칙 1 이다 — 질문·가설도 매달린 키워드의 위성이라야
    궤도 밖에 남는 노드가 없다. */
-import { degree } from "./graph";
+import { degree, descendantsOf } from "./graph";
 import { spring } from "./spring";
 import { S, UI, VIEW, esc, isGroup, nodeOf } from "./state";
 import type { GNode } from "./types";
@@ -354,7 +354,8 @@ function place(n: GNode, x: number, y: number) {
 /** 위성을 고리 한 바퀴에 편다. 첫 자리는 태양 반대쪽 — 바깥을 보게.
     자기 체계를 가진 식구가 있으면 거기서 다시 편다.
     반지름은 **지금 그려져 있는 것**을 쓴다 — 크기는 사용자가 정한다 */
-function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: number) {
+function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: number,
+               spokes?: Spoke[]) {
   const s = o.sys.get(id);
   if (!s) return;
   /* 고리 크기는 여기서 바꾸지 않는다. 크기는 사용자가 잡는 것이고 정리는 그 고리 위에
@@ -371,7 +372,8 @@ function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: 
       acc += arcs[i];
       const x = px + Math.cos(a) * R, y = py + Math.sin(a) * R;
       place(m, x, y);
-      moons(o, live, m.id, x, y, a);
+      spokes?.push({ n: m, cx: px, cy: py, R, a, ring: "s:" + id + ":" + g.key });
+      moons(o, live, m.id, x, y, a, spokes);
     });
     /* 궤도 노드는 안 그리지만 좌표는 성하게 둔다 — 미니맵·전체보기가 좌표를 본다.
        이름이 쓰이는 자리, 즉 식구 둘 사이 빈 곳에 둔다 */
@@ -432,7 +434,95 @@ export function freezeRings(): number {
   return n;
 }
 
-export function tidyOrbit(): { moved: number; tight: number } {
+type Spoke = { n: GNode; cx: number; cy: number; R: number; a: number; ring: string };
+
+const boxW = (n: GNode) => n._w ?? 150;
+const boxH = (n: GNode) => n._h ?? 40;
+/** 두 노드가 (여유를 두고) 겹치는가 */
+function knock(a: GNode, b: GNode, pad = 10): boolean {
+  return a.x < b.x + boxW(b) + pad && a.x + boxW(a) + pad > b.x
+      && a.y < b.y + boxH(b) + pad && a.y + boxH(a) + pad > b.y;
+}
+/** 겹친 노드를 **자기 고리 위에서** 비켜 놓는다.
+
+    한 고리를 고르게 펴도 다른 고리가 그 자리를 지나가면 겹친다. 고리 안만 보는
+    정리로는 안 풀리고, tidyOverlaps 는 궤도에 속한 노드를 아예 제외한다
+    (loose() 가 groupOf 로 거른다). 그래서 아무도 안 보던 자리였다 — 실제로
+    '가상현실'(시뮬레이션의 고리)과 'AI 에이전트'(AI 의 고리)가 겹쳤다.
+
+    **반지름은 건드리지 않는다** — 고리 크기는 사용자가 정한다. 각도만 바꾼다.
+    한때 움직임을 형제 간격의 절반으로 묶어 고리의 대칭을 지켰는데, 대칭은 목적이
+    아니다. 고리 위 어디든 보내고 **겹치지 않는 것만** 본다. 그래서 같은 고리
+    형제와의 충돌도 함께 센다 — 자유롭게 움직이면 그쪽도 부딪힐 수 있다.
+
+    행성을 옮기면 달이 통째로 따라가므로, 후보 자리를 볼 때 그 체계 전체를 함께
+    본다. 안 되면 원래 자리로 되돌린다.
+
+    돌려주는 값: 옮긴 수와, 그래도 안 풀린 쌍의 수 */
+function dodgeRings(o: Orb, live: OrbIndex, spokes: Spoke[]): { moved: number; stuck: number } {
+  const all = spokes.map((s) => s.n);
+  const kin = new Map<GNode, Set<string>>();
+  for (const s of spokes) kin.set(s.n, descendantsOf(s.n.id));
+
+  /** 이 노드와 그 체계가, 바깥의 누구와도 안 부딪히는가 */
+  const clear = (s: Spoke) => {
+    const mine = kin.get(s.n)!;
+    for (const other of all) {
+      if (other === s.n || mine.has(other.id)) continue;
+      if (knock(s.n, other)) return false;
+      for (const d of mine) {
+        const dn = nodeOf(d);
+        if (dn && !isGroup(dn) && knock(dn, other)) return false;
+      }
+    }
+    return true;
+  };
+
+  const snap = (s: Spoke) => {
+    const m: [GNode, number, number][] = [[s.n, s.n.x, s.n.y]];
+    for (const d of kin.get(s.n)!) {
+      const dn = nodeOf(d);
+      if (dn) m.push([dn, dn.x, dn.y]);
+    }
+    return m;
+  };
+  const undo = (m: [GNode, number, number][]) => { for (const [n, x, y] of m) { n.x = x; n.y = y; } };
+
+  let moved = 0;
+  /* 여러 번 돈다 — 앞엣것이 비키면 뒤엣것에 자리가 생긴다. 한 번만 돌면 순서에
+     따라 못 푸는 쌍이 남는다(실제로 남았다). 더 안 움직이면 바로 멈춘다 */
+  for (let pass = 0; pass < 4; pass++) {
+    let any = 0;
+    for (const s of spokes) {
+      if (clear(s)) continue;
+      const was = snap(s);
+      let best: number | null = null;
+      /* 고리 한 바퀴를 가까운 곳부터 훑는다 — 가장 적게 움직이는 자리를 고른다 */
+      for (let step = 0.05; step <= Math.PI && best === null; step += 0.05) {
+        for (const d of [step, -step]) {
+          const a = s.a + d;
+          const x = s.cx + Math.cos(a) * s.R, y = s.cy + Math.sin(a) * s.R;
+          place(s.n, x, y);
+          moons(o, live, s.n.id, x, y, a);
+          if (clear(s)) { best = a; break; }
+          undo(was);
+        }
+      }
+      if (best === null) { undo(was); continue; }
+      s.a = best;
+      moved++; any++;
+    }
+    if (!any) break;
+  }
+
+  let stuck = 0;
+  for (let i = 0; i < all.length; i++) {
+    for (let j = i + 1; j < all.length; j++) if (knock(all[i], all[j])) stuck++;
+  }
+  return { moved, stuck };
+}
+
+export function tidyOrbit(): { moved: number; tight: number; stuck: number; dodged: number } {
   const o = plan();
   const live = orbitIndex();
   const before = new Map(S.nodes.map((n) => [n.id, n.x + "," + n.y]));
@@ -440,6 +530,7 @@ export function tidyOrbit(): { moved: number; tight: number } {
   /* 태양도 지금 자리를 쓴다. 정리할 때마다 원점으로 끌어오면 보던 화면이 날아간다 */
   const outer = (o.layers[0]?.ns ?? []).filter((n) => !UI.hidden.has(n.id));
   const sun = live.rings.size && outer.length > 2 ? fitSun(outer) : { x: 0, y: 0 };
+  const spokes: Spoke[] = [];
 
   for (const lay of o.layers) {
     if (!lay.ns.length) continue;
@@ -453,13 +544,15 @@ export function tidyOrbit(): { moved: number; tight: number } {
       acc += w[i];
       const x = sun.x + Math.cos(a) * R, y = sun.y + Math.sin(a) * R;
       place(n, x, y);
-      moons(o, live, n.id, x, y, a);
+      spokes.push({ n, cx: sun.x, cy: sun.y, R, a, ring: "m:" + lay.depth });
+      moons(o, live, n.id, x, y, a, spokes);
     });
   }
+  const dodge = dodgeRings(o, live, spokes.filter((s) => !UI.hidden.has(s.n.id)));
   freezeRings();              // 새로 생긴 깊이의 고리도 여기서 실체가 된다
   let moved = 0;
   for (const n of S.nodes) if (before.get(n.id) !== n.x + "," + n.y) moved++;
-  return { moved, tight: tightRings() };
+  return { moved, tight: tightRings(), stuck: dodge.stuck, dodged: dodge.moved };
 }
 
 /** 식구가 둘레보다 많이 필요한 고리의 수. 위성 체계를 가진 식구는 그만큼 넓게 센다 */

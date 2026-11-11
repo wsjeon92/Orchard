@@ -313,7 +313,8 @@ el("btnOrbit").onclick = () => {
   const moved = r.moved + tidyOverlaps();       // 궤도 밖에 남은 것도 같이 푼다
   /* 비좁은 고리는 정리로 못 푼다 — 크기는 사용자가 정하는 것이라 여기서 못 키운다.
      말없이 겹친 채 두면 "정리했는데 왜 겹치지"가 된다 */
-  const tight = r.tight ? ` · 비좁은 궤도 ${r.tight}개` : "";
+  const tight = (r.tight ? ` · 비좁은 궤도 ${r.tight}개` : "")
+    + (r.stuck ? ` · 못 푼 겹침 ${r.stuck}개` : "");
   if (!moved) { flashTidy("정리할 것이 없습니다" + tight); return; }
   save();                       // 실행 취소 스냅샷도 여기에 걸린다
   render();                     // x/y 가 바뀌었으니 애니메이션으로 미끄러진다
