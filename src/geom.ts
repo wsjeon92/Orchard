@@ -131,5 +131,53 @@ export function matchNode(n: GNode, q: string): boolean {
   );
 }
 
+/** 교차도 제 이름으로 찾힌다. 노드와 같은 자리들을 본다 — 라벨, 메모, 문헌, 그리고
+ *  이름 후보(cands). 후보까지 보는 이유: 아직 이름을 안 고른 교차도 거기 적어 둔
+ *  이름으로 찾아야 한다. 승격한 교차는 라벨이 비어 있고 이름이 노드로 옮겨 가 있어서
+ *  노드 쪽 검색에 걸린다 — 여기서 또 걸릴 필요가 없다. */
+export function matchEdge(e: GEdge, q: string): boolean {
+  if ((e.label ?? "").toLowerCase().includes(q)) return true;
+  if ((e.note ?? "").toLowerCase().includes(q)) return true;
+  if ((e.cands ?? []).some((c) => (c ?? "").toLowerCase().includes(q))) return true;
+  return (e.works ?? []).some(
+    (w) => (w.name ?? "").toLowerCase().includes(q) || (w.note ?? "").toLowerCase().includes(q),
+  );
+}
+
+/** 엣지가 붙들고 있는 노드 — assoc 은 members, 나머지는 a/b */
+export const edgeEnds = (e: GEdge): string[] =>
+  e.kind === "assoc" ? (e.members ?? []) : ([e.a, e.b].filter(Boolean) as string[]);
+
+/** 검색 한 번에 한 번만 잰다. 규칙은 둘이고 서로 대칭이다.
+ *
+ *    노드는  제가 맞거나,  저를 쓰는 엣지가 맞으면  남는다
+ *    엣지는  제가 맞거나,  제 노드가 모두 맞으면    남는다
+ *
+ *  아랫줄이 예전 동작이고 윗줄이 새로 생긴 길이다. 둘 다 있어야 쓸모가 있다 —
+ *  교차 이름으로 찾았는데 식구가 흐려져 있으면 라벨 하나만 공중에 떠서 그게 무엇과
+ *  무엇의 교차인지 읽을 수 없다. 반대로 노드로 찾았을 때 교차가 같이 살아나는 것은
+ *  전부터 되던 일이다.
+ *
+ *  엣지 쪽은 '직접 맞은' 노드만 센다. 교차가 끌어올린 노드까지 세면 한 다리 건너
+ *  옆 교차가 줄줄이 켜지고, 결국 이웃 전체가 켜져 검색이 아무것도 안 좁힌다. */
+export function matchSet(q: string): { nodes: Set<string>; edges: Set<string> } | null {
+  if (!q) return null;
+  const direct = new Set<string>();
+  const nodes = new Set<string>();
+  const edges = new Set<string>();
+  for (const n of S.nodes) if (matchNode(n, q)) { direct.add(n.id); nodes.add(n.id); }
+  for (const e of S.edges) {
+    if (!matchEdge(e, q)) continue;
+    edges.add(e.id);
+    for (const id of edgeEnds(e)) nodes.add(id);
+  }
+  for (const e of S.edges) {
+    if (edges.has(e.id)) continue;
+    const ends = edgeEnds(e);
+    if (ends.length && ends.every((id) => direct.has(id))) edges.add(e.id);
+  }
+  return { nodes, edges };
+}
+
 export const queryNow = () => UI.query.trim().toLowerCase();
 export const edgeById = edgeOf;

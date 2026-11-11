@@ -22,7 +22,7 @@ import { bindCanvas, initInteract, setFitRef } from "./interact";
 import { addGroupMembers, addSubKeywords, groupWith, groupMarked, unGroupMarked,
 } from "./panel";
 import {
-  edgeSegments, isPinned, labelTarget, matchNode, pinnedPos, snapToEdge,
+  edgeSegments, isPinned, labelTarget, matchEdge, matchNode, matchSet, pinnedPos, snapToEdge,
 } from "./geom";
 import {
   applyView, easeView, fit, foldAll, lightRedraw, paint, render,
@@ -408,7 +408,7 @@ const api = {
   addSubKeywords, addGroupMembers, nudgeFree, tidyOverlaps,
   subChildren, subAncestors, subParentEdge, deepChildren, deepAncestors, isSubDescendant,
   focusSet, degree, hiddenSet, foldKids, descendantsOf,
-  edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode,
+  edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode, matchEdge, matchSet,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion, easeView, snapView, stepViewAnim, stepRingAnim, viewAnimRunning,
   findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, swapSubRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, freezeRings, mainRingName, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,

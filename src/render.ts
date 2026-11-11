@@ -5,7 +5,7 @@ import { orbitHits, orbitIndex, orbitRings, orbitSays, syncOrbitHits } from "./o
 import { elblEls, nodeEls, stage, world } from "./dom";
 import { bindNode } from "./interact";
 import {
-  ctr, edgeLabelText, isPinned, labelOffset, layoutGroups, matchNode,
+  ctr, edgeLabelText, isPinned, labelOffset, layoutGroups, matchSet,
   migratePin, pinnedPos, px, py, unit,
 } from "./geom";
 import { degree, descendantsOf, focusSet, foldKids, hiddenSet, canGroup, groupOf, memberIds,
@@ -15,20 +15,22 @@ import { drawMini } from "./minimap";
 import { renderSide } from "./panel";
 import { S, UI, VIEW, edgeOf, isGroup, kindOf, nodeOf, save, setHidden } from "./state";
 import { isViewer } from "./viewer";
-import type { GNode } from "./types";
+import type { GEdge, GNode } from "./types";
 
 /** 드래그 중 그룹 드롭 대상 / 엣지 허브 드롭 대상 */
 export const Drop = { target: null as string | null, kind: null as "group" | "hub" | null };
 
 let lastFset: Set<string> | null = null;
-let lastQ = "";
+/* 검색 결과는 문자열이 아니라 재 놓은 집합으로 들고 있는다 — paint 가 프레임마다
+   돌아서, 거기서 다시 재면 애니메이션 한 번에 노드+엣지를 수백 번 훑는다 */
+let lastMset: ReturnType<typeof matchSet> = null;
 let lastGap: ReturnType<typeof gapSet> = null;
 
 export function render() {
   setHidden(hiddenSet());
   const hid = UI.hidden;
   const fset = UI.focusId ? focusSet(UI.focusId, VIEW.hops) : null;
-  const q = UI.query.trim().toLowerCase();
+  const mset = matchSet(UI.query.trim().toLowerCase());
   /* 빈 곳 강조. 꺼져 있으면 null 이고 아무 것도 흐려지지 않는다.
      집중·검색과 겹쳐 쓸 수 있도록 dim 조건에 or 로 더한다. */
   const gap = lastGap = gapSet();
@@ -62,7 +64,7 @@ export function render() {
     if (entering) setTimeout(() => nodeEls.get(n.id)?.classList.remove("enter"), 420);
     const common = (entering ? " enter" : "")
       + (UI.sel?.type === "node" && UI.sel.id === n.id ? " sel" : "")
-      + ((fset && !fset.has(n.id)) || (q && !matchNode(n, q))
+      + ((fset && !fset.has(n.id)) || (mset && !mset.nodes.has(n.id))
          || (gap && !gap.ids.has(n.id)) ? " dim" : "")
       + (gap?.why.has(n.id) ? " gap gap-" + gap.why.get(n.id) : "")
       + (UI.marked.has(n.id) ? " mark" : "")
@@ -112,8 +114,8 @@ export function render() {
   }
 
   lastFset = fset;
-  lastQ = q;
-  drawEdges(fset, q);
+  lastMset = mset;
+  drawEdges(fset, mset);
   relaxLabels(elblEls, nodeOf);
   kickAnim();
 
@@ -153,7 +155,7 @@ export function paint() {
     el.style.top = py(n) + "px";
     if (isGroup(n)) { el.style.width = n._w + "px"; el.style.height = n._h + "px"; }
   }
-  drawEdges(lastFset, lastQ);
+  drawEdges(lastFset, lastMset);
   drawMini();
 }
 
@@ -213,7 +215,7 @@ export function applyView() {
    그 뒤로는 사용자가 보기 패널에서 고른 값이 우선이다. */
 export const animAllowed = () => VIEW.anim;
 
-export function drawEdges(fset: Set<string> | null, q: string) {
+export function drawEdges(fset: Set<string> | null, mset: ReturnType<typeof matchSet>) {
   const gap = lastGap;
   /* 궤도 원을 맨 뒤에 깐다 — 선보다 먼저 써야 아래로 간다 */
   let out = orbitRings((id) => {
@@ -225,7 +227,10 @@ export function drawEdges(fset: Set<string> | null, q: string) {
   const ix = orbitIndex();
   const eseen = new Set<string>();
   const hid = UI.hidden;
-  const noMatch = (n: GNode) => !!q && !matchNode(n, q);
+  /* 검색에 걸렸는가는 엣지 단위로 이미 재 놓았다 — matchSet 의 둘째 규칙이
+     예전의 "양 끝이 모두 맞는가"와 같은 것이고, 거기에 "엣지가 제 이름으로
+     맞는가"가 더해져 있다 */
+  const offQ = (e: GEdge) => !!mset && !mset.edges.has(e.id);
 
   /* 보기 → 먼저 보일 것. 엣지를 고르면 교차가 실선으로 올라오고 궤도가 물러난다 */
   const eStrong = VIEW.emph === "edge";
@@ -235,7 +240,7 @@ export function drawEdges(fset: Set<string> | null, q: string) {
     if (e.kind === "deep" || e.kind === "part" || e.kind === "sub") {
       const A = nodeOf(e.a), B = nodeOf(e.b);
       if (!A || !B || hid.has(A.id) || hid.has(B.id)) continue;
-      const dim = (fset && (!fset.has(A.id) || !fset.has(B.id))) || noMatch(A) || noMatch(B)
+      const dim = (fset && (!fset.has(A.id) || !fset.has(B.id))) || offQ(e)
         || !!gap;
       if (e.kind === "part") {
         const ac = ctr(A), bc = ctr(B);
@@ -264,7 +269,7 @@ export function drawEdges(fset: Set<string> | null, q: string) {
        2개면 허브가 중점이라 직선이 되고, 3개면 벤츠 마크 모양이 된다. */
     const ms = (e.members ?? []).map(nodeOf).filter(Boolean) as GNode[];
     if (ms.length < 2 || ms.some((m) => hid.has(m.id))) continue;
-    const dim = (fset && !ms.every((m) => fset.has(m.id))) || ms.some(noMatch)
+    const dim = (fset && !ms.every((m) => fset.has(m.id))) || offQ(e)
       || (gap && !gap.ids.has(e.id));
     const op = dim ? ' opacity="0.1"' : "";
     const pts = ms.map(ctr);
