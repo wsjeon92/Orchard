@@ -192,6 +192,100 @@ check("빈 궤도가 없다",
   after.nodes.filter((x) => x.kind === "group")
     .every((x) => after.edges.some((e) => e.kind === "sub" && e.a === x.id)));
 
+// --- 새 쓰기 도구 셋 (edge_members / set_star / detach_part) ---
+//
+// 전에는 교차가 무엇에 걸려 있는지 고치는 길이 MCP 에 없어서 파일을 직접 편집했다.
+// 파일 편집은 앱이 덮어쓰면 진다 — 그래서 이것이 '유일한 쓰기 길'의 마지막 조각이다.
+
+const named = read().edges.find((e) => e.kind === "assoc" && (e.label || "").trim());
+const lbOf = (id) => read().nodes.find((n) => n.id === id)?.label;
+const msOf = (eid) => (read().edges.find((e) => e.id === eid)?.members ?? []).map(lbOf);
+
+if (!named) { say("  건너뜀 — 이름 붙은 교차가 없는 그래프"); }
+else {
+  const EID = named.id, NAME = named.label;
+  const before = msOf(EID);
+  // 이 교차에 아직 없고 궤도도 아닌 키워드 하나를 고른다
+  const cand = read().nodes.find((n) => n.kind !== "group" && !before.includes(n.label)
+    && (n.label || "").trim());
+  await call("edge_members", { name: NAME, add: [cand.label] });
+  check("edge_members 가 멤버를 넣는다",
+    msOf(EID).includes(cand.label) && msOf(EID).length === before.length + 1,
+    JSON.stringify(msOf(EID)));
+  await call("edge_members", { name: NAME, remove: [cand.label] });
+  check("edge_members 가 멤버를 뺀다",
+    JSON.stringify(msOf(EID)) === JSON.stringify(before), JSON.stringify(msOf(EID)));
+
+  // 궤도는 교차에 못 들어간다
+  const ring = read().nodes.find((n) => n.kind === "group" && (n.label || "").trim());
+  if (ring) {
+    const r = await call("edge_members", { name: NAME, add: [ring.label] });
+    check("궤도를 멤버로 넣으려 하면 거절한다", r.isError, r.text.slice(0, 60));
+  }
+  // 멤버가 둘 미만으로 줄면 거절한다
+  const two = read().edges.find((e) => e.kind === "assoc" && (e.members ?? []).length === 2);
+  if (two) {
+    const key = two.members.map(lbOf).join(", ");
+    const r = await call("edge_members", { name: key, remove: [lbOf(two.members[0])] });
+    check("멤버가 둘 미만이 되면 거절한다", r.isError, r.text.slice(0, 60));
+    check("거절했으면 파일은 그대로다", (read().edges.find((e) => e.id === two.id).members ?? []).length === 2);
+  }
+
+  // ★
+  const starred = () => !!read().edges.find((e) => e.id === EID)?.star;
+  const was = starred();
+  await call("set_star", { name: NAME });
+  check("set_star 가 눌러서 뒤집는다", starred() !== was);
+  await call("set_star", { name: NAME, on: was });
+  check("set_star 가 값을 직접 받는다", starred() === was);
+}
+
+// detach_part — 합성이 있을 때만
+const dpComp = read().nodes.find((n) => (n.parts ?? []).length);
+if (!dpComp) { say("  건너뜀 — 합성 키워드가 없는 그래프"); }
+else {
+  const pid = dpComp.parts[0], pl = lbOf(pid), n0 = dpComp.parts.length;
+  await call("detach_part", { compound: dpComp.label, part: pl });
+  const now = read().nodes.find((n) => n.id === dpComp.id);
+  check("detach_part 가 부품을 뗀다", (now.parts ?? []).length === n0 - 1
+    && !(now.parts ?? []).includes(pid));
+  check("detach_part 가 part 엣지도 지운다",
+    !read().edges.some((e) => e.kind === "part" && e.a === pid && e.b === dpComp.id));
+  const r = await call("detach_part", { compound: dpComp.label, part: pl });
+  check("부품이 아닌 것을 떼려 하면 거절한다", r.isError, r.text.slice(0, 60));
+}
+
+// --- propose — 읽기만 하고 아무것도 안 바꾼다 ---
+if (named) {
+  const snap = JSON.stringify(read());
+  const r = await call("propose", { name: named.label, count: 5 });
+  check("propose 가 후보를 돌려준다", !r.isError && /칸을 갈면|후보 \d+개/.test(r.text),
+    r.text.slice(0, 80));
+  check("propose 는 그래프를 바꾸지 않는다", JSON.stringify(read()) === snap);
+  check("propose 가 두 수를 따로 밝힌다", /덮음 \d+%/.test(r.text) && /고유함 \d+%/.test(r.text));
+  check("propose 가 이미 걸린 교차를 같이 알려 준다", /이미 걸린 교차/.test(r.text));
+  // 이미 있는 조합은 후보로 나오지 않는다 — 기준 교차 자신의 멤버가 후보 줄에 그대로 나오면 안 된다
+  const self = (named.members ?? []).map(lbOf).join(" + ");
+  check("이미 해 본 조합은 후보에서 빠진다", !r.text.includes("→  " + self), self);
+  const bad = await call("propose", { name: "있을 리 없는 교차 이름 zzz" });
+  check("없는 교차를 부르면 분명히 알려 준다", bad.isError, bad.text.slice(0, 60));
+
+  /* 점수 설계의 회귀 — 이것이 실제로 틀렸던 부분이다.
+     처음엔 (덮음)/(차수) 하나로 합쳤는데, 증거가 많은 후보일수록 차수도 커서
+     **증거가 많은 쪽이 벌을 받았다.** 남은 멤버 4개와 모두 교차해 본 키워드가
+     2개와만 교차해 본 키워드에 밀려 56등으로 내려갔다. 덮음을 먼저 보게 고쳤다. */
+  const big = await call("propose", { name: named.label, count: 25 });
+  const covers = [...big.text.matchAll(/덮음 (\d+)%/g)].map((m) => +m[1]);
+  check("덮음이 내려가는 순서로 나온다", covers.length >= 2
+    && covers.every((v, i) => i === 0 || covers[i - 1] >= v), JSON.stringify(covers));
+  const names = [...big.text.matchAll(/^- \*\*(.+?)\*\*/gm)].map((m) => m[1]);
+  check("같은 키워드가 두 번 나오지 않는다", names.length === new Set(names).size,
+    JSON.stringify(names));
+  check("후보마다 이미 교차해 본 상대를 밝힌다",
+    names.length > 0 && [...big.text.matchAll(/이미 교차해 본 상대: \S/g)].length === names.length);
+  check("순서가 판정이 아니라고 밝힌다", /판정이 아니다/.test(big.text));
+}
+
 // --- 바깥에서 고친 것을 덮어쓰지 않는다 ---
 const mid = read();
 mid.nodes.push({ id: "nZZ", label: "사용자가 직접 추가", kind: "atom", x: 2000, y: 2000,

@@ -18,8 +18,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import {
-  TIDY, asWork, childrenOf, degree, isRing, labelOf, load, makeEdge, makeNode,
-  membersOf, node, nodeById, parentEdge, place, planetOf, save, setParent, target,
+  TIDY, asWork, childrenOf, crossedWith, crossing, degree, isRing, labelOf, load,
+  makeEdge, makeNode, membersOf, node, nodeById, parentEdge, partsRedundancy, place,
+  planetOf, sameCrossing, save, setParent, target,
 } from "./graph.js";
 
 const PATH = process.argv[2] || process.env.ORCHARD_GRAPH;
@@ -41,7 +42,7 @@ function edit(fn) {
   } catch (e) { return fail(e); }
 }
 
-const server = new McpServer({ name: "orchard", version: "2.0.0" });
+const server = new McpServer({ name: "orchard", version: "2.1.0" });
 
 /* ---------------- 읽기 ---------------- */
 
@@ -318,5 +319,177 @@ server.registerTool("add_works", {
     ? `'${label}' 에 관련 연구 ${added.length}개 붙임: ${added.join(" / ")}`
     : "이미 다 붙어 있습니다.";
 }));
+
+server.registerTool("edge_members", {
+  title: "교차 멤버 고치기",
+  description: "이미 있는 교차에 키워드를 넣거나 뺀다. 교차가 무엇에 걸려 있는지를 "
+    + "고치는 유일한 길 — 전에는 이것이 없어서 파일을 직접 편집해야 했다. "
+    + "궤도는 넣을 수 없고, 멤버는 둘 이상 남아야 하며, 같은 조합의 교차가 이미 있으면 거절한다.",
+  inputSchema: {
+    name: z.string().describe("고칠 교차의 이름. 이름이 없으면 멤버를 콤마로"),
+    add: z.array(z.string()).optional().describe("넣을 키워드"),
+    remove: z.array(z.string()).optional().describe("뺄 키워드"),
+  },
+}, async ({ name, add, remove }) => edit((g) => {
+  const e = crossing(g, name);
+  const was = membersOf(e).map((m) => labelOf(g, m));
+  const ms = membersOf(e).slice();
+  const notes = [];
+  for (const l of remove ?? []) {
+    const i = ms.indexOf(node(g, l).id);
+    if (i < 0) throw new Error(`'${l}' 은(는) 이 교차의 멤버가 아닙니다 (지금: ${was.join(", ")})`);
+    ms.splice(i, 1);
+  }
+  for (const l of add ?? []) {
+    const n = node(g, l);
+    if (isRing(n)) {
+      throw new Error(`'${l}' 은(는) 궤도입니다. 궤도는 고리의 이름이지 교차의 대상이 아닙니다 `
+        + "— 그 궤도의 식구를 고르세요.");
+    }
+    if (ms.includes(n.id)) { notes.push(`'${l}' 은(는) 이미 멤버라 건너뛰었습니다`); continue; }
+    ms.push(n.id);
+  }
+  if (ms.length < 2) throw new Error("교차는 멤버가 둘 이상이어야 합니다. 통째로 지우려면 앱에서 지우세요.");
+  const dup = sameCrossing(g, ms, e);
+  if (dup) throw new Error(`같은 멤버 조합의 교차가 이미 있습니다 (${dup.label || dup.id}).`);
+  e.members = ms;
+  const red = partsRedundancy(g, ms);
+  if (red.length) {
+    notes.push("부품 중복 — " + red.map(([a, b]) => `${a} ⊂ ${b}`).join(", ")
+      + ". 합성이 이미 그 부품을 담고 있으니 같은 말이 두 번입니다. "
+      + "그 부품이 합성과 다른 경로로도 이 교차에 닿을 때만 남기세요.");
+  }
+  return `'${e.label || "(이름 없음)"}' 멤버: ${was.join(" + ")} → `
+    + `${ms.map((m) => labelOf(g, m)).join(" + ")}`
+    + (notes.length ? "\n" + notes.map((x) => "· " + x).join("\n") : "");
+}));
+
+server.registerTool("set_star", {
+  title: "교차에 중요 표시",
+  description: "교차에 ★ 를 건다/뗀다. 문헌 수나 구조로는 못 세는 '이건 내가 눈여겨본다'를 "
+    + "사람이 직접 거는 자리다 — 딱 맞는 문헌이 없는데 rationale 로 붙들고 있는 교차 같은 것.",
+  inputSchema: {
+    name: z.string().describe("교차 이름, 또는 멤버를 콤마로"),
+    on: z.boolean().optional().describe("비우면 눌러서 뒤집는다"),
+  },
+}, async ({ name, on }) => edit((g) => {
+  const e = crossing(g, name);
+  const next = on ?? !e.star;
+  if (next) e.star = true; else delete e.star;
+  const who = e.label || membersOf(e).map((m) => labelOf(g, m)).join(" + ");
+  return `'${who}' ${next ? "★ 걸었습니다" : "★ 뗐습니다"}`;
+}));
+
+server.registerTool("detach_part", {
+  title: "합성에서 부품 떼기",
+  description: "합성 키워드에서 부품 하나를 뗀다. E 고리에서 L 고리로 돌아오는 문이다 — "
+    + "부품이 하나도 안 남으면 합성이 아니라 보통 키워드로 돌아간다.",
+  inputSchema: {
+    compound: z.string().describe("부품을 뗄 합성 키워드"),
+    part: z.string().describe("뗄 부품"),
+  },
+}, async ({ compound, part }) => edit((g) => {
+  const c = node(g, compound), p = node(g, part);
+  if (!(c.parts ?? []).includes(p.id)) {
+    throw new Error(`'${part}' 은(는) '${compound}' 의 부품이 아닙니다`
+      + ((c.parts ?? []).length ? ` (지금: ${c.parts.map((x) => labelOf(g, x)).join(", ")})` : " (부품이 없습니다)"));
+  }
+  c.parts = c.parts.filter((x) => x !== p.id);
+  g.edges = g.edges.filter((x) => !(x.kind === "part" && x.a === p.id && x.b === c.id));
+  let extra = "";
+  if (!c.parts.length && c.kind === "compound") { c.kind = "atom"; extra = " 부품이 없어져 보통 키워드가 됐습니다."; }
+  return `'${compound}' 에서 '${part}' 을(를) 뗐습니다.${extra} ${TIDY}`;
+}));
+
+/* ---------------- 제안 ---------------- */
+
+server.registerTool("propose", {
+  title: "교차에서 다음 후보 뽑기",
+  description: "이름 붙은 교차 하나를 잡고 **멤버를 하나씩 다른 키워드로 갈아** 후보를 만든다. "
+    + "'목적은 그대로 두고 고리를 닫는 칸을 바꾼다'는 수를 기계로 돌리는 것이다 — "
+    + "BindCraft 의 판단 칸(AF2)을 에이전트로 갈면 BindClaw 가 되는 식.\n\n"
+    + "쌍 점수와 다른 점: 이 그래프의 교차는 대부분 멤버가 셋 이상인데 쌍 제안은 쌍만 낸다. "
+    + "여기서는 기존 멤버 집합에서 한 칸만 갈아 **집합을 통째로** 돌려준다.\n\n"
+    + "**검색은 하지 않는다.** 후보가 세상에 이미 있는지는 부른 쪽이 웹 검색으로 확인한다. "
+    + "이미 있으면 그건 그래프에 빠져 있던 교차이니 connect 로 넣고(발굴), "
+    + "없으면 주제 후보로 남는다. 낸 후보 중 이미 있던 것의 비율이 곧 계기판이다 — "
+    + "높으면 그래프가 문헌보다 뒤처진 것이고, 낮으면 생성기가 헛돌거나 진짜 빈 땅이다.",
+  inputSchema: {
+    name: z.string().describe("기준 교차의 이름. 이름이 없으면 멤버를 콤마로"),
+    count: z.number().optional().describe("돌려줄 후보 수 (기본 8 — 사람이 한 번에 볼 수 있는 만큼)"),
+  },
+}, async ({ name, count }) => {
+  try {
+    const g = load(PATH);
+    const e = crossing(g, name);
+    const M = membersOf(e);
+    if (M.length < 2) throw new Error("멤버가 둘 미만인 교차입니다");
+    const top = Math.max(1, Math.min(60, count ?? 20));
+    const lb = (id) => labelOf(g, id);
+    /* 후보별로 **가장 좋은 칸 하나만** 들고 있는다. 같은 키워드가 여러 칸에서 걸리면
+       같은 생각이 여러 줄로 보여서 목록 예산을 다 먹는다 — 실제로 '스위치' 하나가
+       1·2·3등을 차지했다. */
+    const best = new Map();
+    for (const m of M) {
+      const rest = M.filter((x) => x !== m);
+      for (const c of g.nodes) {
+        if (isRing(c) || M.includes(c.id)) continue;
+        const cw = crossedWith(g, c.id);
+        const met = rest.filter((r) => cw.has(r));
+        if (!met.length) continue;             // 이 이웃을 한 번도 만난 적 없는 키워드
+        const ids = [...rest, c.id];
+        if (sameCrossing(g, ids)) continue;               // 이미 해 본 조합
+        if (partsRedundancy(g, ids).length) continue;     // 합성이 제 부품을 담는 꼴
+        /* 두 수를 따로 보고한다. 하나로 합치면 한쪽이 다른 쪽을 지운다.
+             덮음  = 남은 멤버 중 몇과 이미 교차해 봤나 / 남은 멤버 수
+                     → 이 이웃에 이미 들어맞는다는 증거. 클수록 그럴듯하다
+             고유함 = 그 교차가 이 키워드 전체 교차의 몇 분의 몇인가
+                     → '단백질'·'AI' 같은 축 이름은 아무 이웃에나 걸려서 낮게 나온다
+           전에 덮음을 차수로 나눠 하나로 합쳐 봤는데, 증거가 많은 후보일수록 차수도
+           크기 때문에 **증거가 많은 쪽이 벌을 받았다.** 남은 멤버 5개 중 4개와 교차해
+           본 키워드가 56등으로 밀렸다. 둘을 따로 두고 순서는 덮음 → 고유함으로 본다. */
+        const cover = met.length / rest.length;
+        const only = met.length / cw.size;
+        const prev = best.get(c.id);
+        if (!prev || cover > prev.cover || (cover === prev.cover && only > prev.only)) {
+          best.set(c.id, { out: m, met, cover, only, deg: degree(g, c.id) });
+        }
+      }
+    }
+    const picks = [...best.entries()]
+      .map(([id, v]) => ({ id, ...v }))
+      .sort((a, b) => b.cover - a.cover || b.only - a.only)
+      .slice(0, top);
+    /* 같은 이웃에 이미 걸린 교차 — 다시 제안하지 않게 부른 쪽에 같이 보여 준다 */
+    const near = g.edges.filter((x) => x.kind === "assoc" && x !== e
+      && membersOf(x).filter((i) => M.includes(i)).length >= 2);
+    const pc = (v) => Math.round(v * 100) + "%";
+    return text([
+      `기준 교차: ${e.label || "(이름 없음)"} = ${M.map(lb).join(" + ")}`,
+      `후보 ${best.size}개(키워드 기준, 중복 제거) 중 위 ${picks.length}개.`,
+      "",
+      "순서는 **약한 힌트일 뿐 판정이 아니다.** 구조만 보고는 어느 칸을 가는 수가 값진지",
+      "알 수 없다 — 그건 바깥 세상의 사실이라서, 아래 '이미 교차해 본 상대'를 읽고",
+      "무엇이 그 교차의 목적·입력·판단·동작 중 어느 칸을 바꾸는지 판단해야 한다.",
+      "여기서 보장하는 것은 빠짐없이 세고, 중복과 이미 해 본 조합을 걸렀다는 것뿐이다.",
+      "",
+      ...picks.map((p) =>
+        `- **${lb(p.id)}**  (‘${lb(p.out)}’ 칸 자리에)\n`
+        + `    → ${[...M.filter((x) => x !== p.out), p.id].map(lb).join(" + ")}\n`
+        + `    덮음 ${pc(p.cover)} (${p.met.length}/${M.length - 1})`
+        + ` · 고유함 ${pc(p.only)} · 차수 ${p.deg}`
+        + ` · 이미 교차해 본 상대: ${p.met.map(lb).join(", ")}`),
+      "",
+      `## 이 이웃에 이미 걸린 교차 ${near.length}개 — 다시 제안하지 말 것`,
+      near.length
+        ? near.map((x) => `- ${x.label || "(이름 없음)"}: ${membersOf(x).map(lb).join(" + ")}`).join("\n")
+        : "없음",
+      "",
+      "각 후보를 웹 검색으로 확인하세요. 이미 있으면 connect 로 넣고(빠져 있던 교차), "
+        + "없으면 주제 후보입니다. 둘 중 어느 쪽도 아니면(검색으로 결판이 안 나면) 버리세요 "
+        + "— 한 번의 검색으로 죽거나 사는 후보만 쓸모가 있습니다.",
+    ].join("\n"));
+  } catch (err) { return fail(err); }
+});
 
 await server.connect(new StdioServerTransport());

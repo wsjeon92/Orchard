@@ -155,6 +155,58 @@ export function node(g, label) {
   return hit[0];
 }
 
+/** 이 노드와 **교차를 함께한** 노드들 — assoc 만 본다.
+ *  궤도 소속(sub)이나 합성(parts)은 '함께 교차했다'가 아니다. degree() 는 그 셋을
+ *  다 세는데, 제안 점수는 교차 이력만 봐야 뜻이 맞는다 — 한 고리에 앉아 있다는 것은
+ *  아직 아무도 둘을 이어 보지 않았다는 뜻일 수도 있다. */
+export function crossedWith(g, id) {
+  const out = new Set();
+  for (const e of g.edges) {
+    if (e.kind !== "assoc") continue;
+    const ms = e.members ?? [];
+    if (ms.includes(id)) ms.forEach((m) => { if (m !== id) out.add(m); });
+  }
+  out.delete(id);
+  return out;
+}
+
+/** 멤버 집합이 똑같은 교차가 이미 있나 (except 는 빼고 본다 — 자기 자신) */
+export const sameCrossing = (g, ids, except) => g.edges.find((e) => e !== except
+  && e.kind === "assoc" && (e.members ?? []).length === ids.length
+  && ids.every((i) => (e.members ?? []).includes(i)));
+
+/** 부품이 그 합성과 같이 멤버로 들어가 있나 — 합성이 이미 부품을 담고 있으니
+ *  같은 말을 두 번 하는 꼴이다. 다만 예외가 있다: 그 부품이 합성과 **다른 경로로도**
+ *  교차에 닿을 때는 제 축이다. 그래서 막지 않고 알린다. */
+export function partsRedundancy(g, ids) {
+  const set = new Set(ids);
+  const out = [];
+  for (const c of ids) {
+    for (const part of nodeById(g, c)?.parts ?? []) {
+      if (set.has(part)) out.push([labelOf(g, part), labelOf(g, c)]);
+    }
+  }
+  return out;
+}
+
+/** 교차를 이름으로 찾는다. 이름 없는 교차는 멤버를 콤마로 적는다 —
+ *  rename 이 이름 없는 궤도를 식구로 찾는 것과 같은 길이다. */
+export function crossing(g, key) {
+  const t = String(key).trim();
+  const byLabel = g.edges.filter((e) => e.kind === "assoc" && (e.label || "").trim() === t);
+  if (byLabel.length === 1) return byLabel[0];
+  if (byLabel.length > 1) throw new Error(`'${key}' 이름의 교차가 ${byLabel.length}개입니다. 먼저 정리해 주세요.`);
+  const want = t.split(",").map((x) => x.trim()).filter(Boolean);
+  if (want.length >= 2) {
+    const hit = g.edges.filter((e) => e.kind === "assoc"
+      && (e.members ?? []).length === want.length
+      && want.every((w) => (e.members ?? []).some((m) => labelOf(g, m) === w)));
+    if (hit.length === 1) return hit[0];
+    if (hit.length > 1) throw new Error(`그 멤버 조합의 교차가 ${hit.length}개입니다.`);
+  }
+  throw new Error(`'${key}' 교차를 찾지 못했습니다. 교차 이름, 또는 멤버를 콤마로 적어 주세요.`);
+}
+
 /** 노드든 엣지든 이름으로 찾는다 (메모·관련연구는 양쪽에 붙는다) */
 export function target(g, label) {
   const t = String(label).trim();
