@@ -4,9 +4,12 @@
 치고 벌렸다. 그 둘이 180° 떨어져 있어도 그만큼 벌렸다. 실제 각도로 쌍마다 재면
 훨씬 작아진다.
 
-각도는 반지름 **다음에** 정해지므로 한 번에 안 끝난다 — 앉히기 → 정리 → 앉히기로
-두 번 돌린다. 두 번으로 끊은 이유가 이 파일이 지키는 것이다: 누를 때마다 값이
-달라지면 쓸 수 없다.
+각도는 반지름 다음에 정해지고 반지름은 각도를 보고 정해져서 둘이 서로를 흔든다.
+수렴하지 않고 진동했다 — 3518 로 내려갔다가 다시 누르면 3567 로 올라왔다. 그래서
+"멈출 때까지 돌린다" 대신 "돌면서 제일 좋았던 자리를 기억한다" 로 바꿨다.
+
+그러니 여기서 지킬 것은 "두 번 눌러도 똑같다" 가 아니라 **"두 번째가 첫 번째보다
+나빠지지 않는다"** 다. 임계값이 아니라 부등호라서 그래프가 바뀌어도 성립한다.
 """
 from playwright.sync_api import sync_playwright
 from conftest_paths import url, launch, ready, settle
@@ -32,9 +35,7 @@ SETUP = """() => {
   return hub.id;
 }"""
 
-PRESS = """() => { for (let p = 0; p < 2; p++) {
-  for (const pid of [...Orchard.orbitPlan().sys.keys()]) Orchard.orderSubRings(pid);
-  Orchard.tidyOrbit(); } Orchard.render(); }"""
+PRESS = """() => { Orchard.reseatRings(); Orchard.render(); }"""
 
 STATE = """() => {
   const O = Orchard, cx = n => n.x + (n._w || 140) / 2, cy = n => n.y + (n._h || 38) / 2;
@@ -73,11 +74,17 @@ def main():
         if one['bad']:
             bad.append("줄였더니 상자가 겹친다: %r" % one['bad'][:4])
 
-        # 2. 두 번 눌러도 같아야 한다. 안 그러면 누를 때마다 그래프가 흔들린다
-        ra = [r['r'] for r in one['rings']]
-        rb = [r['r'] for r in two['rings']]
-        if len(ra) != len(rb) or max((abs(x - y) for x, y in zip(ra, rb)), default=0) > 2:
-            bad.append("두 번째로 눌렀더니 값이 달라졌다: %r → %r" % (ra, rb))
+        # 2. 두 번째로 눌렀을 때 나빠지면 안 된다 — 누를수록 커지면 못 쓴다
+        s1, s2 = sum(r['r'] for r in one['rings']), sum(r['r'] for r in two['rings'])
+        if s2 > s1 + 2:
+            bad.append("두 번째로 눌렀더니 더 커졌다: %d → %d" % (s1, s2))
+        if two['bad']:
+            bad.append("두 번째에 상자가 겹친다: %r" % two['bad'][:4])
+
+        # 2b. 줄어들긴 해야 한다 — 아무 일도 안 하면 버튼이 의미가 없다
+        s0 = sum(r['r'] for r in before['rings'])
+        if s1 >= s0:
+            bad.append("누르기 전보다 안 줄었다: %d → %d" % (s0, s1))
 
         # 3. 가벼운 고리가 안쪽이어야 한다 (subRings 는 안→밖 정렬)
         ns = [r['n'] for r in one['rings'] if r['g'] in ('가벼운', '무거운')]

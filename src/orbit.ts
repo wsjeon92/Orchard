@@ -443,18 +443,46 @@ function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: 
      식구를 다시 펼 뿐이다. 한때 뒤집힌 고리를 밖으로 밀어 봤는데, 그건 정리가 크기를
      바꾸는 일이라 규칙을 어긴다 — 되돌렸다. 고리끼리 너무 가까우면 tightRings 가
      세어서 알린다. */
-  /* 고리마다 시작 각도를 어긋나게 한다. 전에는 모든 고리가 out(부모에서 본 방향)
-     에서 시작해서, 반지름만 다르고 각도는 같은 자리에 줄을 섰다 — AI 의 '아키텍쳐'
-     와 직접 자식 고리가 둘 다 -141° 였고, 그래서 '가상현실 ↔ computer vision' 이
-     119px 로 붙었다. 앞 고리 슬롯의 절반만큼 돌리면 뒤 고리가 앞 고리의 빈 곳에
-     앉는다. 식구 수에서 나오는 값이라 새로 정한 숫자가 없다. */
+  /* 고리를 **돌려서** 덜 겹치는 각도를 고른다.
+
+     상자는 가로로 길고 세로로 납작하다 — computer vision(w183) 과 얼굴인식(w100) 을
+     좌우로 놓으면 142px 가 필요한데 위아래로 놓으면 54px 면 된다. 2.6 배 차이다.
+     그래서 반지름을 키우는 것보다 **각도를 고르는 것**이 싸다.
+
+     후보 36 개(10°씩)를 돌려 보고 이미 놓인 것들(부모와 안쪽 고리 식구)과 겹친
+     넓이가 가장 작은 각도를 쓴다. 동점이면 먼저 것을 지킨다 — 첫 후보가 전과
+     같은 각도라서, 더 나아지지 않으면 안 움직인다. 누를 때마다 흔들리면 못 쓴다.
+
+     이것이 전에 두었던 "앞 고리 슬롯의 절반만큼 어긋내기" 규칙을 흡수한다.
+     안쪽과 각도가 겹치면 벌점이 커지니 저절로 어긋난다 — 규칙 하나를 지우고
+     그 자리에 목적을 둔다. */
+  const placed: { x: number; y: number; w: number; h: number }[] =
+    [{ x: px, y: py, w: nodeOf(id)?._w ?? 140, h: nodeOf(id)?._h ?? 38 }];
   let spin = 0;
   for (const g of s.rings) {
-    const out0 = out + spin;
-    spin += Math.PI / Math.max(1, g.ns.length);
     const R = live.rings.get("s:" + id + ":" + g.key)?.r ?? g.r;
     const arcs = g.ns.map((n) => arcShare(arcNeed(o.sys.get(n.id), liveReach(o, live, n.id))));
     const tot = arcs.reduce((a, b) => a + b, 0) || 1;
+    const offs: number[] = [];
+    let a0 = 0;
+    for (const w of arcs) { offs.push((2 * Math.PI * (a0 + w / 2)) / tot); a0 += w; }
+    /* 첫 후보는 **지금 앉아 있는 각도**다. 동점이면 먼저 것을 지키므로, 더 나아질
+       것이 없으면 아무것도 안 움직인다 — 그래야 반복이 멈춘다. 전에는 매번
+       out+spin 에서 다시 시작해서 누를 때마다 값이 달라졌다(3658 → 3435). */
+    const m0 = g.ns[0];
+    const here = m0 ? Math.atan2(cy(m0) - py, cx(m0) - px) - offs[0] : out + spin;
+    let out0 = here, bestClash = Infinity;
+    for (let t = 0; t <= 36; t++) {
+      const phi = t === 0 ? here : out + spin + ((t - 1) * Math.PI) / 18;
+      let sc = 0;
+      g.ns.forEach((m, i) => {
+        const x = px + Math.cos(phi + offs[i]) * R, y = py + Math.sin(phi + offs[i]) * R;
+        for (const q of placed) sc += clashArea(m._w ?? 140, m._h ?? 38, q.w, q.h, x - q.x, y - q.y);
+      });
+      if (sc < bestClash - 0.5) { bestClash = sc; out0 = phi; }
+      if (!bestClash) break;                       // 안 겹치면 더 볼 것 없다
+    }
+    spin += Math.PI / Math.max(1, g.ns.length);
     let acc = 0;
     g.ns.forEach((m, i) => {
       const a = out0 + (2 * Math.PI * (acc + arcs[i] / 2)) / tot;
@@ -462,6 +490,7 @@ function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: 
       const x = px + Math.cos(a) * R, y = py + Math.sin(a) * R;
       place(m, x, y);
       spokes?.push({ n: m, cx: px, cy: py, R, a, ring: "s:" + id + ":" + g.key });
+      placed.push({ x, y, w: m._w ?? 140, h: m._h ?? 38 });
       moons(o, live, m.id, x, y, a, spokes);
     });
     /* 궤도 노드는 안 그리지만 좌표는 성하게 둔다 — 미니맵·전체보기가 좌표를 본다.
@@ -1053,6 +1082,22 @@ export function swapSubRings(pid: string, keyA: string, keyB: string): boolean {
     글자 한 줄 높이쯤이다 — 겹치지만 않으면 작을수록 한눈에 들어온다. */
 const RING_PAD = 24;
 
+/** 상자 둘이 겹친 넓이. 0 이면 안 겹친다. 여백을 더해 아슬아슬한 것도 벌점을 준다 */
+function clashArea(aw: number, ah: number, bw: number, bh: number, dx: number, dy: number): number {
+  const ox = (aw + bw) / 2 + RING_PAD - Math.abs(dx);
+  const oy = (ah + bh) / 2 + RING_PAD - Math.abs(dy);
+  return ox > 0 && oy > 0 ? ox * oy : 0;
+}
+
+type Band = [number, number] | null;
+/** R·c 가 (k-m, k+m) 안에 들면 겹친다 — 그 R 구간을 돌려준다. 없으면 null */
+function band(c: number, k: number, m: number): Band {
+  if (Math.abs(c) < 1e-9) return Math.abs(k) < m ? [0, Infinity] : null;
+  let lo = (k - m) / c, hi = (k + m) / c;
+  if (lo > hi) [lo, hi] = [hi, lo];
+  return hi <= 0 ? null : [Math.max(lo, 0), hi];
+}
+
 /** 서브 고리를 가벼운 것부터 안쪽으로, **겹치지 않는 선에서 가장 작게** 다시 앉힌다.
 
     전에는 "안쪽에서 제일 큰 식구와 바깥에서 제일 큰 식구가 같은 각도에 포개져
@@ -1089,37 +1134,60 @@ export function orderSubRings(pid: string): number {
   const want = [...rows].sort((a, b) =>
     (ringWeight(a.g, cnt) - ringWeight(b.g, cnt)) || (depthOf(a.g) - depthOf(b.g)));
   const c = { x: cx(p), y: cy(p) };
-  /** 이 노드와 그 달들이 차지하는 원의 반지름. 달이 없으면 자기 상자의 반쪽 */
-  const reachOf = (n: GNode) =>
-    Math.max(Math.hypot((n._w ?? 140) / 2, (n._h ?? 38) / 2), liveReach(o, live, n.id));
   const pr = Math.hypot((p._w ?? 140) / 2, (p._h ?? 38) / 2);
 
   let moved = 0, prevR = 0;
-  let inner: { a: number; reach: number }[] = [];
+  let inner: { a: number; reach: number; w: number; h: number; moons: boolean }[] = [];
+  const pw = p._w ?? 140, ph = p._h ?? 38;
+  const inter = (a: Band, b: Band): Band =>
+    !a || !b ? null : (Math.min(a[1], b[1]) > Math.max(a[0], b[0])
+      ? [Math.max(a[0], b[0]), Math.min(a[1], b[1])] : null);
   for (const x of want) {
     const ms = x.lr.ids.map((id) => nodeOf(id)).filter(Boolean) as GNode[];
     if (!ms.length) continue;
-    /* 각도는 **지금 앉아 있는 자리**에서 읽는다. 반지름만 바꾸므로 각도는 그대로다 */
-    const info = ms.map((n) => ({
-      n, a: Math.atan2(cy(n) - c.y, cx(n) - c.x), reach: reachOf(n),
-    }));
-    let r = Math.max(...info.map((j) => pr + j.reach + RING_PAD));          // 1
-    for (const j of info) {                                                 // 2
+    /* 각도는 **지금 앉아 있는 자리**에서 읽는다. 반지름만 바꾸므로 각도는 그대로다 —
+       각도를 고르는 일은 moons() 가 고리를 돌려서 한다 */
+    const info = ms.map((n) => {
+      const w = n._w ?? 140, h = n._h ?? 38;
+      const reach = Math.max(Math.hypot(w / 2, h / 2), liveReach(o, live, n.id));
+      return { n, w, h, reach, a: Math.atan2(cy(n) - c.y, cx(n) - c.x),
+               moons: reach > Math.hypot(w / 2, h / 2) + 1 };
+    });
+    /* 겹치는 R 구간을 모은다. 달이 있는 노드는 원으로 재고(달이 사방으로 퍼진다),
+       없으면 **상자로** 잰다 — 외접원으로 재면 가로로 긴 상자가 세로로 놓일 때
+       불필요하게 벌어진다. 실제로 AI '모델 신뢰' 는 사용자가 98 로 줄여 놨는데
+       외접원 공식은 148 을 요구했고, 98 에서 아무것도 안 겹쳤다. */
+    const bands: Band[] = [];
+    for (const j of info) {
+      bands.push(j.moons
+        ? [0, pr + j.reach + RING_PAD]
+        : inter(band(Math.cos(j.a), 0, (pw + j.w) / 2 + RING_PAD),
+                band(Math.sin(j.a), 0, (ph + j.h) / 2 + RING_PAD)));
       for (const i of inner) {
-        const d = i.reach + j.reach + RING_PAD;
-        let dd = Math.abs(j.a - i.a) % (2 * Math.PI);
-        if (dd > Math.PI) dd = 2 * Math.PI - dd;
-        /* 코사인 법칙을 R 로 푼다. 판별식이 음수면 그 각도에서는 어떤 R 이어도
-           안 닿는다 — 제약이 아니다 */
-        const cs = Math.cos(dd);
-        const disc = prevR * prevR * (cs * cs - 1) + d * d;
-        if (disc > 0) r = Math.max(r, prevR * cs + Math.sqrt(disc));
+        if (i.moons || j.moons) {
+          const d = i.reach + j.reach + RING_PAD;
+          let dd = Math.abs(j.a - i.a) % (2 * Math.PI);
+          if (dd > Math.PI) dd = 2 * Math.PI - dd;
+          const cs = Math.cos(dd);
+          const disc = prevR * prevR * (cs * cs - 1) + d * d;
+          if (disc > 0) {
+            const mid = prevR * cs, rad = Math.sqrt(disc);
+            bands.push([Math.max(0, mid - rad), mid + rad]);
+          }
+        } else {
+          bands.push(inter(
+            band(Math.cos(j.a), prevR * Math.cos(i.a), (i.w + j.w) / 2 + RING_PAD),
+            band(Math.sin(j.a), prevR * Math.sin(i.a), (i.h + j.h) / 2 + RING_PAD)));
+        }
       }
     }
-    if (prevR) r = Math.max(r, prevR + RING_PAD);                           // 3
-    const circ = info.reduce((sum, j) =>                                    // 4
-      sum + Math.max((j.n._w ?? 140) + RING_PAD, 2 * j.reach + RING_PAD), 0) / (2 * Math.PI);
-    r = Math.max(r, circ);
+    /* 둘레에 식구가 다 들어가는가. 지금 그래프에서는 거의 안 걸린다 */
+    const circ = info.reduce((sum, j) =>
+      sum + Math.max(j.w + RING_PAD, 2 * j.reach + RING_PAD), 0) / (2 * Math.PI);
+    /* 바닥에서 올라가며 겹치는 구간을 건너뛴다 */
+    let r = Math.max(circ, prevR ? prevR + RING_PAD : 0);
+    for (const bd of bands.filter(Boolean).sort((a, b) => a![0] - b![0]) as [number, number][])
+      if (bd[0] <= r && r < bd[1]) r = bd[1];
 
     if (Math.abs(x.lr.r - r) >= 1) {
       const ids = x.lr.group ? [...x.lr.ids, x.lr.group] : x.lr.ids;
@@ -1133,6 +1201,43 @@ export function orderSubRings(pid: string): number {
     }
     inner = info; prevR = r;
   }
+  return moved;
+}
+
+/** 고리를 돌려 보고 **제일 작았던 상태로 되돌린다.**
+
+    각도는 반지름 다음에 정해지고(moons 가 고리를 돌린다) 반지름은 각도를 보고
+    정해지므로(orderSubRings) 둘이 서로를 흔든다. 실제로 수렴하지 않고 진동했다 —
+    반지름 합이 3518 로 내려갔다가 다시 누르면 3567 로 올라왔다. 반복 횟수를
+    늘려도(8 → 24) 멈추지 않았다.
+
+    그래서 "멈출 때까지 돌린다" 를 버리고 "돌면서 제일 좋았던 자리를 기억한다" 로
+    바꾼다. 결과가 들어온 상태의 함수라서 결정적이고, 누를수록 나빠지지 않는다. */
+export function reseatRings(pid?: string): number {
+  const snap = () => S.nodes.map((n) => ({ n, x: n.x, y: n.y }));
+  const restore = (t: { n: GNode; x: number; y: number }[]) => {
+    for (const q of t) { q.n.x = q.x; q.n.y = q.y; q.n._rx = q.x; q.n._ry = q.y; }
+  };
+  /* 점수는 서브 고리 반지름의 합 — 작을수록 한눈에 들어온다. 상자가 겹치는 자리는
+     orderSubRings 가 애초에 만들지 않으므로 벌점을 따로 두지 않는다 */
+  const score = () => {
+    let t = 0;
+    for (const [id] of plan().sys) for (const r of subRings(id)) t += r.r;
+    return t;
+  };
+  tidyOrbit();                       // 먼저 각도를 잡는다 — 그 각도를 보고 줄인다
+  let best = snap(), bestScore = score(), moved = 0;
+  for (let pass = 0; pass < 12; pass++) {
+    let m = 0;
+    if (pid) m = orderSubRings(pid);
+    else for (const id of [...plan().sys.keys()]) m += orderSubRings(id);
+    tidyOrbit();                     // 달까지 새 반지름에 맞춰 따라오게
+    if (!m) break;                   // 더 움직일 것이 없다
+    moved += m;
+    const sc = score();
+    if (sc < bestScore - 1) { bestScore = sc; best = snap(); }
+  }
+  restore(best);
   return moved;
 }
 

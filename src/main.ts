@@ -13,7 +13,7 @@ import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
 } from "./history";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
-import { FIRST_RING, freezeRings, mainRingName, stepRingAnim, newRingRadius, orbitHits, orbitIndex, orderSubRings, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, settleComposition, subRings, swapSubRings, tidyOrbit } from "./orbit";
+import { FIRST_RING, freezeRings, mainRingName, stepRingAnim, newRingRadius, orbitHits, orbitIndex, orderSubRings, reseatRings, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, settleComposition, subRings, swapSubRings, tidyOrbit } from "./orbit";
 import { bindMinimap, drawMini } from "./minimap";
 import {
   bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown, openPhone,
@@ -342,13 +342,7 @@ el("btnRingOrder").onclick = () => {
      정해진다 — 한 번으로는 첫 배치의 각도만 보고 끝난다. 정리가 새 반지름에서
      각도를 다시 펴면, 두 번째 앉히기가 그 각도로 한 번 더 줄인다.
      세 번은 안 돈다 — 누를 때마다 값이 달라지면 쓸 수 없다. */
-  let moved = 0;
-  for (let pass = 0; pass < 2; pass++) {
-    let m = 0;
-    for (const pid of [...orbitPlan().sys.keys()]) m += orderSubRings(pid);
-    moved += m;
-    tidyOrbit();                // 달까지 새 반지름에 맞춰 따라오게
-  }
+  const moved = reseatRings() + tidyOverlaps();   // 체계끼리 남은 겹침도 푼다
   if (!moved) { flashOrder("더 줄일 것이 없습니다"); return; }
   save();
   render();
@@ -485,7 +479,7 @@ const api = {
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode, matchEdge, matchSet,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion, easeView, snapView, stepViewAnim, stepRingAnim, viewAnimRunning,
-  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orderSubRings, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, swapSubRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, freezeRings, mainRingName, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
+  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orderSubRings, reseatRings, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, swapSubRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, freezeRings, mainRingName, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass, syncEmphClass,
   addPending, acceptPending, declinePending, drawPending, setPending, pendingOpen,
   pendingBlocker, syncPendingCount,
