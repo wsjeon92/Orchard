@@ -352,7 +352,7 @@ el("btnRingOrder").onclick = () => {
 let orderTimer: ReturnType<typeof setTimeout> | null = null;
 function flashOrder(msg: string) {
   const b = el("btnRingOrder");
-  const keep = b.dataset.label ?? (b.dataset.label = b.textContent ?? "고리 순서");
+  const keep = b.dataset.label ?? (b.dataset.label = b.textContent ?? "고리 다시 앉히기");
   b.textContent = msg;
   if (orderTimer) clearTimeout(orderTimer);
   orderTimer = setTimeout(() => { b.textContent = keep; }, 1600);

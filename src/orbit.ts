@@ -175,7 +175,10 @@ function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSy
   /* 안쪽부터: 깊이 얕은 것, 같으면 가벼운 것. 큰 고리를 바깥에 두면 덜 부딪힌다 */
   const list = ord.map((kk) => rings.get(kk)!);
   const wt = new Map(list.map((g) => [g.key, ringWeight(g, cnt)] as const));
-  list.sort((a, b) => (depthOf(a) - depthOf(b)) || (wt.get(a.key)! - wt.get(b.key)!));
+  /* 무게가 먼저다. 깊이는 동점일 때만 본다 — 전에는 깊이가 먼저라 궤도로 묶인
+     고리가 늘 안쪽이고 행성의 직접 자식 고리가 늘 바깥이었다. 식구 3 인 고리가
+     식구 5 인 고리보다 바깥에 앉아서, '가벼운 것이 안쪽' 규칙과 어긋나 보였다. */
+  list.sort((a, b) => (wt.get(a.key)! - wt.get(b.key)!) || (depthOf(a) - depthOf(b)));
   /* 위성은 고리 한 바퀴에 고르게 편다. 부챗살로 바깥쪽에만 몰면 원의 나머지가
      텅 비는데, 그 빈 호가 메인 고리를 가로질러 다른 노드 위를 지난다. 한 바퀴를
      다 쓰면 고리가 실제로 채워져 있어서 태양계처럼 읽히고, 행성이 메인 고리에서
@@ -394,6 +397,31 @@ function place(n: GNode, x: number, y: number) {
   n.x = Math.round(x - (n._w ?? 140) / 2);
   n.y = Math.round(y - (n._h ?? 38) / 2);
   n._rx = n.x; n._ry = n.y;
+}
+
+/** 행성을 옮기면 그 달들도 같은 만큼 따라간다. 안 데려가면 subRings 가 고리
+    반지름을 **식구들의 평균 거리**로 재기 때문에 측정값이 엉뚱해진다 — 실제로
+    강화학습을 모델링 고리에서 옮겼더니 그 아래 '보상 설계' 고리의 측정 반지름이
+    124 에서 327 로 튀었다. 평행이동이라 각도와 간격은 그대로다. */
+function moveWithMoons(n: GNode, x: number, y: number) {
+  const ox = n.x, oy = n.y;
+  place(n, x, y);
+  const dx = n.x - ox, dy = n.y - oy;
+  if (!dx && !dy) return;
+  for (const id of descendantsOf(n.id)) {
+    const m = nodeOf(id);
+    if (!m) continue;
+    m.x += dx; m.y += dy; m._rx = m.x; m._ry = m.y;
+  }
+}
+
+/** 고리 위의 한 자리를 옮긴다. 궤도 노드는 달을 데려가지 않는다 — 궤도 노드의
+    자손이 곧 그 고리의 식구라서, 데려가면 식구가 **두 번** 옮겨진다. 실제로
+    그렇게 했다가 맞바꾸기가 반지름 집합을 바꿔 버렸다. 궤도 노드는 고리에 쓰인
+    이름일 뿐이고 식구는 각자 자기 자리로 간다. */
+function reseat(n: GNode, x: number, y: number) {
+  if (isGroup(n)) place(n, x, y);
+  else moveWithMoons(n, x, y);
 }
 
 /** 위성을 고리 한 바퀴에 편다. 첫 자리는 태양 반대쪽 — 바깥을 보게.
@@ -989,7 +1017,7 @@ export function swapSubRings(pid: string, keyA: string, keyB: string): boolean {
       const n = nodeOf(id);
       if (!n) continue;
       const a = Math.atan2(cy(n) - c.y, cx(n) - c.x);
-      place(n, c.x + Math.cos(a) * r, c.y + Math.sin(a) * r);
+      reseat(n, c.x + Math.cos(a) * r, c.y + Math.sin(a) * r);
     }
   };
   const rA = A.r, rB = B.r;
@@ -1016,21 +1044,31 @@ export function orderSubRings(pid: string): number {
     if (lr && g.ns.length) rows.push({ g, lr });
   }
   if (rows.length < 2) return 0;
-  const radii = rows.map((x) => x.lr.r).sort((a, b) => a - b);
   const cnt = subtreeCount(kin());          // 버튼으로 한 번 부르는 길이라 여기서 센다
+  const all = plan().sys;
+  /* 지금 반지름을 작은 것부터 늘어놓고 **간격**을 기억한다. 무게 순으로 다시 앉힐 때
+     그 간격을 그대로 쓰되, 두 고리가 겹쳐 있으면 벌린다 — 방금 만든 고리는 사용자가
+     정한 크기가 아예 없어서 같은 자리에 쌓인다. 실제로 '데이터 종류'와 '모델 허브'가
+     둘 다 236 이었고, 있는 반지름을 맞바꾸기만 하던 전 판에서는 할 일이 없었다.
+     벌리는 폭은 새로 정하지 않는다 — system() 이 쓰는 것과 같은 값이다. */
+  const now = rows.map((x) => x.lr.r).sort((a, b) => a - b);
+  const gaps = now.slice(1).map((r, i) => r - now[i]);
   const want = [...rows].sort((a, b) =>
-    (depthOf(a.g) - depthOf(b.g)) || (ringWeight(a.g, cnt) - ringWeight(b.g, cnt)));
+    (ringWeight(a.g, cnt) - ringWeight(b.g, cnt)) || (depthOf(a.g) - depthOf(b.g)));
+  const reach = (g: OrbRing) => Math.max(0, ...g.ns.map((n) => all.get(n.id)?.reach ?? 0));
   const c = { x: cx(p), y: cy(p) };
-  let moved = 0;
+  let moved = 0, r = now[0], prev = 0;
   want.forEach((x, i) => {
-    const r = radii[i];
+    const cur = reach(x.g);
+    if (i > 0) r = Math.max(r + gaps[i - 1], r + MOON_GAP + prev + cur, MOON_R);
+    prev = cur;
     if (Math.abs(x.lr.r - r) < 1) return;       // 이미 제자리
     const ids = x.lr.group ? [...x.lr.ids, x.lr.group] : x.lr.ids;
     for (const id of ids) {
       const n = nodeOf(id);
       if (!n) continue;
       const a = Math.atan2(cy(n) - c.y, cx(n) - c.x);
-      place(n, c.x + Math.cos(a) * r, c.y + Math.sin(a) * r);
+      reseat(n, c.x + Math.cos(a) * r, c.y + Math.sin(a) * r);
       moved++;
     }
   });
