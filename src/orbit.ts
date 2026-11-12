@@ -171,9 +171,10 @@ function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSy
     }
   }
 
-  /* 안쪽부터: 깊이 얕은 것, 같으면 식구 적은 것. 큰 고리를 바깥에 두면 덜 부딪힌다 */
+  /* 안쪽부터: 깊이 얕은 것, 같으면 가벼운 것. 큰 고리를 바깥에 두면 덜 부딪힌다 */
   const list = ord.map((kk) => rings.get(kk)!);
-  list.sort((a, b) => (depthOf(a) - depthOf(b)) || (a.ns.length - b.ns.length));
+  const wt = new Map(list.map((g) => [g.key, ringWeight(g)] as const));
+  list.sort((a, b) => (depthOf(a) - depthOf(b)) || (wt.get(a.key)! - wt.get(b.key)!));
   /* 위성은 고리 한 바퀴에 고르게 편다. 부챗살로 바깥쪽에만 몰면 원의 나머지가
      텅 비는데, 그 빈 호가 메인 고리를 가로질러 다른 노드 위를 지난다. 한 바퀴를
      다 쓰면 고리가 실제로 채워져 있어서 태양계처럼 읽히고, 행성이 메인 고리에서
@@ -199,6 +200,21 @@ function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSy
 
 /** 고리 키의 깊이 부분. 그룹 고리는 자기 앵커 기준 0 이라 가장 안쪽으로 온다 */
 const depthOf = (g: OrbRing) => (g.group ? 0 : Number(g.key.split("#")[1]) || 1);
+
+/** 고리의 무게 — 앉은 식구와 그 **아래 모든 자손**의 수. 궤도 노드는 고리 위에 자리를
+    차지하지 않으니(이름일 뿐이다) 세지 않는다.
+    직접 식구만 세면 '식구 둘'인 고리와 '식구 둘 + 손자 열'인 고리가 같아 보이고,
+    무거운 쪽이 안쪽에 앉아 자기 달들로 바깥 고리를 뚫는다. 자손까지 세면 무거운
+    체계가 바깥으로 가서 펼 자리가 생긴다. */
+const ringWeight = (g: OrbRing) =>
+  g.ns.reduce((sum, n) => {
+    let c = 1;
+    for (const id of descendantsOf(n.id)) {
+      const d = nodeOf(id);
+      if (d && !isGroup(d)) c++;
+    }
+    return sum + c;
+  }, 0);
 
 /** 이 행성이 메인 고리에서 차지해야 하는 호 길이 — 위성 체계가 이웃을 밀어낸다 */
 function arcNeed(s: OrbSys | undefined, reach?: number): number {
@@ -951,6 +967,44 @@ export function swapSubRings(pid: string, keyA: string, keyB: string): boolean {
   move(A, rB);
   move(B, rA);
   return true;
+}
+
+/** 서브 고리를 무게 순으로 다시 앉힌다 — 가벼운 고리가 안쪽으로 간다.
+    **반지름 값의 집합은 그대로**다. 어느 고리가 어느 자리에 앉느냐만 바뀌므로
+    "정리는 고리 크기를 바꾸지 않는다"와 어긋나지 않는다 — swapSubRings 를 한 번에
+    여러 고리로 하는 것과 같다.
+    궤도 정리에 넣지 않고 따로 둔 이유: 넣으면 사용자가 손으로 맞바꿔 둔 순서를
+    정리를 누를 때마다 덮는다. 순서는 사용자가 정하는 것이고, 이 함수는 그 일을
+    한 번에 해 주는 도구다. */
+export function orderSubRings(pid: string): number {
+  const p = nodeOf(pid);
+  const sys = plan().sys.get(pid);
+  if (!p || !sys || sys.rings.length < 2) return 0;
+  const live = orbitIndex();
+  const rows: { g: OrbRing; lr: LiveRing }[] = [];
+  for (const g of sys.rings) {
+    const lr = live.rings.get("s:" + pid + ":" + g.key);
+    if (lr && g.ns.length) rows.push({ g, lr });
+  }
+  if (rows.length < 2) return 0;
+  const radii = rows.map((x) => x.lr.r).sort((a, b) => a - b);
+  const want = [...rows].sort((a, b) =>
+    (depthOf(a.g) - depthOf(b.g)) || (ringWeight(a.g) - ringWeight(b.g)));
+  const c = { x: cx(p), y: cy(p) };
+  let moved = 0;
+  want.forEach((x, i) => {
+    const r = radii[i];
+    if (Math.abs(x.lr.r - r) < 1) return;       // 이미 제자리
+    const ids = x.lr.group ? [...x.lr.ids, x.lr.group] : x.lr.ids;
+    for (const id of ids) {
+      const n = nodeOf(id);
+      if (!n) continue;
+      const a = Math.atan2(cy(n) - c.y, cx(n) - c.x);
+      place(n, c.x + Math.cos(a) * r, c.y + Math.sin(a) * r);
+      moved++;
+    }
+  });
+  return moved;
 }
 
 export function subRings(pid: string, exclude?: string): RingChoice[] {

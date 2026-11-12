@@ -26,6 +26,12 @@ export let S: GraphState = {
      다르다 — ML 에서 3편은 아무것도 아니고 좁은 분야에서는 많다. 그래서 설정이다.
    · RIPE_MAX 는 사람 쪽 값이다. 한 번에 보고 행동할 수 있는 개수는 그래프가
      커져도 늘지 않는다. 그래서 그래프 크기와 무관한 상수다. */
+/* 줌 한계. 네 군데(휠·핀치·버튼·전체보기)가 각자 숫자를 들고 있다가 어긋났다 —
+   전체보기가 0.2 에서 멈춰서 그래프가 커지면 화면에 다 안 들어왔다.
+   캔버스에는 경계가 없다(#world 는 폭이 없고 #svg 는 overflow:visible) —
+   무한히 펼쳐지는 판이고, 막고 있던 것은 이 하한뿐이었다. */
+export const K_MIN = 0.05;
+export const K_MAX = 2.5;
 export const RIPE_FLOOR = 3;
 export const RIPE_MAX = 10;
 

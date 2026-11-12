@@ -13,7 +13,7 @@ import { degree, descendantsOf, focusSet, foldKids, hiddenSet, canGroup, groupOf
 import { relaxLabels } from "./labels";
 import { drawMini } from "./minimap";
 import { renderSide } from "./panel";
-import { S, UI, VIEW, edgeOf, isGroup, kindOf, nodeOf, save, setHidden } from "./state";
+import { K_MIN, S, UI, VIEW, edgeOf, isGroup, kindOf, nodeOf, save, setHidden } from "./state";
 import { isViewer } from "./viewer";
 import type { GEdge, GNode } from "./types";
 
@@ -405,7 +405,10 @@ export function fit(list?: GNode[]) {
   const r = stage.getBoundingClientRect();
   // 폰에서 80px 여백은 폭의 40% 를 먹는다 — 그만큼 더 축소되어 글자가 읽히지 않는다
   const pad = r.width < 640 ? 24 : 80;
-  const k = Math.min(1.5, Math.max(0.2,
+  /* 위로는 1.5 에서 멈춘다 — 노드 두어 개짜리 그래프를 꽉 채우면 글자가 우스꽈진다.
+     아래는 K_MIN 까지 내려간다. 0.2 에서 멈추던 동안 큰 그래프는 전체보기를 눌러도
+     화면 밖으로 넘쳤다 */
+  const k = Math.min(1.5, Math.max(K_MIN,
     Math.min((r.width - pad * 2) / (x1 - x0 || 1), (r.height - pad * 2) / (y1 - y0 || 1))));
   S.view.k = k;
   S.view.x = r.width / 2 - ((x0 + x1) / 2) * k;

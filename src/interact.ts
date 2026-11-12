@@ -7,7 +7,7 @@ import {
 import { groupWith } from "./panel";
 import { Drop, applyView, paint, render, select, setBindLabel, setDragLine, snapView } from "./render";
 import { orbitIndex } from "./orbit";
-import { S, UI, VIEW, edgeOf, isGroup, nodeOf, save } from "./state";
+import { K_MAX, K_MIN, S, UI, VIEW, edgeOf, isGroup, nodeOf, save } from "./state";
 import { ask, closeAll } from "./modals";
 import { redo, undo } from "./history";
 import { isViewer } from "./viewer";
@@ -198,7 +198,7 @@ function stepPinch() {
   if (!pinch || touches.size < 2) return;
   const r = stage.getBoundingClientRect();
   const g = pinchGeom();
-  const k = Math.min(2.5, Math.max(0.2, pinch.k0 * (g.d / pinch.d0)));
+  const k = Math.min(K_MAX, Math.max(K_MIN, pinch.k0 * (g.d / pinch.d0)));
   // 집기 시작할 때 가운데에 있던 월드 좌표를 지금 가운데에 그대로 둔다 (벌림과 밀기를 함께 처리)
   S.view.x = (g.mx - r.left) - (pinch.m0x - pinch.x0) * (k / pinch.k0);
   S.view.y = (g.my - r.top) - (pinch.m0y - pinch.y0) * (k / pinch.k0);
@@ -444,7 +444,7 @@ export function bindCanvas() {
     ev.preventDefault();
     const r = stage.getBoundingClientRect();
     const mx = ev.clientX - r.left, my = ev.clientY - r.top, old = S.view.k;
-    const k = Math.min(2.5, Math.max(0.2, old * (ev.deltaY < 0 ? 1.12 : 1 / 1.12)));
+    const k = Math.min(K_MAX, Math.max(K_MIN, old * (ev.deltaY < 0 ? 1.12 : 1 / 1.12)));
     S.view.x = mx - (mx - S.view.x) * (k / old);
     S.view.y = my - (my - S.view.y) * (k / old);
     S.view.k = k;

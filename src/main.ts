@@ -13,7 +13,7 @@ import {
   clearStacks, initHistory, redo, resetHistoryBase, snapshot, stacks, undo, updateUndoBtns,
 } from "./history";
 import { GAP_ORDER, GAP_WHY, findGaps, gapCounts, gapSet } from "./gaps";
-import { FIRST_RING, freezeRings, mainRingName, stepRingAnim, newRingRadius, orbitHits, orbitIndex, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, settleComposition, subRings, swapSubRings, tidyOrbit } from "./orbit";
+import { FIRST_RING, freezeRings, mainRingName, stepRingAnim, newRingRadius, orbitHits, orbitIndex, orderSubRings, orbitOfNode, orbitRings, orbitSays, orbitView, placeOnMainOrbit, placeOnSubOrbit, plan as orbitPlan, setOrbitRadius, settleComposition, subRings, swapSubRings, tidyOrbit } from "./orbit";
 import { bindMinimap, drawMini } from "./minimap";
 import {
   bindModals, closeAll, loadSlot, openBulk, setApplyView, syncTitleInput, toMarkdown, openPhone,
@@ -29,7 +29,7 @@ import {
   setFocus, fitFocus, setSelect, snapView, stepViewAnim, toggleFold, viewAnimRunning,
 } from "./render";
 import {
-  RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView,
+  K_MAX, K_MIN, RIPE_FLOOR, RIPE_MAX, S, UI, VIEW, edgeOf, load, loadView, nodeOf, onAfterSave, save, saveView,
   seed, syncDataKey,
   setGraph, setQuery, setSel, slotSave, slots, strip, reduceMotion, normalize, isGroup,
 } from "./state";
@@ -95,7 +95,7 @@ el("btnRedo").onclick = redo;
 function zoomBy(f: number) {
   const r = stage.getBoundingClientRect();
   const mx = r.width / 2, my = r.height / 2, old = S.view.k;
-  const k = Math.min(2.5, Math.max(0.2, old * f));
+  const k = Math.min(K_MAX, Math.max(K_MIN, old * f));
   S.view.x = mx - (mx - S.view.x) * (k / old);
   S.view.y = my - (my - S.view.y) * (k / old);
   S.view.k = k;
@@ -334,6 +334,30 @@ el("btnOrbit").onclick = () => {
   render();                     // x/y 가 바뀌었으니 애니메이션으로 미끄러진다
   flashTidy(`${moved}개를 옮겼습니다${tight}`);
 };
+/* 고리 순서 — 서브 고리를 무게 순으로 다시 앉힌다. 반지름 값의 집합은 그대로고
+   어느 고리가 어느 자리에 앉느냐만 바뀐다. 정리와 따로 둔 이유는 orderSubRings 의
+   주석에 있다 — 손으로 맞바꿔 둔 순서를 정리가 매번 덮지 않게. */
+el("btnRingOrder").onclick = () => {
+  let moved = 0, hit = 0;
+  for (const pid of [...orbitPlan().sys.keys()]) {
+    const m = orderSubRings(pid);
+    if (m) { moved += m; hit++; }
+  }
+  if (!moved) { flashOrder("바꿀 순서가 없습니다"); return; }
+  tidyOrbit();                  // 달까지 새 반지름에 맞춰 따라오게
+  save();
+  render();
+  flashOrder(`중심 ${hit}곳의 고리를 다시 앉혔습니다`);
+};
+let orderTimer: ReturnType<typeof setTimeout> | null = null;
+function flashOrder(msg: string) {
+  const b = el("btnRingOrder");
+  const keep = b.dataset.label ?? (b.dataset.label = b.textContent ?? "고리 순서");
+  b.textContent = msg;
+  if (orderTimer) clearTimeout(orderTimer);
+  orderTimer = setTimeout(() => { b.textContent = keep; }, 1600);
+}
+
 /** 버튼 옆에 결과를 잠깐 보여준다 — 아무 일도 안 일어난 것처럼 보이면 눌렀는지 알 수 없다 */
 let tidyTimer: ReturnType<typeof setTimeout> | null = null;
 function flashTidy(msg: string) {
@@ -456,7 +480,7 @@ const api = {
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode, matchEdge, matchSet,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion, easeView, snapView, stepViewAnim, stepRingAnim, viewAnimRunning,
-  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, swapSubRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, freezeRings, mainRingName, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
+  findGaps, gapCounts, gapSet, GAP_WHY, GAP_ORDER, tidyOrbit, orderSubRings, orbitPlan, orbitRings, orbitIndex, orbitHits, orbitSays, subRings, swapSubRings, newRingRadius, placeOnSubOrbit, placeOnMainOrbit, settleComposition, freezeRings, mainRingName, FIRST_RING, orbitView, setOrbitRadius, orbitOfNode,
   addTopic, drawTopics, setTopics, topicsOpen, syncAnimClass, syncEmphClass,
   addPending, acceptPending, declinePending, drawPending, setPending, pendingOpen,
   pendingBlocker, syncPendingCount,
