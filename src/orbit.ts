@@ -1137,6 +1137,7 @@ export function orderSubRings(pid: string): number {
   const pr = Math.hypot((p._w ?? 140) / 2, (p._h ?? 38) / 2);
 
   let moved = 0, prevR = 0;
+  const doneR: number[] = [];          // 이미 자리를 정한 형제 고리의 반지름
   let inner: { a: number; reach: number; w: number; h: number; moons: boolean }[] = [];
   const pw = p._w ?? 140, ph = p._h ?? 38;
   const inter = (a: Band, b: Band): Band =>
@@ -1158,6 +1159,21 @@ export function orderSubRings(pid: string): number {
        불필요하게 벌어진다. 실제로 AI '모델 신뢰' 는 사용자가 98 로 줄여 놨는데
        외접원 공식은 148 을 요구했고, 98 에서 아무것도 안 겹쳤다. */
     const bands: Band[] = [];
+    /* 식구가 자기 고리를 거느리면 그 **원** 은 사방으로 돈다 — 각도와 상관없이
+       형제 고리를 가로지른다. 멤버끼리의 충돌만 각도로 재던 탓에 "멀리 있으니
+       괜찮다" 로 넘어갔고, computer vision(AI 에서 210, 자기 고리 128) 의 원이
+       AI 의 아키텍쳐(171)·S3(190) 를 뚫었다. 82~338 구간을 덮으니 그 안의 고리는
+       전부 걸린다.
+       그래서 형제 고리의 반지름마다, 그 둘레 ±(행성의 고리 반지름) 을 막는다.
+       자기가 앉은 고리는 뺀다 — 거기는 반드시 만나고 그것이 궤도 모형이다. */
+    for (const j of info) {
+      if (!j.moons) continue;
+      for (const own of subRings(j.n.id)) {
+        for (const Rk of doneR) {
+          bands.push([Rk - own.r - RING_PAD, Rk + own.r + RING_PAD]);
+        }
+      }
+    }
     /* 고리 **원** 은 사방으로 도니까 중심 노드의 반대각선을 넘어야 한다. 노드끼리는
        세로로 54 면 되지만 원은 그렇지 않다 — 상자 기하를 넣으면서 이걸 빠뜨려서
        computer vision(상자 183x47, 반대각선 94) 의 고리가 67 로 앉아 자기 이름을
@@ -1204,7 +1220,7 @@ export function orderSubRings(pid: string): number {
         moved++;
       }
     }
-    inner = info; prevR = r;
+    inner = info; prevR = r; doneR.push(r);
   }
   return moved;
 }
@@ -1223,12 +1239,40 @@ export function reseatRings(pid?: string): number {
   const restore = (t: { n: GNode; x: number; y: number }[]) => {
     for (const q of t) { q.n.x = q.x; q.n.y = q.y; q.n._rx = q.x; q.n._ry = q.y; }
   };
-  /* 점수는 서브 고리 반지름의 합 — 작을수록 한눈에 들어온다. 상자가 겹치는 자리는
-     orderSubRings 가 애초에 만들지 않으므로 벌점을 따로 두지 않는다 */
+  /* 점수는 **위반 건수가 먼저, 크기가 나중**이다.
+
+     처음에는 반지름 합만 봤다. 그랬더니 제약을 지키느라 고리가 커진 상태가 늘
+     점수에서 졌고, 되돌리기가 위반이 남은 작은 상태를 골랐다 — computer vision
+     의 고리가 AI 의 아키텍쳐·S3 를 뚫은 채 그대로였다. 틀린 답이 작다고 고를
+     수는 없다. 그래서 위반을 먼저 세고, 같은 위반 수에서만 작은 쪽을 고른다.
+
+     위반 = 부모-자식이 아닌 두 고리가 교차하는 것. 부모-자식은 구조적으로
+     불가피하다 — 행성은 부모의 고리 **위에** 앉으므로 그 행성의 고리는 반드시
+     부모 고리를 만난다. 그것까지 세면 늘 위반이라 신호가 안 된다. */
+  const violations = () => {
+    const rs: { x: number; y: number; r: number; ids: string[]; own: string }[] = [];
+    for (const [id] of plan().sys) {
+      const n = nodeOf(id);
+      if (!n) continue;
+      for (const g of subRings(id)) rs.push({ x: cx(n), y: cy(n), r: g.r, ids: g.ids, own: id });
+    }
+    let bad = 0;
+    for (let i = 0; i < rs.length; i++) {
+      for (let j = i + 1; j < rs.length; j++) {
+        const a = rs[i], b2 = rs[j];
+        const d = Math.hypot(a.x - b2.x, a.y - b2.y);
+        if (d < 1) continue;                                  // 같은 중심 — 형제 고리
+        if (!(Math.abs(a.r - b2.r) <= d && d <= a.r + b2.r)) continue;
+        if (b2.ids.includes(a.own) || a.ids.includes(b2.own)) continue;   // 부모-자식
+        bad++;
+      }
+    }
+    return bad;
+  };
   const score = () => {
     let t = 0;
     for (const [id] of plan().sys) for (const r of subRings(id)) t += r.r;
-    return t;
+    return violations() * 100000 + t;     // 위반이 먼저, 같으면 작은 쪽
   };
   tidyOrbit();                       // 먼저 각도를 잡는다 — 그 각도를 보고 줄인다
   let best = snap(), bestScore = score(), moved = 0;
