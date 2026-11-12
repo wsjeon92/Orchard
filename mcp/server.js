@@ -291,7 +291,7 @@ server.registerTool("rename", {
   title: "이름 바꾸기",
   description: "키워드·교차·궤도의 이름을 바꾼다. 이름 없는 궤도에 이름을 줄 때도 쓴다.",
   inputSchema: {
-    label: z.string().describe("지금 이름. 이름 없는 궤도는 식구 이름을 콤마로 적는다"),
+    label: z.string().describe("지금 이름. 이름 없는 교차는 id (e23), 이름 없는 궤도는 식구 이름을 콤마로"),
     new_label: z.string(),
   },
 }, async ({ label, new_label }) => edit((g) => {
@@ -735,6 +735,44 @@ server.registerTool("set_topic", {
   }
   return `주제 '${topic.title}' ${made ? "만들었습니다" : (body == null ? "제목 바꿨습니다" : (append ? "덧붙였습니다" : "본문 썼습니다"))}`
     + ` (${topic.id}, 본문 ${(topic.body || "").length}자). 지금 주제 ${g.topics.length}개.`;
+}));
+
+server.registerTool("drop_edge", {
+  title: "교차 지우기",
+  description: "교차(assoc) 하나를 지운다. 이름이나 id(e168) 로 고른다.\n\n"
+    + "지우기 전에 멤버·문헌·메모를 통째로 돌려준다 — 문헌이 붙은 교차를 지우면 그 근거가 "
+    + "그래프에서 사라지므로, 옮겨 붙일 것이 있으면 여기서만 보인다. 되살릴 길은 앱의 실행 취소뿐이다.\n\n"
+    + "part·sub 엣지는 지우지 않는다 — 부품은 detach_part, 궤도 소속은 set_parent 가 따로 있고, "
+    + "여기서 지우면 합성 노드나 고리가 조용히 깨진다.",
+  inputSchema: {
+    which: z.string().describe("교차 이름, 또는 id (e168)"),
+  },
+}, async ({ which }) => edit((g) => {
+  const q = which.trim();
+  /* 이름을 먼저 본다. 없으면 id — rename 과 같은 순서여야 같은 말이 같은 것을 가리킨다 */
+  const byLabel = g.edges.filter((x) => x.kind === "assoc" && (x.label || "").trim() === q);
+  const hit = byLabel.length ? byLabel : g.edges.filter((x) => x.id === q);
+  if (!hit.length) throw new Error(`'${q}' 교차가 없습니다. 이름이나 id (e168) 로 골라 주세요.`);
+  if (hit.length > 1) throw new Error(`'${q}' 에 맞는 교차가 ${hit.length}개입니다. id 로 골라 주세요.`);
+  const e = hit[0];
+  if (e.kind !== "assoc") {
+    throw new Error(`${e.id} 는 ${e.kind} 엣지입니다 — 교차만 지웁니다. `
+      + `부품은 detach_part, 궤도 소속은 set_parent 를 쓰세요.`);
+  }
+  const mem = (e.members ?? []).map((m) => labelOf(g, m));
+  const works = e.works ?? [];
+  const note = (e.note || "").trim();
+  g.edges = g.edges.filter((x) => x !== e);
+  const left = g.edges.filter((x) => x.kind === "assoc").length;
+  let out = `교차 '${e.label || "(이름 없음)"}' (${e.id}) 지웠습니다 — ${mem.join(" + ")}. `
+    + `지금 교차 ${left}개.`;
+  if (works.length) {
+    out += `\n\n--- 딸려 지운 문헌 ${works.length}편 (옮겨 붙일 것이 있는지 보세요) ---\n`
+      + works.map((w) => `${w.name}${w.year ? ` (${w.year})` : ""}${w.venue ? ` · ${w.venue}` : ""}`).join("\n");
+  }
+  if (note) out += `\n\n--- 딸려 지운 메모 ${note.length}자 ---\n${note}`;
+  if (!works.length && !note) out += " 문헌도 메모도 없던 교차입니다.";
+  return out;
 }));
 
 server.registerTool("drop_topic", {

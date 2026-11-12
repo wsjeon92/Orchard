@@ -130,6 +130,31 @@ r = await call("rename", { label: "식구A, 식구B", new_label: "이름 준 궤
 check("이름 없는 궤도를 식구로 찾아 이름 준다",
   read().nodes.some((x) => x.label === "이름 준 궤도"), r.text);
 
+// --- 이름 없는 교차는 id 로 집는다 ---
+// find_loose 가 'e23' 이라고 알려 주는데 그걸 집을 도구가 없었다. target() 이 이름만 봤다
+await call("add_keyword", { label: "익명교차 갑" });
+await call("add_keyword", { label: "익명교차 을" });
+await call("connect", { labels: ["익명교차 갑", "익명교차 을"] });   // 이름 없이
+const anon = read().edges.find((x) => x.kind === "assoc" && !(x.label || "").trim()
+  && (x.members ?? []).length === 2
+  && (x.members ?? []).every((m) => ["익명교차 갑", "익명교차 을"]
+      .includes(read().nodes.find((n) => n.id === m)?.label)));
+check("이름 없는 교차가 만들어졌다", !!anon, JSON.stringify(anon));
+r = await call("rename", { label: anon.id, new_label: "id 로 이름 준 교차" });
+check("id 로 이름 없는 교차를 집어 이름 준다",
+  read().edges.some((x) => x.id === anon.id && x.label === "id 로 이름 준 교차"), r.text);
+r = await call("set_note", { label: anon.id, note: "id 로 메모도 단다" });
+check("같은 고침이 set_note 에도 듣는다",
+  read().edges.find((x) => x.id === anon.id)?.note === "id 로 메모도 단다", r.text);
+// 이름이 먼저다 — 라벨이 id 꼴인 키워드가 있으면 그 키워드가 이긴다
+await call("add_keyword", { label: anon.id });
+r = await call("set_note", { label: anon.id, note: "라벨 쪽" });
+check("이름이 id 보다 먼저 집힌다",
+  read().nodes.find((x) => x.label === anon.id)?.note === "라벨 쪽"
+  && read().edges.find((x) => x.id === anon.id)?.note === "id 로 메모도 단다", r.text);
+r = await call("rename", { label: "없는이름없는id", new_label: "x" });
+check("둘 다 아니면 전처럼 거절한다", r.isError, r.text);
+
 // --- 승격 ---
 r = await call("promote", { name: "테스트 교차" });
 g2 = read();
@@ -467,6 +492,48 @@ const twoNodes = read().nodes.filter((n) => n.kind !== "group" && (n.label || ""
   check("제목으로도 지운다",
     !r2.isError && !(read().topics ?? []).some((x) => x.title === "zzz 제목으로 지울 주제"));
   check("다른 주제는 다치지 않았다", (read().topics ?? []).length === n0);
+}
+
+// --- 교차 지우기 ---
+{
+  await call("add_keyword", { label: "지울교차 갑" });
+  await call("add_keyword", { label: "지울교차 을" });
+  await call("connect", { labels: ["지울교차 갑", "지울교차 을"], name: "지울 교차" });
+  await call("add_works", { label: "지울 교차", works: [{ name: "딸려갈 문헌", year: "2026" }] });
+  await call("set_note", { label: "지울 교차", note: "딸려갈 메모" });
+  const n0 = read().edges.filter((x) => x.kind === "assoc").length;
+
+  r = await call("drop_edge", { which: "없는 교차 이름" });
+  check("없는 교차는 못 지운다", r.isError, r.text);
+  check("못 지웠으면 개수가 그대로다",
+    read().edges.filter((x) => x.kind === "assoc").length === n0);
+
+  const partEdge = read().edges.find((x) => x.kind === "part");
+  if (partEdge) {
+    r = await call("drop_edge", { which: partEdge.id });
+    check("part 엣지는 거절한다", r.isError, r.text);
+    check("거절했으면 part 엣지가 남아 있다",
+      read().edges.some((x) => x.id === partEdge.id));
+  }
+
+  r = await call("drop_edge", { which: "지울 교차" });
+  check("이름으로 교차를 지운다",
+    !r.isError && !read().edges.some((x) => (x.label || "") === "지울 교차"), r.text);
+  check("멤버를 돌려준다", r.text.includes("지울교차 갑"), r.text.slice(0, 80));
+  check("딸려 지운 문헌을 돌려준다", r.text.includes("딸려갈 문헌"), r.text);
+  check("딸려 지운 메모를 돌려준다", r.text.includes("딸려갈 메모"), r.text);
+  check("키워드는 안 지운다",
+    labels().includes("지울교차 갑") && labels().includes("지울교차 을"));
+
+  await call("connect", { labels: ["지울교차 갑", "지울교차 을"] });   // 이름 없이
+  const anon2 = read().edges.find((x) => x.kind === "assoc" && !(x.label || "").trim()
+    && (x.members ?? []).length === 2
+    && (x.members ?? []).every((m) => ["지울교차 갑", "지울교차 을"]
+        .includes(read().nodes.find((n) => n.id === m)?.label)));
+  r = await call("drop_edge", { which: anon2.id });
+  check("id 로 이름 없는 교차를 지운다",
+    !r.isError && !read().edges.some((x) => x.id === anon2.id), r.text);
+  check("문헌도 메모도 없으면 그렇다고 알려 준다", r.text.includes("없던 교차"), r.text);
 }
 
 // --- 바깥에서 고친 것을 덮어쓰지 않는다 ---

@@ -245,8 +245,15 @@ export function target(g, label) {
     ...g.nodes.filter((x) => (x.label || "").trim() === t),
     ...g.edges.filter((x) => (x.label || "").trim() === t),
   ];
+  /* 이름으로 못 찾으면 id 로 찾는다. 이름 없는 교차는 이름으로 부를 길이 아예 없었다 —
+     find_loose 가 'e23' 이라고 알려 주는데 그걸 집을 도구가 없었다. 이름을 먼저 보므로
+     라벨이 'e23' 인 키워드가 있어도 전과 똑같이 동작한다 */
+  if (!all.length) {
+    const byId = [...g.nodes, ...g.edges].filter((x) => x.id === t);
+    if (byId.length === 1) return byId[0];
+  }
   if (!all.length) throw new Error(`'${label}' 을(를) 키워드에서도 교차에서도 찾지 못했습니다.`);
-  if (all.length > 1) throw new Error(`'${label}' 이(가) ${all.length}군데 있습니다. 먼저 정리해 주세요.`);
+  if (all.length > 1) throw new Error(`'${label}' 이(가) ${all.length}군데 있습니다. id (e23) 로 골라 주세요.`);
   return all[0];
 }
 
