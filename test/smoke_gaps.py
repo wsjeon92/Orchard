@@ -71,7 +71,12 @@ def main():
         print(f"  노드+엣지 {r['total']}개 중 빈 곳 {r['gaps']}개 ({share}%)")
         print(f"  이유별: {r['counts']}")
         if share > 60: bad.append(f"너무 많이 켜진다 ({share}%) — 신호가 안 된다")
-        if share < 10: bad.append(f"너무 적게 켜진다 ({share}%)")
+        # 하한을 비율에서 "하나라도 켜지는가" 로 내린다. 60% 상한은 '전부 켜지면
+        # 신호가 안 된다' 는 불변식이지만, 10% 하한은 **이 파일에 늘 빈 곳이 10%
+        # 이상 있다**는 가정이었다. 문헌·교차·궤도를 채우면 내려가는 것이 맞고,
+        # 실제로 11% → 8% 가 됐다. 범주별로 제대로 켜지는지는 아래 '한 벌당 판정'
+        # 이 만들어 둔 그래프에서 본다 — 거기가 값을 물을 자리다.
+        if not r['gaps']: bad.append("하나도 안 켜진다 — 탐지기가 죽었다")
         if not r['bright']: bad.append("노드 강조 테두리가 안 붙었다")
         if r['counts']['groupLoose'] and not r['grpBright']:
             bad.append("궤도 강조가 안 붙었다 — .orbl.gap 규칙이 없다")

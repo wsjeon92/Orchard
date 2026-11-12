@@ -240,6 +240,14 @@ function arcNeed(s: OrbSys | undefined, reach?: number): number {
   return Math.max(SLOT, 2 * (reach ?? s.reach) + SLOT * 0.5);
 }
 
+/** 고리 위에서 **각도를 나눌 때** 쓰는 몫. arcNeed 를 그대로 쓰면 달이 많은 식구가
+    한 고리의 각을 독차지해서, 달이 없는 이웃 쪽이 텅 비어 보인다 — 실제로 AI 의
+    '모델링' 고리가 63°/95° 로 벌어졌다. 제곱근으로 눌러 차이를 좁힌다.
+    아예 균등하게 나누면 달 많은 식구의 달들이 옆 식구를 덮는다(전에 났던 일이라
+    arcNeed 가 생겼다). 그래서 없애지 않고 줄이기만 한다.
+    고리 **반지름**을 정할 때는 누르지 않는다 — 거기서 줄이면 달이 실제로 겹친다. */
+const arcShare = (need: number) => SLOT * Math.sqrt(need / SLOT);
+
 /** 지금 **그려져 있는** 반지름으로 잰 이 행성의 뻗음. 사용자가 고리를 줄였으면
     그만큼 자리를 덜 받아야 한다 — 계획값으로 재면 줄인 만큼이 빈 채로 남는다 */
 function liveReach(o: Orb, live: OrbIndex, pid: string): number {
@@ -435,13 +443,21 @@ function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: 
      식구를 다시 펼 뿐이다. 한때 뒤집힌 고리를 밖으로 밀어 봤는데, 그건 정리가 크기를
      바꾸는 일이라 규칙을 어긴다 — 되돌렸다. 고리끼리 너무 가까우면 tightRings 가
      세어서 알린다. */
+  /* 고리마다 시작 각도를 어긋나게 한다. 전에는 모든 고리가 out(부모에서 본 방향)
+     에서 시작해서, 반지름만 다르고 각도는 같은 자리에 줄을 섰다 — AI 의 '아키텍쳐'
+     와 직접 자식 고리가 둘 다 -141° 였고, 그래서 '가상현실 ↔ computer vision' 이
+     119px 로 붙었다. 앞 고리 슬롯의 절반만큼 돌리면 뒤 고리가 앞 고리의 빈 곳에
+     앉는다. 식구 수에서 나오는 값이라 새로 정한 숫자가 없다. */
+  let spin = 0;
   for (const g of s.rings) {
+    const out0 = out + spin;
+    spin += Math.PI / Math.max(1, g.ns.length);
     const R = live.rings.get("s:" + id + ":" + g.key)?.r ?? g.r;
-    const arcs = g.ns.map((n) => arcNeed(o.sys.get(n.id), liveReach(o, live, n.id)));
+    const arcs = g.ns.map((n) => arcShare(arcNeed(o.sys.get(n.id), liveReach(o, live, n.id))));
     const tot = arcs.reduce((a, b) => a + b, 0) || 1;
     let acc = 0;
     g.ns.forEach((m, i) => {
-      const a = out + (2 * Math.PI * (acc + arcs[i] / 2)) / tot;
+      const a = out0 + (2 * Math.PI * (acc + arcs[i] / 2)) / tot;
       acc += arcs[i];
       const x = px + Math.cos(a) * R, y = py + Math.sin(a) * R;
       place(m, x, y);
@@ -453,7 +469,7 @@ function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: 
     const gn = g.group ? nodeOf(g.group) : null;
     if (gn && g.ns.length) {
       const half = g.ns.length > 1 ? Math.PI / g.ns.length : Math.PI / 2;
-      place(gn, px + Math.cos(out + half) * R, py + Math.sin(out + half) * R);
+      place(gn, px + Math.cos(out0 + half) * R, py + Math.sin(out0 + half) * R);
     }
   }
 }
@@ -1036,14 +1052,17 @@ export function swapSubRings(pid: string, keyA: string, keyB: string): boolean {
 export function orderSubRings(pid: string): number {
   const p = nodeOf(pid);
   const sys = plan().sys.get(pid);
-  if (!p || !sys || sys.rings.length < 2) return 0;
+  if (!p || !sys || !sys.rings.length) return 0;
   const live = orbitIndex();
   const rows: { g: OrbRing; lr: LiveRing }[] = [];
   for (const g of sys.rings) {
     const lr = live.rings.get("s:" + pid + ":" + g.key);
     if (lr && g.ns.length) rows.push({ g, lr });
   }
-  if (rows.length < 2) return 0;
+  /* 고리가 하나여도 돌린다 — 순서를 바꿀 일은 없지만 **바닥**을 적용해야 한다.
+     고리가 하나뿐인 행성(항체·로봇·실험·면역원성)이 바로 부모와 달이 겹치던
+     자리였다. 한때 여기서 일찍 빠져나가게 해 뒀다가 그 경우를 통째로 놓쳤다. */
+  if (!rows.length) return 0;
   const cnt = subtreeCount(kin());          // 버튼으로 한 번 부르는 길이라 여기서 센다
   const all = plan().sys;
   /* 지금 반지름을 작은 것부터 늘어놓고 **간격**을 기억한다. 무게 순으로 다시 앉힐 때
@@ -1051,13 +1070,20 @@ export function orderSubRings(pid: string): number {
      정한 크기가 아예 없어서 같은 자리에 쌓인다. 실제로 '데이터 종류'와 '모델 허브'가
      둘 다 236 이었고, 있는 반지름을 맞바꾸기만 하던 전 판에서는 할 일이 없었다.
      벌리는 폭은 새로 정하지 않는다 — system() 이 쓰는 것과 같은 값이다. */
+  /* 첫 고리의 바닥 — 부모 상자와 식구 상자가 어느 각도에서도 안 겹칠 거리.
+     박힌 숫자(MOON_R) 가 아니라 렌더가 잰 상자 크기에서 나온다. MCP 로 만든 고리는
+     좌표가 없어서 "식구가 우연히 있던 자리" 가 반지름이 됐고, '항체 포맷' 이 103,
+     '로봇 구현체 정책' 이 126 이었다 — 상자 반쪽끼리 더해도 140 이라 겹칠 수밖에. */
+  const pw = p._w ?? 140, ph = p._h ?? 38;
+  const floor = Math.max(0, ...rows.flatMap((x) => x.g.ns.map((n) =>
+    Math.hypot((pw + (n._w ?? 140)) / 2, (ph + (n._h ?? 38)) / 2))));
   const now = rows.map((x) => x.lr.r).sort((a, b) => a - b);
   const gaps = now.slice(1).map((r, i) => r - now[i]);
   const want = [...rows].sort((a, b) =>
     (ringWeight(a.g, cnt) - ringWeight(b.g, cnt)) || (depthOf(a.g) - depthOf(b.g)));
   const reach = (g: OrbRing) => Math.max(0, ...g.ns.map((n) => all.get(n.id)?.reach ?? 0));
   const c = { x: cx(p), y: cy(p) };
-  let moved = 0, r = now[0], prev = 0;
+  let moved = 0, r = Math.max(now[0], floor), prev = 0;
   want.forEach((x, i) => {
     const cur = reach(x.g);
     if (i > 0) r = Math.max(r + gaps[i - 1], r + MOON_GAP + prev + cur, MOON_R);
