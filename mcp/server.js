@@ -80,13 +80,14 @@ server.registerTool("get_graph", {
       return `- ${labelOf(g, pid)}\n${parts.join("\n")}`;
     });
 
-    const lone = kw.filter((n) => !degree(g, n.id)).map((n) => n.label);
+    const lone = kw.filter((n) => !degree(g, n.id) && !n.off).map((n) => n.label);
+    const dead = kw.filter((n) => n.off).map((n) => n.label);
     const lines = [
       `제목: ${g.title || "(없음)"}`,
       `키워드 ${kw.length}개 · 궤도 ${rings.length}개 · 교차 ${assoc.length}개 · 문헌 ${total}편`,
       "",
       "## 키워드",
-      kw.map((n) => n.label + (n.kind !== "atom" ? ` [${n.kind}]` : "")
+      kw.filter((n) => !n.off).map((n) => n.label + (n.kind !== "atom" ? ` [${n.kind}]` : "")
         + (works(n) ? ` (문헌 ${works(n)})` : "")).join(", "),
       "",
       "## 궤도 (상위 → 식구, [ ] 안은 그 고리의 이름)",
@@ -96,6 +97,11 @@ server.registerTool("get_graph", {
       ...(assoc.length ? assoc.map((e) =>
         `- ${e.label || "(이름 없음)"}: ${membersOf(e).map((m) => labelOf(g, m)).join(" + ")}`
         + (works(e) ? ` — 문헌 ${works(e)}` : "")) : ["(없음)"]),
+      "",
+      ...(dead.length ? ["", `## 관심 밖으로 꺼 둔 키워드 ${dead.length}개 — 제안하지 않는다`,
+        "사람이 \"이건 안 본다\"고 끈 것이다. 노드도 교차도 문헌도 그대로 있지만, 여기서 "
+        + "새 교차·새 주제를 만들지 않는다. 다시 켜는 것은 사람이 한다.",
+        dead.join(", ")] : []),
       "",
       `## 연결이 없는 키워드 ${lone.length}개 — 앱에서 가장 바깥 궤도(L0)에 놓인다`,
       lone.join(", ") || "없음",
@@ -117,7 +123,9 @@ server.registerTool("find_loose", {
 }, async () => {
   try {
     const g = load(PATH);
-    const kw = g.nodes.filter((n) => !isRing(n));
+    /* 꺼 둔 것은 묻지 않는다. 빈 곳 찾기는 "여기를 채워라"인데, 안 보기로 한
+       자리를 채우라고 하면 신호가 아니라 잡음이다 */
+    const kw = g.nodes.filter((n) => !isRing(n) && !n.off);
     const assoc = g.edges.filter((e) => e.kind === "assoc");
     const named = assoc.filter((e) => (e.label || "").trim());
     const say = (xs) => xs.join(", ") || "없음";
@@ -141,6 +149,26 @@ server.registerTool("find_loose", {
 });
 
 /* ---------------- 쓰기 ---------------- */
+
+server.registerTool("set_off", {
+  title: "관심 밖으로 끄기 / 다시 켜기",
+  description: "키워드를 '관심 밖'으로 끈다. **지우는 것과 다르다** — 지우면 그 키워드가 "
+    + "들어 있던 교차와 문헌이 같이 날아간다. 끄면 노드도 교차도 문헌도 그대로 남고, "
+    + "가장 바깥 「관심 밖」 고리로 나가 선이 안 그려지고, 제안과 빈 곳 찾기가 묻지 않는다. "
+    + "상위를 끄면 하위도 따라 꺼진다. 다시 켜면 원래 자리로 돌아온다.\n\n"
+    + "사람이 \"이건 관심 없다\"고 말했을 때 쓴다. 혼자 판단해서 끄지 않는다.",
+  inputSchema: {
+    label: z.string().describe("키워드 이름"),
+    on: z.boolean().optional().describe("true 면 끈다, false 면 다시 켠다. 비우면 뒤집는다"),
+  },
+}, async ({ label, on }) => edit((g) => {
+  const n = node(g, label);
+  const next = on === undefined ? !n.off : on;
+  if (next) n.off = true; else delete n.off;
+  return next
+    ? `'${n.label}' 을(를) 관심 밖으로 껐습니다. 교차와 문헌은 그대로 있습니다 — 제안에서만 빠집니다.`
+    : `'${n.label}' 을(를) 다시 켰습니다.`;
+}));
 
 server.registerTool("add_keyword", {
   title: "키워드 추가",

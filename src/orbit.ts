@@ -21,7 +21,7 @@
    부모는 그룹 > sub > deep 순으로 먼저 잡은 쪽이 이긴다. 달은 행성 하나를 돈다.
    deep 을 넣는 이유는 규칙 1 이다 — 질문·가설도 매달린 키워드의 위성이라야
    궤도 밖에 남는 노드가 없다. */
-import { degree, descendantsOf } from "./graph";
+import { degree, descendantsOf, offSet } from "./graph";
 import { spring } from "./spring";
 import { S, UI, VIEW, esc, isGroup, nodeOf } from "./state";
 import type { GNode } from "./types";
@@ -61,8 +61,12 @@ interface Kin { parent: Map<string, string>; kids: Map<string, string[]> }
 function kin(): Kin {
   const parent = new Map<string, string>();
   const kids = new Map<string, string[]>();
+  /* 꺼 둔 노드는 어느 고리의 식구도 아니다. 여기 한 군데서 걸러 두면 서브 고리의
+     반지름(식구까지의 평균 거리)도 고리 무게도 저절로 그 노드를 안 센다 —
+     그리는 쪽마다 따로 빼면 한쪽만 고쳐지는 날 어긋난다. */
+  const dead = offSet();
   const add = (p: string, c: string) => {
-    if (parent.has(c) || p === c || !nodeOf(p) || !nodeOf(c)) return;
+    if (dead.has(c) || parent.has(c) || p === c || !nodeOf(p) || !nodeOf(c)) return;
     parent.set(c, p);
     (kids.get(p) ?? kids.set(p, []).get(p)!).push(c);
   };
@@ -296,6 +300,11 @@ function order(ns: GNode[]): GNode[] {
   return cur;
 }
 
+/** 「관심 밖」 고리의 깊이. L0(고아) 보다 한 칸 더 바깥에 둔다 — 둘은 정반대라
+    같은 고리에 섞으면 안 된다. L0 는 "아직 안 쓴 것"이고 여기는 "안 쓰기로 한 것"
+    이다. 합성 깊이는 0 이상이고 고아가 -1 이니, 사람이 정하는 이 층만 -2 다. */
+export const OFF_DEPTH = -2;
+
 /** 메인 고리의 키. 층을 정하는 것은 합성 깊이이므로 키도 그것으로 짠다 */
 export const ringKey = (depth: number) => "m:" + depth;
 
@@ -319,7 +328,8 @@ export const storedRing = (depth: number) => S.rings?.[ringKey(depth)];
 export function mainRingName(depth: number): string {
   const given = storedRing(depth)?.name?.trim();
   if (given) return given;
-  return depth < 0 ? "L0" : depth === 0 ? "L1" : "E" + (depth - 1);
+  return depth <= OFF_DEPTH ? "관심 밖"
+    : depth < 0 ? "L0" : depth === 0 ? "L1" : "E" + (depth - 1);
 }
 
 /* plan() 은 kin·compDepth·openers·모든 위성 체계를 매번 새로 만든다. render 한 번에
@@ -366,9 +376,10 @@ function build(): Orb {
      옮기는 코드가 없다. 자리가 곧 상태다.
      L1 부터는 합성 깊이 그대로다: L1 = 순수 개념, L2 = 합성 개념, ... */
   const by = new Map<number, GNode[]>();
+  const dead = offSet();
   for (const n of S.nodes) {
     if (k.parent.has(n.id)) continue;
-    const d = degree(n.id) ? (cd.get(n.id) ?? 0) : -1;
+    const d = dead.has(n.id) ? OFF_DEPTH : degree(n.id) ? (cd.get(n.id) ?? 0) : -1;
     (by.get(d) ?? by.set(d, []).get(d)!).push(n);
   }
   const depths = [...by.keys()].sort((a, b) => a - b);          // 작을수록 바깥

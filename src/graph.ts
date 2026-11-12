@@ -163,6 +163,19 @@ export function hiddenSet(): Set<string> {
   return hid;
 }
 
+/** 꺼 둔 노드. 상위를 끄면 하위도 따라 꺼진다 — 안 그러면 식구가 고아가 되어
+    메인 궤도로 쏟아진다. computer vision 을 끄면 얼굴인식·제스쳐 인식이 그 꼴이
+    되는데, 그 둘은 끈 적이 없으니 L0(아직 안 쓴 것) 에 앉아 정반대로 읽힌다. */
+export function offSet(): Set<string> {
+  const off = new Set<string>();
+  for (const n of S.nodes) {
+    if (!n.off) continue;
+    off.add(n.id);
+    descendantsOf(n.id).forEach((x) => off.add(x));
+  }
+  return off;
+}
+
 /* ---------------- 배치 ---------------- */
 /* ---------------- 노드 겹침 정리 ----------------
    새로 만들 때(placeFree)와 끌어다 놓을 때가 다른 기준을 쓰면 사용자가 규칙을 못 익힌다.

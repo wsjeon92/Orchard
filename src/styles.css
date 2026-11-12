@@ -628,3 +628,9 @@ html.viewer #topics,html.viewer #btnTopics{display:none}
 .vnums input{width:50px;padding:3px 6px;border-radius:6px;background:var(--panel2);
   border:1px solid var(--line);color:var(--fg);font-size:12px;text-align:center}
 .vnums input:focus{outline:none;border-color:#5aa9ff}
+
+/* 관심 밖 — 지운 게 아니라 끈 것이다. 안 보이면 되살릴 생각을 못 하고, 또렷하면
+   끈 뜻이 없다. 그래서 물러나 있되 남아 있고, 손을 대면 다시 또렷해진다. */
+.node.off, .grp.off { opacity: .26; filter: saturate(.2); }
+.node.off:hover, .grp.off:hover { opacity: .75; filter: none; }
+.node.off.sel, .grp.off.sel { opacity: 1; filter: none; }

@@ -4,7 +4,7 @@ import { animRunning, kickAnim, snapPositions } from "./anim";
 import { el, elblEls, nodeEls, screenToWorld, stage, world } from "./dom";
 import {
   addEdge, addHyper, addNode, deepAncestors, deepChildren, degree, descendantsOf,
-  detachPart, dropEdge, dropNode, edgeAddMember, edgeDelMember, focusSet, foldKids, hiddenSet,
+  detachPart, dropEdge, dropNode, edgeAddMember, edgeDelMember, focusSet, foldKids, hiddenSet, offSet,
   isRipe, isSubDescendant, promote, promoteName, ripeCut, ripeEdges,
   removeFromGroup, subAncestors, subChildren, tidyGroup,
   tidySubs, ungroup, tidyOverlaps, nudgeFree, memberIds, addMember, subParentEdge,
@@ -475,7 +475,7 @@ const api = {
   edgeAddMember, edgeDelMember, groupWith, removeFromGroup, ungroup, tidyGroup, tidySubs, memberIds, addMember,
   addSubKeywords, addGroupMembers, nudgeFree, tidyOverlaps,
   subChildren, subAncestors, subParentEdge, deepChildren, deepAncestors, isSubDescendant,
-  focusSet, degree, hiddenSet, foldKids, descendantsOf,
+  focusSet, degree, hiddenSet, offSet, foldKids, descendantsOf,
   edgeSegments, snapToEdge, pinnedPos, isPinned, labelTarget, matchNode, matchEdge, matchSet,
   toMarkdown, openBulk, closeAll, drawMini, syncTitleInput,
   animRunning, kickAnim, snapPositions, reduceMotion, easeView, snapView, stepViewAnim, stepRingAnim, viewAnimRunning,

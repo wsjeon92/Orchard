@@ -287,6 +287,13 @@ function nodePanel(n: GNode, kindEl: HTMLElement, titleEl: HTMLElement,
   }
   if (K.axis === "b" && !isGroup(n)) addAct(r2, "구성 키워드 추가", "", () => void addPart(n));
   if (K.axis === "d") addAct(r2, "키워드로 올리기", "", () => void liftToKeyword(n));
+  /* 끄기 — 지우기와 다르다. 교차도 문헌도 sub 엣지도 그대로 두고 가장 바깥
+     고리로 내보낸다. 되돌리기가 한 번 누르는 일이라 되돌릴 수 없는 삭제보다
+     먼저 손이 가야 한다 */
+  addAct(r2, n.off ? "다시 켜기" : "관심 밖으로", "", () => {
+    if (n.off) delete n.off; else n.off = true;
+    save(); render();
+  });
   if (isGroup(n)) {
     addAct(r2, "멤버 정렬", "", () => { tidyGroup(n); render(); });
     addAct(r2, "궤도 해체", "", () => { ungroup(n.id); render(); });

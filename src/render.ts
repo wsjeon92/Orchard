@@ -8,7 +8,7 @@ import {
   ctr, edgeLabelText, isPinned, labelOffset, layoutGroups, matchSet,
   migratePin, pinnedPos, px, py, unit,
 } from "./geom";
-import { degree, descendantsOf, focusSet, foldKids, hiddenSet, canGroup, groupOf, memberIds,
+import { degree, descendantsOf, focusSet, foldKids, hiddenSet, canGroup, groupOf, memberIds, offSet,
 } from "./graph";
 import { relaxLabels } from "./labels";
 import { drawMini } from "./minimap";
@@ -38,6 +38,7 @@ function renderBody() {
   const gap = lastGap = gapSet();
   const seen = new Set<string>();
 
+  const dead = offSet();
   for (const n of S.nodes) {
     seen.add(n.id);
     let el = nodeEls.get(n.id);
@@ -70,7 +71,8 @@ function renderBody() {
          || (gap && !gap.ids.has(n.id)) ? " dim" : "")
       + (gap?.why.has(n.id) ? " gap gap-" + gap.why.get(n.id) : "")
       + (UI.marked.has(n.id) ? " mark" : "")
-      + (Drop.kind === "group" && Drop.target === n.id ? " drop" : "");
+      + (Drop.kind === "group" && Drop.target === n.id ? " drop" : "")
+      + (dead.has(n.id) ? " off" : "");
 
     if (isGroup(n)) {
       el.className = "grp" + common;
@@ -236,7 +238,13 @@ export function drawEdges(fset: Set<string> | null, mset: ReturnType<typeof matc
 
   /* 보기 → 먼저 보일 것. 엣지를 고르면 교차가 실선으로 올라오고 궤도가 물러난다 */
   const eStrong = VIEW.emph === "edge";
+  const dead = offSet();
   for (const e of S.edges) {
+    /* 꺼 둔 노드로는 선을 뻗지 않는다. 자리는 가장 바깥인데 선이 살아 있으면
+       화면을 통째로 가로지른다 — 끈 것이 제일 눈에 띄게 된다. 지우는 것이
+       아니라 안 그리는 것뿐이라, 다시 켜면 선도 같이 돌아온다. */
+    const touch = e.kind === "assoc" ? (e.members ?? []) : [e.a, e.b];
+    if (touch.some((id) => !!id && dead.has(id))) continue;
     const isSel = UI.sel?.type === "edge" && UI.sel.id === e.id;
 
     if (e.kind === "deep" || e.kind === "part" || e.kind === "sub") {

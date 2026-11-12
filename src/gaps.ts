@@ -14,7 +14,7 @@
    뒤의 셋은 "채워라"(재료를 보충할 자리)다. 이 도구의 목적이 교차로 새 개념을
    만드는 것이니 묻는 쪽이 먼저 온다. 다만 순서는 우선순위지 선후가 아니다 —
    근거가 없는 교차는 익지 못하므로 채우는 일이 결국 묻는 일을 먹여 살린다. */
-import { memberIds, ripeEdges } from "./graph";
+import { memberIds, offSet, ripeEdges } from "./graph";
 import { S, VIEW, isGroup } from "./state";
 
 export type GapWhy =
@@ -96,8 +96,12 @@ export function findGaps(): Gap[] {
   const deg = (id: string) => nb.get(id)?.size ?? 0;
   const att = attached();
   const out: Gap[] = [];
+  /* 꺼 둔 것은 묻지 않는다. 빈 곳 찾기는 "여기를 채워라"인데, 안 보기로 한
+     자리를 채우라고 하면 신호가 아니라 잡음이다 */
+  const dead = offSet();
 
   for (const n of S.nodes) {
+    if (dead.has(n.id)) continue;
     if (isGroup(n)) {
       /* 묶음은 멤버가 둘 이상일 때만 교차 대상이다 — 하나짜리 묶음은 교차가 아니다 */
       /* 궤도 노드 자체는 이제 교차에 들어가지 않으니 그 차수를 묻는 것은 뜻이 없다.
