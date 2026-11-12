@@ -338,16 +338,21 @@ el("btnOrbit").onclick = () => {
    어느 고리가 어느 자리에 앉느냐만 바뀐다. 정리와 따로 둔 이유는 orderSubRings 의
    주석에 있다 — 손으로 맞바꿔 둔 순서를 정리가 매번 덮지 않게. */
 el("btnRingOrder").onclick = () => {
-  let moved = 0, hit = 0;
-  for (const pid of [...orbitPlan().sys.keys()]) {
-    const m = orderSubRings(pid);
-    if (m) { moved += m; hit++; }
+  /* 두 번 돌린다. 반지름을 줄이려면 각도를 알아야 하는데 각도는 반지름 다음에
+     정해진다 — 한 번으로는 첫 배치의 각도만 보고 끝난다. 정리가 새 반지름에서
+     각도를 다시 펴면, 두 번째 앉히기가 그 각도로 한 번 더 줄인다.
+     세 번은 안 돈다 — 누를 때마다 값이 달라지면 쓸 수 없다. */
+  let moved = 0;
+  for (let pass = 0; pass < 2; pass++) {
+    let m = 0;
+    for (const pid of [...orbitPlan().sys.keys()]) m += orderSubRings(pid);
+    moved += m;
+    tidyOrbit();                // 달까지 새 반지름에 맞춰 따라오게
   }
-  if (!moved) { flashOrder("바꿀 순서가 없습니다"); return; }
-  tidyOrbit();                  // 달까지 새 반지름에 맞춰 따라오게
+  if (!moved) { flashOrder("더 줄일 것이 없습니다"); return; }
   save();
   render();
-  flashOrder(`중심 ${hit}곳의 고리를 다시 앉혔습니다`);
+  flashOrder(`고리를 다시 앉혔습니다`);
 };
 let orderTimer: ReturnType<typeof setTimeout> | null = null;
 function flashOrder(msg: string) {
