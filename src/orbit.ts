@@ -483,10 +483,38 @@ function moons(o: Orb, live: OrbIndex, id: string, px: number, py: number, out: 
       if (!bestClash) break;                       // 안 겹치면 더 볼 것 없다
     }
     spin += Math.PI / Math.max(1, g.ns.length);
-    let acc = 0;
+    /* 고른 간격으로 한 번 잡고, **겹치는 식구만** 고리를 따라 옆으로 민다.
+       엣지 이름이 자기 선 위에서 미끄러져 비키는 것과 같은 수다. 고리를 통째로
+       키우는 것보다 훨씬 싸다 — 반지름을 그대로 두고 자리만 바꾼다.
+       이웃과 자리를 바꾸지는 않는다. 사이의 절반까지만 민다. */
+    const base = g.ns.map((_, i) => out0 + offs[i]);
+    const slid = base.slice();
     g.ns.forEach((m, i) => {
-      const a = out0 + (2 * Math.PI * (acc + arcs[i] / 2)) / tot;
-      acc += arcs[i];
+      const at = (a: number) => {
+        const x = px + Math.cos(a) * R, y = py + Math.sin(a) * R;
+        let sc = 0;
+        for (const q of placed) sc += clashArea(m._w ?? 140, m._h ?? 38, q.w, q.h, x - q.x, y - q.y);
+        return sc;
+      };
+      let best = slid[i], bs = at(best);
+      if (bs > 0) {
+        const n = g.ns.length;
+        const prevGap = n > 1 ? (base[i] - base[(i - 1 + n) % n] + 2 * Math.PI) % (2 * Math.PI) : Math.PI;
+        const nextGap = n > 1 ? (base[(i + 1) % n] - base[i] + 2 * Math.PI) % (2 * Math.PI) : Math.PI;
+        const lo = -prevGap / 2, hi = nextGap / 2;
+        for (let k = 1; k <= 20 && bs > 0; k++) {
+          for (const d of [k * 0.035, -k * 0.035]) {       // 2°씩 양쪽으로
+            if (d < lo || d > hi) continue;
+            const sc = at(slid[i] + d);
+            if (sc < bs) { bs = sc; best = slid[i] + d; }
+            if (!sc) break;
+          }
+        }
+      }
+      slid[i] = best;
+    });
+    g.ns.forEach((m, i) => {
+      const a = slid[i];
       const x = px + Math.cos(a) * R, y = py + Math.sin(a) * R;
       place(m, x, y);
       spokes?.push({ n: m, cx: px, cy: py, R, a, ring: "s:" + id + ":" + g.key });
@@ -898,19 +926,109 @@ export function snapRingAnim() {
   ringDisp.clear();
 }
 
+/** 고리를 그릴 때 **비울 각도 구간**. 다른 고리와 만나는 자리와, 그 고리의 식구가
+    아닌 노드를 지나는 자리를 비운다. */
+type Boxy = { id: string; x: number; y: number; w: number; h: number; rad: number };
+/** 한 번만 훑어서 모아 둔다 — 고리마다 S.nodes 를 다시 훑으면 render 가 42 → 54ms 가 된다 */
+function boxesNow(): Boxy[] {
+  const out: Boxy[] = [];
+  for (const n of S.nodes) {
+    if (n.kind === "group" || UI.hidden.has(n.id)) continue;
+    const w = (n._w ?? 140) / 2, h = (n._h ?? 38) / 2;
+    out.push({ id: n.id, x: (n._rx ?? n.x) + w, y: (n._ry ?? n.y) + h, w, h, rad: Math.hypot(w, h) });
+  }
+  return out;
+}
+
+function ringGaps(key: string, c: { x: number; y: number }, r: number,
+                  live: OrbIndex, boxes: Boxy[]): [number, number][] {
+  const me = live.rings.get(key);
+  const skip: [number, number][] = [];
+  const PAD_A = 0.10;                     // 끊어 보이게 양옆으로 조금 더 — 약 6°
+  for (const [k2, R2] of live.rings) {
+    if (k2 === key) continue;
+    const dx = R2.c.x - c.x, dy = R2.c.y - c.y, d = Math.hypot(dx, dy);
+    if (d < 1e-6 || d > r + R2.r || d < Math.abs(r - R2.r)) continue;   // 안 만난다
+    const base = Math.atan2(dy, dx);
+    const half = Math.acos(Math.min(1, Math.max(-1, (r * r + d * d - R2.r * R2.r) / (2 * r * d))));
+    skip.push([base - half - PAD_A, base - half + PAD_A]);
+    skip.push([base + half - PAD_A, base + half + PAD_A]);
+  }
+  const mine = new Set(me?.ids ?? []);
+  for (const n of boxes) {
+    if (mine.has(n.id)) continue;
+    const w = n.w, h = n.h;
+    const x = n.x - c.x, y = n.y - c.y;
+    const dc = Math.hypot(x, y);
+    if (dc > r + n.rad || dc < r - n.rad) continue;                        // 멀다
+    const near = Math.hypot(Math.max(0, Math.abs(x) - w), Math.max(0, Math.abs(y) - h));
+    const far = Math.hypot(Math.abs(x) + w, Math.abs(y) + h);
+    if (!(near < r && r < far)) continue;                                  // 안 지난다
+    const base = Math.atan2(y, x);
+    const half = Math.atan2(Math.hypot(w, h), Math.max(1, dc)) + PAD_A;
+    skip.push([base - half, base + half]);
+  }
+  return skip;
+}
+
+/** 비울 구간을 뺀 나머지를 호로 그린다. 비울 것이 없으면 원 하나로 그린다 */
+function arcPath(key: string, c: { x: number; y: number }, r: number, cls: string,
+                 live: OrbIndex, boxes: Boxy[]): string {
+  const X = c.x.toFixed(1), Y = c.y.toFixed(1), rr = r.toFixed(1);
+  const whole = `<circle class="${cls}" cx="${X}" cy="${Y}" r="${rr}"${orbDash()} `
+    + `vector-effect="non-scaling-stroke"/>`;
+  const raw = ringGaps(key, c, r, live, boxes);
+  if (!raw.length) return whole;
+  const norm = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  /* 0 을 넘어가는 구간은 둘로 쪼개 둔다 — 정렬해서 합치려면 한 바퀴 안에 있어야 한다 */
+  const segs: [number, number][] = [];
+  for (const [a, b] of raw) {
+    const s0 = norm(a), e0 = s0 + (b - a);
+    if (e0 <= 2 * Math.PI) segs.push([s0, e0]);
+    else { segs.push([s0, 2 * Math.PI]); segs.push([0, e0 - 2 * Math.PI]); }
+  }
+  segs.sort((p, q) => p[0] - q[0]);
+  const merged: [number, number][] = [];
+  for (const sg of segs) {
+    const last = merged[merged.length - 1];
+    if (last && sg[0] <= last[1]) last[1] = Math.max(last[1], sg[1]);
+    else merged.push([sg[0], sg[1]]);
+  }
+  /* 거의 다 비우게 됐으면 차라리 원 하나로 둔다 — 부스러기보다 낫다 */
+  const gone = merged.reduce((t, m) => t + (m[1] - m[0]), 0);
+  if (gone > 2 * Math.PI * 0.6) return whole;
+  const pt = (a: number) => `${(c.x + Math.cos(a) * r).toFixed(1)},${(c.y + Math.sin(a) * r).toFixed(1)}`;
+  let out = "";
+  for (let i = 0; i < merged.length; i++) {
+    const a0 = merged[i][1], a1 = merged[(i + 1) % merged.length][0] + (i + 1 === merged.length ? 2 * Math.PI : 0);
+    if (a1 - a0 < 0.02) continue;
+    out += `<path class="${cls}" d="M${pt(a0)} A${rr},${rr} 0 ${a1 - a0 > Math.PI ? 1 : 0},1 ${pt(a1)}"`
+      + `${orbDash()} fill="none" vector-effect="non-scaling-stroke"/>`;
+  }
+  return out || whole;
+}
+
 export function orbitRings(mark?: (id: string) => string,
                            fset?: Set<string> | null): string {
   let out = "";
-  for (const [key, R] of orbitIndex().rings) {
+  const live = orbitIndex(), boxes = boxesNow();
+  for (const [key, R] of live.rings) {
     const d = dispOf(key, R.c, R.r);
-    const c = { x: d.x, y: d.y }, r = d.r.toFixed(1);
-    const X = c.x.toFixed(1), Y = c.y.toFixed(1);
+    const c = { x: d.x, y: d.y };
     /* 선 두께는 화면 기준으로 고정한다 — 월드가 축소되면 1px 선이 0.3px 가 돼서 사라진다 */
     /* 하이라이트 중이면 식구가 하나도 안 걸린 고리는 뒤로 물린다. 전에는 궤도가
        집중을 아예 안 봐서 노드만 흐려지고 고리는 밝게 남아 그림이 어긋났다 */
     const off = fset ? !R.ids.some((i) => fset.has(i)) : false;
-    out += `<circle class="orb${off ? " dim" : ""}" cx="${X}" cy="${Y}" r="${r}"${orbDash()} `
-      + `vector-effect="non-scaling-stroke"/>`;
+    /* 고리는 온전한 원이 아니라 **끊어진 호** 로 그린다.
+
+       궤도 모형에서는 고리가 서로 가로지르는 것이 구조적으로 불가피하다 — 행성은
+       부모의 고리 **위에** 앉으므로 그 행성의 고리는 반드시 부모 고리를 뚫는다.
+       기하로 없애려면 그래프를 크게 키워야 하는데, 가로지르는 **자리만 비워 그리면**
+       크기를 안 건드리고 눈에 안 띈다. 쌀 때 싸게 푼다.
+
+       식구가 앉은 자리는 비우지 않는다 — 원이 자기 식구를 지나는 것은 당연하고,
+       거기서 끊으면 고리가 부스러기가 된다. */
+    out += arcPath(key, c, d.r, `orb${off ? " dim" : ""}`, live, boxes);
     if (!R.label) continue;
     /* 이름은 위성 둘 사이 빈 자리에 쓴다. 한 바퀴를 고르게 썼으니 첫 둘의 가운데가
        언제나 비어 있다 — 노드 위에 글자가 얹히지 않는다 */
@@ -1158,6 +1276,11 @@ export function orderSubRings(pid: string): number {
        불필요하게 벌어진다. 실제로 AI '모델 신뢰' 는 사용자가 98 로 줄여 놨는데
        외접원 공식은 148 을 요구했고, 98 에서 아무것도 안 겹쳤다. */
     const bands: Band[] = [];
+    /* 고리 **원** 은 사방으로 도니까 중심 노드의 반대각선을 넘어야 한다. 노드끼리는
+       세로로 54 면 되지만 원은 그렇지 않다 — 상자 기하를 넣으면서 이걸 빠뜨려서
+       computer vision(상자 183x47, 반대각선 94) 의 고리가 67 로 앉아 자기 이름을
+       가로질렀다. 같은 일이 네 군데 있었다. */
+    bands.push([0, pr + RING_PAD]);
     for (const j of info) {
       bands.push(j.moons
         ? [0, pr + j.reach + RING_PAD]

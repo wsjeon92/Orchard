@@ -8,7 +8,7 @@ import {
 } from "./graph";
 import { kickAnim } from "./anim";
 import { DEPTH_ORDER, KIND, SEARCH } from "./kinds";
-import { orbitView, placeOnMainOrbit, placeOnSubOrbit, setOrbitRadius, reseatRings, settleComposition, subRings, swapSubRings, tidyOrbit } from "./orbit";
+import { orbitView, placeOnMainOrbit, placeOnSubOrbit, setOrbitRadius, settleComposition, subRings, swapSubRings, tidyOrbit } from "./orbit";
 import type { RingChoice } from "./orbit";
 import type { OrbitView } from "./orbit";
 import { ask, openBulk } from "./modals";
@@ -725,18 +725,9 @@ function renderSubs(body: HTMLElement, n: GNode) {
       right.appendChild(s);
     }
   }
-  if (kids.length) {
-    const tb = document.createElement("button");
-    tb.className = "abtn sm";
-    tb.textContent = "정렬";
-    tb.title = "하위 키워드를 고리 위에 겹치지 않는 선에서 가장 작게 앉힙니다";
-    /* 전에는 tidySubs — 부모 아래 가로 한 줄로 폈다. 그런데 고리 반지름은 식구들의
-       **평균 거리**로 재므로, 줄의 폭이 그대로 반지름이 됐다. 식구 8 개면 줄이
-       940px 라 고리가 962 로 부풀었다. 이름이 '정렬' 이라 궤도를 정리해 줄 것처럼
-       보이는데 실제로는 궤도를 깨뜨리고 있었다. 고리 배치로 바꾼다. */
-    tb.onclick = () => { reseatRings(n.id); save(); render(); };
-    right.appendChild(tb);
-  }
+  /* 「정렬」 버튼을 뺀다. 보기 패널의 「고리 다시 앉히기」가 같은 일을 더 잘 한다 —
+     전에 이 버튼은 부모 아래 가로 한 줄로 펴는 tidySubs 였고, 고리 반지름이 식구들의
+     평균 거리로 재지므로 줄의 폭이 그대로 반지름이 돼 고리를 부풀렸다. */
 
   const tab = ringTabs(body, n, n.id);
   ringOrderRow(body, n);
