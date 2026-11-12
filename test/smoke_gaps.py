@@ -80,7 +80,11 @@ def main():
         # "묶음이 교차했나"를 물을 수 없고, "식구 중 아무도 교차 안 했나"를 묻는다.
         # 실제 그래프의 궤도는 식구가 다 교차해 있어서 0 이 맞다 — 아래 gl 검사가
         # 만들어 둔 상황에서 이 범주가 켜지는지를 본다.
-        for why in ('edgeRipe', 'nodeParked', 'edgeNoWork', 'orphan', 'leaf'):
+        # edgeNoWork 도 뺀다 — groupLoose 와 같은 이유다. 실제 그래프의 이름 붙은 교차에
+        # 문헌을 전부 채우면 0 이 되고, 그건 고쳐야 할 일이 아니라 바라던 상태다.
+        # 실제 파일에서 **값**을 묻는 것이 애초에 규칙 위반이었다 (conftest 머리말) —
+        # 이 범주는 아래 '한 벌당 판정'이 만들어 둔 그래프에서 noWork 로 확인한다.
+        for why in ('edgeRipe', 'nodeParked', 'orphan', 'leaf'):
             if not r['counts'][why]: bad.append(f"{why} 가 0개 — 이 그래프에는 있어야 한다")
         # 승격해서 이름이 빈 교차는 잡히면 안 된다 — 아래 blank 검사가 그걸 본다.
         # 절대 개수는 사용자가 이름 없는 교차를 만들면 달라지므로 보지 않는다

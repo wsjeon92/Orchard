@@ -11,8 +11,22 @@ export const elblEls = new Map<string, HTMLElement>();
 
 export const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+/* stage 의 화면 위 사각형. 한 프레임 안에서는 바뀌지 않는데, 스타일을 수백 개 쓴
+   직후에 이걸 읽으면 브라우저가 레이아웃을 **그 자리에서** 다시 계산한다(강제 동기
+   리플로). 프로파일에서 그 한 번이 render 시간의 15% 였다 — 미니맵이 프레임마다
+   읽고 있었다. 프레임 동안만 들고 있고 끝나면 버린다. 창 크기가 바뀌면 다음
+   프레임에 새로 읽는다. */
+let rectHeld: DOMRect | null = null;
+export const stageRect = (): DOMRect => rectHeld ?? stage.getBoundingClientRect();
+/** 이 안에서 부르는 stageRect() 는 한 번만 잰다. 중첩해도 안전하다 */
+export function holdStageRect<T>(f: () => T): T {
+  if (rectHeld) return f();
+  rectHeld = stage.getBoundingClientRect();
+  try { return f(); } finally { rectHeld = null; }
+}
+
 export function screenToWorld(cx: number, cy: number): Point {
-  const r = stage.getBoundingClientRect();
+  const r = stageRect();
   return { x: (cx - r.left - S.view.x) / S.view.k, y: (cy - r.top - S.view.y) / S.view.k };
 }
 

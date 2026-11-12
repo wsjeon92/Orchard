@@ -1,8 +1,8 @@
 import { kickAnim } from "./anim";
 import { atRest, spring } from "./spring";
 import { gapSet } from "./gaps";
-import { orbitHits, orbitIndex, orbitRings, orbitSays, syncOrbitHits } from "./orbit";
-import { elblEls, nodeEls, stage, world } from "./dom";
+import { orbitHits, orbitIndex, orbitRings, orbitSays, syncOrbitHits, planScope } from "./orbit";
+import { elblEls, nodeEls, stage, world, holdStageRect } from "./dom";
 import { bindNode } from "./interact";
 import {
   ctr, edgeLabelText, isPinned, labelOffset, layoutGroups, matchSet,
@@ -26,7 +26,9 @@ let lastFset: Set<string> | null = null;
 let lastMset: ReturnType<typeof matchSet> = null;
 let lastGap: ReturnType<typeof gapSet> = null;
 
-export function render() {
+/* plan() 을 한 프레임 동안만 계산한다 — 아래에서 열 군데가 부른다 */
+export function render() { holdStageRect(() => planScope(renderBody)); }
+function renderBody() {
   setHidden(hiddenSet());
   const hid = UI.hidden;
   const fset = UI.focusId ? focusSet(UI.focusId, VIEW.hops) : null;
@@ -455,7 +457,9 @@ export function foldAll(on: boolean) {
 }
 
 /** 제목 편집 중에는 캔버스만 갱신해 캐럿을 지킨다 */
-export function lightRedraw() {
+/* plan() 을 한 프레임 동안만 계산한다 — 아래에서 열 군데가 부른다 */
+export function lightRedraw() { holdStageRect(() => planScope(lightRedrawBody)); }
+function lightRedrawBody() {
   if (document.activeElement === document.getElementById("sideTitle")) {
     for (const n of S.nodes) {
       const el = nodeEls.get(n.id);

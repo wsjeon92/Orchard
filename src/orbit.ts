@@ -126,7 +126,8 @@ function openers(k: Kin): Set<string> {
 }
 
 /** 행성 하나의 서브 궤도. 고리 키는 "가장 가까운 그룹 조상 # 그 아래 깊이" */
-function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSys>): OrbSys {
+function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSys>,
+                cnt: Map<string, number>): OrbSys {
   const key = new Map<string, string>();         // 노드 -> 고리 키
   const rings = new Map<string, OrbRing>();
   const ord: string[] = [];
@@ -173,7 +174,7 @@ function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSy
 
   /* 안쪽부터: 깊이 얕은 것, 같으면 가벼운 것. 큰 고리를 바깥에 두면 덜 부딪힌다 */
   const list = ord.map((kk) => rings.get(kk)!);
-  const wt = new Map(list.map((g) => [g.key, ringWeight(g)] as const));
+  const wt = new Map(list.map((g) => [g.key, ringWeight(g, cnt)] as const));
   list.sort((a, b) => (depthOf(a) - depthOf(b)) || (wt.get(a.key)! - wt.get(b.key)!));
   /* 위성은 고리 한 바퀴에 고르게 편다. 부챗살로 바깥쪽에만 몰면 원의 나머지가
      텅 비는데, 그 빈 호가 메인 고리를 가로질러 다른 노드 위를 지난다. 한 바퀴를
@@ -201,20 +202,34 @@ function system(k: Kin, planet: GNode, open: Set<string>, sys: Map<string, OrbSy
 /** 고리 키의 깊이 부분. 그룹 고리는 자기 앵커 기준 0 이라 가장 안쪽으로 온다 */
 const depthOf = (g: OrbRing) => (g.group ? 0 : Number(g.key.split("#")[1]) || 1);
 
-/** 고리의 무게 — 앉은 식구와 그 **아래 모든 자손**의 수. 궤도 노드는 고리 위에 자리를
-    차지하지 않으니(이름일 뿐이다) 세지 않는다.
+/** 노드마다 그 아래 달린 노드 수(자기 포함). 궤도 노드는 고리 위에 자리를 차지하지
+    않으니(이름일 뿐이다) 세지 않는다. 한 번만 세고 돌려 쓴다 —
+    처음에는 식구마다 descendantsOf 를 불렀는데 Set 을 매번 새로 만들고 그 안에서
+    nodeOf 가 선형 탐색이라 render 시간의 17% 를 먹었다. 실제로 쟀다. */
+function subtreeCount(k: Kin): Map<string, number> {
+  const memo = new Map<string, number>();
+  const busy = new Set<string>();
+  const walk = (id: string): number => {
+    const got = memo.get(id);
+    if (got !== undefined) return got;
+    if (busy.has(id)) return 0;                 // 고리가 생겨도 멈춘다
+    busy.add(id);
+    const n = nodeOf(id);
+    let c = n && isGroup(n) ? 0 : 1;
+    for (const c2 of k.kids.get(id) ?? []) c += walk(c2);
+    busy.delete(id);
+    memo.set(id, c);
+    return c;
+  };
+  for (const n of S.nodes) walk(n.id);
+  return memo;
+}
+
+/** 고리의 무게 — 앉은 식구와 그 아래 모든 자손의 수.
     직접 식구만 세면 '식구 둘'인 고리와 '식구 둘 + 손자 열'인 고리가 같아 보이고,
-    무거운 쪽이 안쪽에 앉아 자기 달들로 바깥 고리를 뚫는다. 자손까지 세면 무거운
-    체계가 바깥으로 가서 펼 자리가 생긴다. */
-const ringWeight = (g: OrbRing) =>
-  g.ns.reduce((sum, n) => {
-    let c = 1;
-    for (const id of descendantsOf(n.id)) {
-      const d = nodeOf(id);
-      if (d && !isGroup(d)) c++;
-    }
-    return sum + c;
-  }, 0);
+    무거운 쪽이 안쪽에 앉아 자기 달들로 바깥 고리를 뚫는다. */
+const ringWeight = (g: OrbRing, cnt: Map<string, number>) =>
+  g.ns.reduce((sum, n) => sum + (cnt.get(n.id) ?? 1), 0);
 
 /** 이 행성이 메인 고리에서 차지해야 하는 호 길이 — 위성 체계가 이웃을 밀어낸다 */
 function arcNeed(s: OrbSys | undefined, reach?: number): number {
@@ -296,13 +311,27 @@ export function mainRingName(depth: number): string {
   return depth < 0 ? "L0" : depth === 0 ? "L1" : "E" + (depth - 1);
 }
 
-export function plan(): Orb {
+/* plan() 은 kin·compDepth·openers·모든 위성 체계를 매번 새로 만든다. render 한 번에
+   열 군데에서 불러서 같은 계산을 열 번 했다 — 프로파일에서 render 시간의 42% 였다.
+   한 프레임 안에서는 구조가 바뀌지 않으므로 그 동안만 들고 있고 끝나면 버린다.
+   오래 들고 있으면 어디선가 구조를 바꿨는데 낡은 배치를 쓰게 된다. */
+let planHeld: Orb | null = null;
+export function plan(): Orb { return planHeld ?? build(); }
+/** 이 안에서 부르는 plan() 은 한 번만 계산한다. 중첩해도 안전하다 */
+export function planScope<T>(f: () => T): T {
+  if (planHeld) return f();
+  planHeld = build();
+  try { return f(); } finally { planHeld = null; }
+}
+
+function build(): Orb {
   const k = kin();
   const cd = compDepth();
   /* 위성 체계. 안쪽부터 쌓는다 — 식구의 체계 크기를 알아야 그 식구에게 호를
      얼마나 줄지 정할 수 있기 때문이다. 그래서 자식을 먼저 만들고 자기를 만든다. */
   const sys = new Map<string, OrbSys>();
   const open = openers(k);
+  const cnt = subtreeCount(k);
   /* 깊은 것부터 만든다. 자식의 체계 크기를 알아야 그 자식에게 호를 얼마나 줄지
      정할 수 있다. 자식만 보고 재귀하면 모자란다 — '항체'는 '단백질'의 자식이
      아니라 그룹을 건너뛴 손자라서, 단백질을 만들 때 아직 없는 채로 지나갔다. */
@@ -314,7 +343,7 @@ export function plan(): Orb {
   };
   for (const id of [...open].sort((a, b) => depthOf(b) - depthOf(a))) {
     const p = nodeOf(id);
-    if (p) sys.set(id, system(k, p, open, sys));
+    if (p) sys.set(id, system(k, p, open, sys, cnt));
   }
 
   /* 메인 동심원 — 부모 없는 노드만. 있는 깊이만 쓰고 빈 층은 건너뛴다.
@@ -988,8 +1017,9 @@ export function orderSubRings(pid: string): number {
   }
   if (rows.length < 2) return 0;
   const radii = rows.map((x) => x.lr.r).sort((a, b) => a - b);
+  const cnt = subtreeCount(kin());          // 버튼으로 한 번 부르는 길이라 여기서 센다
   const want = [...rows].sort((a, b) =>
-    (depthOf(a.g) - depthOf(b.g)) || (ringWeight(a.g) - ringWeight(b.g)));
+    (depthOf(a.g) - depthOf(b.g)) || (ringWeight(a.g, cnt) - ringWeight(b.g, cnt)));
   const c = { x: cx(p), y: cy(p) };
   let moved = 0;
   want.forEach((x, i) => {

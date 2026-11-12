@@ -1,4 +1,4 @@
-import { stage } from "./dom";
+import { stage, stageRect } from "./dom";
 import { px, py } from "./geom";
 import { S, UI, VIEW, isGroup, kindOf, save } from "./state";
 
@@ -31,7 +31,7 @@ export function drawMini() {
      범위가 넓어져 k 가 작아지고, miniJump 가 그 작은 k 로 나누기 때문에
      같은 픽셀을 끌어도 더 멀리 튄다. 튄 만큼 범위가 또 넓어지는 되먹임이라
      미니맵을 몇 번 끌면 뷰 좌표가 수백억까지 발산했다. */
-  const r = stage.getBoundingClientRect();
+  const r = stageRect();
   const tl = toWorld(r.left, r.top, r), br = toWorld(r.right, r.bottom, r);
 
   const pad = 6;
